@@ -1,5 +1,22 @@
 import React from "react";
-export type Lang = "fr" | "en";
+export type PrimaryLang = "fr" | "en";
+export type Lang =
+  | "fr"
+  | "en"
+  | "nl"
+  | "it"
+  | "de"
+  | "es"
+  | "pl"
+  | "pt"
+  | "ro"
+  | "sv"
+  | "tr"
+  | "ja"
+  | "cn"
+  | "ru"
+  | "ko"
+  | "ar";
 // import { StateStorage } from "zustand/middleware";
 
 export type Translations = Record<string, string>;
@@ -52,7 +69,7 @@ export interface I18nConfig {
     /**
      * the language used by the developer
      */
-    primary: Lang;
+    primary: PrimaryLang;
     /**
      * the languages supported for the user.
      * For now we support:
@@ -161,7 +178,8 @@ export type TranslationStore = TranslationStoreState & TranslationStoreActions;
 
 export interface I18nKeylessRequestBody {
   key: string;
-  languages: Lang[];
+  languages: I18nConfig["languages"]["supported"];
+  primaryLanguage: I18nConfig["languages"]["primary"];
 }
 
 export interface I18nKeylessResponse {

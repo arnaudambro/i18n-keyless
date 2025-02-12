@@ -4,7 +4,7 @@ import { create } from "zustand";
 // @ts-expect-error p-queue is not typed
 import PQueue from "p-queue/dist";
 
-import { I18nConfig, I18nKeylessRequestBody, Lang, Translations, TranslationStore } from "./types";
+import { I18nConfig, I18nKeylessRequestBody, Lang, PrimaryLang, Translations, TranslationStore } from "./types";
 import packageJson from "../package.json";
 
 const queue = new PQueue({ concurrency: 5 });

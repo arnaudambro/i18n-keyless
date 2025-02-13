@@ -14,11 +14,13 @@
     "jsx": "react-jsx",
     "strict": true,
     "baseUrl": ".",
+    "paths": {
+      "@i18n-keyless/core": ["packages/core"],
+      "@i18n-keyless/react": ["packages/react"]
+    }
   },
   "include": [
-    "i18n-keyless/**/*",
-    "i18n-keyless/types/**/*",
-    "i18n-keyless/p-queue.d.ts"
+    "packages/**/*"
   ],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules"]
 }

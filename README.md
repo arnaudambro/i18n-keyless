@@ -1,4 +1,4 @@
-# i18n-keyless API Documentation
+# i18n-keyless - Ultimate DX for i18n implementation. No key, use your natural language.
 
 Welcome to **i18n-keyless**! 🚀 This package provides a seamless way to handle translations without the need for cumbersome key management. This README will guide you through the setup and usage of the library.
 
@@ -7,8 +7,8 @@ Welcome to **i18n-keyless**! 🚀 This package provides a seamless way to handle
 ## 📜 **Table of Contents**
 
 - [Installation](#installation)
-- [Setup](#setup)
 - [Usage](#usage)
+- [Setup](#setup-with-i18n-keyless-service)
 - [Custom Component Example](#custom-component-example)
 - [Contact](#contact)
 

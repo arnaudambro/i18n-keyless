@@ -2,12 +2,11 @@ import React, { useEffect } from "react";
 import { useI18nKeyless } from "./store";
 
 // Get the props type from the component in config
-type ComponentProps =
-  NonNullable<
-    ReturnType<typeof useI18nKeyless.getState>["config"]
-  >["component"] extends React.ComponentType<infer P>
-    ? P
-    : never;
+type ComponentProps = NonNullable<
+  ReturnType<typeof useI18nKeyless.getState>["config"]
+>["component"] extends React.ComponentType<infer P>
+  ? P
+  : never;
 
 /**
  * the component should be a React component
@@ -28,10 +27,7 @@ type MyI18nTextProps = Omit<ComponentProps, "children"> & {
   children: string;
 };
 
-export const MyI18nText: React.FC<MyI18nTextProps> = ({
-  children,
-  ...textProps
-}) => {
+export const MyI18nText: React.FC<MyI18nTextProps> = ({ children, ...textProps }) => {
   const translations = useI18nKeyless((store) => store.translations);
   const currentLanguage = useI18nKeyless((store) => store.currentLanguage);
   const config = useI18nKeyless((store) => store.config);

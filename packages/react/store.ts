@@ -1,11 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { create } from "zustand";
 // https://github.com/sindresorhus/p-queue/issues/145#issuecomment-882068004
-// @ts-expect-error p-queue is not typed
 import PQueue from "p-queue/dist";
 
-import { I18nConfig, I18nKeylessRequestBody, Lang, PrimaryLang, Translations, TranslationStore } from "./types";
-import packageJson from "../package.json";
+import { I18nConfig, I18nKeylessRequestBody, Lang, Translations, TranslationStore } from "@i18n-keyless/core";
+import packageJson from "./package.json";
 
 const queue = new PQueue({ concurrency: 5 });
 queue.on("empty", () => {
@@ -85,6 +84,7 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
             const body: I18nKeylessRequestBody = {
               key,
               languages: config.languages.supported,
+              primaryLanguage: config.languages.primary,
             };
             const apiUrl = config.API_URL || "https://api.i18n-keyless.com";
             const url = `${apiUrl}/translate`;

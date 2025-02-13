@@ -1,0 +1,24 @@
+{
+  "name": "i18n-keyless-core",
+  "private": false,
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build:lib": "tsc --project ../../tsconfig.json && npm pack",
+    "prepublishOnly": "npm run build:lib"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.5",
+    "@types/p-queue": "^3.1.0",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "typescript": "^5.5.3",
+    "typescript-eslint": "^8.0.1"
+  }
+}

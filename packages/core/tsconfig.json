@@ -15,12 +15,9 @@
     "strict": true,
     "baseUrl": ".",
     "paths": {
-      "@i18n-keyless/core": ["packages/core"],
-      "@i18n-keyless/react": ["packages/react"]
+      "i18n-keyless-core": ["."],
     }
   },
-  "include": [
-    "packages/**/*"
-  ],
+  "include": ["./**/*"],
   "exclude": ["node_modules"]
 }

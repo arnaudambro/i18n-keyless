@@ -156,6 +156,8 @@ export interface I18nConfig {
 }
 
 interface TranslationStoreState {
+  uniqueId: string | null;
+  lastRefresh: string | null;
   translations: Translations;
   currentLanguage: Lang;
   config: I18nConfig | null;
@@ -186,6 +188,8 @@ export interface I18nKeylessResponse {
   ok: boolean;
   data: {
     translations: Translations; // { "un text": "a text" } // already translated
+    uniqueId: string | null;
+    lastRefresh: string | null;
   };
   error: string;
   message: string;

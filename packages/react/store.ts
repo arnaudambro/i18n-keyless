@@ -12,7 +12,56 @@ queue.on("empty", () => {
   fetchAllTranslations(useI18nKeyless.getState().currentLanguage);
 });
 
+const storeKeys = {
+  uniqueId: "i18n-keyless-user-id",
+  lastRefresh: "i18n-keyless-last-refresh",
+  translations: "i18n-keyless-translations",
+  currentLanguage: "i18n-keyless-current-language",
+};
+
+async function getItem(key: string, storage: TranslationStore["storage"]) {
+  if (!storage) {
+    throw new Error("i18n-keyless: storage is not initialized");
+  }
+  if (storage.getItem) {
+    return storage.getItem(key);
+  } else if (storage.get) {
+    return storage.get(key);
+  } else if (storage.getString) {
+    return storage.getString(key);
+  }
+  return null;
+}
+
+async function setItem(key: string, value: string, storage: TranslationStore["storage"]) {
+  if (!storage) {
+    throw new Error("i18n-keyless: storage is not initialized");
+  }
+  if (storage.setItem) {
+    storage.setItem(key, value);
+  } else if (storage.set) {
+    storage.set(key, value);
+  }
+}
+
+async function deleteItem(key: string, storage: TranslationStore["storage"]) {
+  if (!storage) {
+    throw new Error("i18n-keyless: storage is not initialized");
+  }
+  if (storage.delete) {
+    storage.delete(key);
+  } else if (storage.del) {
+    storage.del(key);
+  } else if (storage.removeItem) {
+    storage.removeItem(key);
+  } else if (storage.remove) {
+    storage.remove(key);
+  }
+}
+
 export const useI18nKeyless = create<TranslationStore>((set, get) => ({
+  uniqueId: null,
+  lastRefresh: null,
   translations: {},
   currentLanguage: "fr",
   config: null,
@@ -24,20 +73,28 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
     if (!storage) {
       throw new Error("i18n-keyless: storage is not initialized");
     }
-    const translations = await getItem("i18n-keyless-translations", storage);
+    const translations = await getItem(storeKeys.translations, storage);
     if (translations) {
       console.log("i18n-keyless: _hydrate", translations);
       set({ translations: JSON.parse(translations) });
     } else {
       console.log("i18n-keyless: _hydrate: no translations");
     }
-    const currentLanguage = await getItem("i18n-keyless-current-language", storage);
+    const currentLanguage = await getItem(storeKeys.currentLanguage, storage);
     if (currentLanguage) {
       console.log("i18n-keyless: _hydrate", currentLanguage);
       set({ currentLanguage: currentLanguage as Lang });
     } else {
       console.log("i18n-keyless: _hydrate: no current language");
       set({ currentLanguage: get().config?.languages.initWithDefault });
+    }
+    const uniqueId = await getItem(storeKeys.uniqueId, storage);
+    if (uniqueId) {
+      set({ uniqueId: uniqueId as string });
+    }
+    const lastRefresh = await getItem(storeKeys.lastRefresh, storage);
+    if (lastRefresh) {
+      set({ lastRefresh: lastRefresh as string });
     }
   },
   getTranslation: (text: string) => {
@@ -47,13 +104,14 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
     }
     return translation || text;
   },
-  setTranslations: (translations: Translations) => {
-    set({ translations });
+  setTranslations: (newTranslations: Translations) => {
+    const nextTranslations = { ...get().translations, ...newTranslations };
+    set({ translations: nextTranslations });
     const storage = get().config?.storage;
     if (!storage) {
       throw new Error("i18n-keyless: storage is not initialized");
     }
-    setItem("i18n-keyless-translations", JSON.stringify(translations), storage);
+    setItem(storeKeys.translations, JSON.stringify(nextTranslations), storage);
   },
   translateKey: (key: string) => {
     if (key.length > 280) {
@@ -94,6 +152,7 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
               headers: {
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${config.API_KEY}`,
+                unique_id: get().uniqueId || "",
                 Version: packageJson.version,
               },
               body: JSON.stringify(body),
@@ -121,7 +180,7 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
 
     set({ currentLanguage: sanitizedLang });
     if (config?.storage) {
-      setItem("i18n-keyless-current-language", sanitizedLang!, config.storage);
+      setItem(storeKeys.currentLanguage, sanitizedLang!, config.storage);
     }
 
     // Only fetch translations if the new language is not the primary language
@@ -130,31 +189,6 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
     }
   },
 }));
-
-async function getItem(key: string, storage: TranslationStore["storage"]) {
-  if (!storage) {
-    throw new Error("i18n-keyless: storage is not initialized");
-  }
-  if (storage.getItem) {
-    return storage.getItem(key);
-  } else if (storage.get) {
-    return storage.get(key);
-  } else if (storage.getString) {
-    return storage.getString(key);
-  }
-  return null;
-}
-
-async function setItem(key: string, value: string, storage: TranslationStore["storage"]) {
-  if (!storage) {
-    throw new Error("i18n-keyless: storage is not initialized");
-  }
-  if (storage.setItem) {
-    storage.setItem(key, value);
-  } else if (storage.set) {
-    storage.set(key, value);
-  }
-}
 
 export const init = async (config: I18nConfig) => {
   // console.log("i18n-keyless: init", config);
@@ -223,14 +257,20 @@ export const fetchAllTranslations = async (targetLanguage: Lang) => {
   try {
     const response = config.getAllTranslations
       ? await config.getAllTranslations()
-      : await fetch(`${config.API_URL || "https://api.i18n-keyless.com"}/translate/${targetLanguage}`, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${config.API_KEY}`,
-            Version: packageJson.version,
-          },
-        }).then((res) => res.json() as ReturnType<NonNullable<I18nConfig["getAllTranslations"]>>);
+      : await fetch(
+          `${config.API_URL || "https://api.i18n-keyless.com"}/translate/${targetLanguage}?last_refresh=${
+            store.lastRefresh
+          }`,
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${config.API_KEY}`,
+              Version: packageJson.version,
+              unique_id: store.uniqueId || "",
+            },
+          }
+        ).then((res) => res.json() as ReturnType<NonNullable<I18nConfig["getAllTranslations"]>>);
 
     if (!response.ok) {
       throw new Error(response.error);
@@ -238,6 +278,16 @@ export const fetchAllTranslations = async (targetLanguage: Lang) => {
 
     if (response.message) {
       console.warn("i18n-keyless: ", response.message);
+    }
+
+    if (response.data.uniqueId) {
+      useI18nKeyless.setState({ uniqueId: response.data.uniqueId });
+      setItem(storeKeys.uniqueId, response.data.uniqueId, config.storage);
+    }
+
+    if (response.data.lastRefresh) {
+      useI18nKeyless.setState({ lastRefresh: response.data.lastRefresh });
+      setItem(storeKeys.lastRefresh, response.data.lastRefresh, config.storage);
     }
 
     const data = response.data;
@@ -253,15 +303,10 @@ export async function clearI18nKeylessStorage() {
     currentLanguage: "fr",
     config: null,
   });
-  if ((globalThis as any).MMKV) {
-    const mmkv = new (globalThis as any).MMKV();
-    // just remove i18n-keyless from the storage
-    mmkv.delete("i18n-keyless");
-  }
-  if ((globalThis as any).window && (globalThis as any).localStorage) {
-    localStorage.removeItem("i18n-keyless");
-  }
-  if ((globalThis as any).AsyncStorage) {
-    await (globalThis as any).AsyncStorage.removeItem("i18n-keyless");
+  const config = useI18nKeyless.getState().config;
+  if (config?.storage) {
+    for (const key of Object.keys(storeKeys)) {
+      deleteItem(key, config.storage);
+    }
   }
 }

@@ -1,0 +1,20 @@
+{
+  "name": "i18n-keyless",
+  "private": false,
+  "version": "1.1.4",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build:core && npm run build:react",
+    "build:core": "npm run build:lib --workspace=i18n-keyless-core",
+    "build:react": "npm run build:lib --workspace=i18n-keyless-react",
+    "clean": "npm run clean:core && npm run clean:react",
+    "clean:core": "rm -rf packages/core/dist",
+    "clean:react": "rm -rf packages/react/dist"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.3",
+    "typescript-eslint": "^8.0.1"
+  }
+}

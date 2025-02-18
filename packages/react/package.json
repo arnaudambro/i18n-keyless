@@ -1,7 +1,7 @@
 {
   "name": "i18n-keyless-react",
   "private": false,
-  "version": "1.1.3",
+  "version": "1.1.4",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -10,11 +10,11 @@
     "dist"
   ],
   "scripts": {
-    "build:lib": "tsc --project tsconfig.json && npm pack",
-    "prepublishOnly": "npm run build:lib"
+    "build": "rm -rf ./dist && tsc --project tsconfig.json && npm pack",
+    "publish": "npm run build && npm publish --access public"
   },
   "dependencies": {
-    "i18n-keyless-core": "1.1.2",
+    "i18n-keyless-core": "*",
     "p-queue": "^8.1.0",
     "zustand": "^5.0.3"
   },
@@ -27,8 +27,6 @@
     "@types/react": "^19.0.8",
     "eslint": "^9.9.0",
     "eslint-plugin-react-hooks": "^5.1.0-rc.0",
-    "eslint-plugin-react-refresh": "^0.4.9",
-    "typescript": "^5.5.3",
-    "typescript-eslint": "^8.0.1"
+    "eslint-plugin-react-refresh": "^0.4.9"
   }
 }

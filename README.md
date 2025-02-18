@@ -66,7 +66,7 @@ export default function Home() {
 
 ---
 
-## ⚙️ **Setup with [i18n-keyless service](https://api.i18n-keyless.com)**
+## ⚙️ **Setup with [i18n-keyless service](https://i18n-keyless.com)**
 
 Here's a basic setup example to get started with i18n-keyless:
 

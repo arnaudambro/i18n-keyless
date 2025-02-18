@@ -28,3 +28,7 @@ dist-ssr
 
 # Prisma
 *.db
+
+
+# Tgz
+*.tgz

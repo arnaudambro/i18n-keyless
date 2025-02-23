@@ -98,7 +98,7 @@ export interface I18nConfig {
    * 2. Enable it in prod mode only: you take a risk taht the translations is not available when required for the first user demanding
    * Best take: enable it all the time
    */
-  addMissingTranslations: boolean;
+  addMissingTranslations?: boolean;
   /**
    * called right after the store is initialized, maybe to hide screensplash. or init specific default langauge for dayjs, or whatever
    */

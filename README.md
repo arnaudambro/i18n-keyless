@@ -77,7 +77,7 @@ import myStorage from "./src/services/storage";
 
 I18nKeyless.init({
   API_KEY: "<YOUR_API_KEY>",
-  component: MyCustomText, // You can also use the basic React Native Text component
+  component: MyCustomText, // Optional, default is React.Fragment - but I strongly advise to use a custom component, even the simplest `p` or `Text` component
   storage: myStorage, // Example: MMKV, AsyncStorage, or any other storage solution
   languages: {
     primary: "fr", // Set the primary language ('fr' or 'en' available by default)

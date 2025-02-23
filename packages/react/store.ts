@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { create } from "zustand";
 // https://github.com/sindresorhus/p-queue/issues/145#issuecomment-882068004
 import PQueue from "p-queue/dist";
@@ -208,7 +207,7 @@ export const init = async (config: I18nConfig) => {
     config.languages.supported.push(config.languages.initWithDefault);
   }
   if (!config.component) {
-    throw new Error("i18n-keyless: component is required");
+    console.warn("i18n-keyless: component is not provided, using default component React.Fragment");
   }
   if (!config.storage) {
     throw new Error(

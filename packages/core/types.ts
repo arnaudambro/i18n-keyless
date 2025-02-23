@@ -56,7 +56,7 @@ export interface I18nConfig {
    * <MyI18nText style={style} className={className} whatever={whatever}>My text to translate</MyI18nText>
    * ```
    */
-  component: React.ComponentType<{ children: string } & Record<string, unknown>>;
+  component?: React.ComponentType<{ children: string } & Record<string, unknown>>;
   /**
    * The languages config
    *

@@ -1,11 +1,10 @@
 import { create } from "zustand";
-// https://github.com/sindresorhus/p-queue/issues/145#issuecomment-882068004
-import PQueue from "p-queue/dist";
+import MyPQueue from "./my-pqueue";
 
 import { I18nConfig, I18nKeylessRequestBody, Lang, Translations, TranslationStore } from "i18n-keyless-core";
 import packageJson from "./package.json";
 
-const queue = new PQueue({ concurrency: 5 });
+const queue = new MyPQueue({ concurrency: 5 });
 queue.on("empty", () => {
   // when each word is translated, fetch the translations for the current language
   fetchAllTranslations(useI18nKeyless.getState().currentLanguage);

@@ -45,5 +45,9 @@ export const MyI18nText: React.FC<MyI18nTextProps> = ({ children, ...textProps }
   const translatedText = translations[children] || children;
   const TextComponent = config.component || React.Fragment;
 
-  return <TextComponent {...textProps}>{translatedText}</TextComponent>;
+  return (
+    <TextComponent key={currentLanguage} {...textProps}>
+      {translatedText}
+    </TextComponent>
+  );
 };

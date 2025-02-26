@@ -170,7 +170,7 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
       { priority: 1, id: key }
     );
   },
-  setLanguage: async (lang: Lang) => {
+  setLanguage: async (lang: I18nConfig["languages"]["supported"][number]) => {
     console.log("i18n-keyless: setLanguage", lang);
     const config = get().config;
 
@@ -188,7 +188,7 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
   },
 }));
 
-export const init = async (config: I18nConfig) => {
+export async function init(config: I18nConfig) {
   // console.log("i18n-keyless: init", config);
   if (!config.languages) {
     throw new Error("i18n-keyless: languages is required");
@@ -231,14 +231,22 @@ export const init = async (config: I18nConfig) => {
   await useI18nKeyless.getState()._hydrate();
   const currentLanguage = useI18nKeyless.getState().currentLanguage;
   config.onInit?.(currentLanguage);
-};
+}
 
 export function useCurrentLanguage(): Lang | null {
   const currentLanguage = useI18nKeyless((state) => state.currentLanguage);
   return currentLanguage;
 }
 
-export const fetchAllTranslations = async (targetLanguage: Lang) => {
+export function getTranslation(key: string) {
+  return useI18nKeyless.getState().getTranslation(key);
+}
+
+export function setCurrentLanguage(lang: I18nConfig["languages"]["supported"][number]) {
+  return useI18nKeyless.getState().setLanguage(lang);
+}
+
+export async function fetchAllTranslations(targetLanguage: Lang) {
   // console.log("i18n-keyless: fetchAllTranslations", targetLanguage);
   const store = useI18nKeyless.getState();
   const config = store.config;
@@ -293,7 +301,7 @@ export const fetchAllTranslations = async (targetLanguage: Lang) => {
   } catch (error) {
     console.error("i18n-keyless: Batch translation error:", error);
   }
-};
+}
 
 export async function clearI18nKeylessStorage() {
   useI18nKeyless.setState({

@@ -50,11 +50,13 @@ export interface I18nConfig {
    * }
    * ```
    *
-   * Then you can pass MyComponent's props to i18n-keyless' MyI18nText
+   * Then i18n-keyless can pass MyComponent's props to i18n-keyless' I18nText
    *
    * ```ts
-   * <MyI18nText style={style} className={className} whatever={whatever}>My text to translate</MyI18nText>
+   * <I18nText style={style} className={className} whatever={whatever}>My text to translate</I18nText>
    * ```
+   *
+   * *BE CAREFUL* The component should not be I18nText or a component that uses I18nText to avoid infinite loops during rendering.
    */
   component?: React.ComponentType<{ children: string } & Record<string, unknown>>;
   /**

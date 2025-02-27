@@ -35,12 +35,12 @@ yarn add i18n-keyless
 
 ### **Component Usage**
 
-Use the `MyI18nText` component to wrap your text in any supported language:
+Use the `I18nText` component to wrap your text in any supported language:
 
 ```javascript
-import { MyI18nText } from "i18n-keyless";
+import { I18nText } from "i18n-keyless";
 
-<MyI18nText>Je mets mon texte dans ma langue, finies les clés !</MyI18nText>
+<I18nText>Je mets mon texte dans ma langue, finies les clés !</I18nText>
 ```
 
 ### **Hook Usage**

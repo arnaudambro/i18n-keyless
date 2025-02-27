@@ -1,4 +1,4 @@
-export { MyI18nText } from "./MyI18nText";
+export { I18nText } from "./I18nText";
 export {
   init,
   getTranslation,

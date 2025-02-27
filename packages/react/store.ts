@@ -135,7 +135,7 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
             set({ translating: { ...get().translating, [key]: true } });
           }
           if (config?.handleTranslate) {
-            const result = await config?.handleTranslate?.(key);
+            await config?.handleTranslate?.(key);
           } else {
             const body: I18nKeylessRequestBody = {
               key,
@@ -205,9 +205,9 @@ export async function init(config: I18nConfig) {
   if (!config.languages.supported.includes(config.languages.initWithDefault)) {
     config.languages.supported.push(config.languages.initWithDefault);
   }
-  if (!config.component) {
-    console.warn("i18n-keyless: component is not provided, using default component React.Fragment");
-  }
+  // if (!config.component) {
+  //   console.warn("i18n-keyless: component is not provided, using default component React.Fragment");
+  // }
   if (!config.storage) {
     throw new Error(
       "i18n-keyless: storage is required. You can use react-native-mmkv, @react-native-async-storage/async-storage, or window.localStorage, or any storage that has a getItem, setItem, removeItem, or get, set, and remove method"

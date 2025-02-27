@@ -1,33 +1,11 @@
 import React, { useEffect } from "react";
 import { useI18nKeyless } from "./store";
 
-// Get the props type from the component in config
-type ComponentProps = NonNullable<
-  ReturnType<typeof useI18nKeyless.getState>["config"]
->["component"] extends React.ComponentType<infer P>
-  ? P
-  : { children: string };
-
-/**
- * the component should be a React component
- *
- * ```ts
- * export default function MyComponent({ anyprop, can, fit, children}) {
- *  return <Text>{children}</Text>;
- * }
- * ```
- *
- * Then you can pass MyComponent's props to i18n-keyless' I18nText
- *
- * ```ts
- * <I18nText anyprop can fit>My text to translate</I18nText>
- * ```
- */
-type MyI18nTextProps = Omit<ComponentProps, "children"> & {
+type MyI18nTextProps = {
   children: string;
 };
 
-export const I18nText: React.FC<MyI18nTextProps> & { isI18nTextComponent?: boolean } = ({ children, ...textProps }) => {
+export const I18nText: React.FC<MyI18nTextProps> = ({ children }) => {
   const translations = useI18nKeyless((store) => store.translations);
   const currentLanguage = useI18nKeyless((store) => store.currentLanguage);
   const config = useI18nKeyless((store) => store.config);
@@ -43,13 +21,6 @@ export const I18nText: React.FC<MyI18nTextProps> & { isI18nTextComponent?: boole
   }
 
   const translatedText = currentLanguage === config.languages.primary ? children : translations[children] || children;
-  const TextComponent = config.component || React.Fragment;
 
-  return (
-    <TextComponent key={currentLanguage} {...textProps}>
-      {translatedText}
-    </TextComponent>
-  );
+  return <React.Fragment key={currentLanguage}>{translatedText}</React.Fragment>;
 };
-
-I18nText.isI18nTextComponent = true;

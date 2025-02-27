@@ -42,24 +42,6 @@ export interface I18nConfig {
    */
   API_URL?: string; // Optional - will default to https://api.i18n-keyless.com
   /**
-   * the component should be a React component, such as
-   *
-   * ```ts
-   * export default function MyComponent({ style, className, whatever, children}) {
-   *  return <Text style={style} className={className} whatever={whatever}>{children}</Text>;
-   * }
-   * ```
-   *
-   * Then i18n-keyless can pass MyComponent's props to i18n-keyless' I18nText
-   *
-   * ```ts
-   * <I18nText style={style} className={className} whatever={whatever}>My text to translate</I18nText>
-   * ```
-   *
-   * *BE CAREFUL* The component should not be I18nText or a component that uses I18nText to avoid infinite loops during rendering.
-   */
-  component?: React.ComponentType<{ children: string } & Record<string, unknown>>;
-  /**
    * The languages config
    *
    * primary: the language used by the developer

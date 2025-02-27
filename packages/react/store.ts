@@ -205,9 +205,6 @@ export async function init(config: I18nConfig) {
   if (!config.languages.supported.includes(config.languages.initWithDefault)) {
     config.languages.supported.push(config.languages.initWithDefault);
   }
-  // if (!config.component) {
-  //   console.warn("i18n-keyless: component is not provided, using default component React.Fragment");
-  // }
   if (!config.storage) {
     throw new Error(
       "i18n-keyless: storage is required. You can use react-native-mmkv, @react-native-async-storage/async-storage, or window.localStorage, or any storage that has a getItem, setItem, removeItem, or get, set, and remove method"

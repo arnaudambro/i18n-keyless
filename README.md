@@ -186,13 +186,11 @@ async function getAllTranslations() {
 }
 
 I18nKeyless.init({
-    component: MyCustomText,
     storage: myStorage,
     languages: {
         primary: "fr",
         supported: ["en", "fr"],
     },
-    addMissingTranslations: true,
     handleTranslate: handleTranslate,
     getAllTranslations: getAllTranslations
 });
@@ -202,13 +200,11 @@ I18nKeyless.init({
 
 ## 🛠️ **Custom Component Example**
 
-Create a custom text component for advanced text rendering needs.
-Nots
-- I strongly advise to use a custom component, even the simplest `p` or `Text` component
-- DON'T use the `I18nText` component inside the `I18nText` component, or you would trigger an infinite loop
+Create a custom text component for advanced text rendering needs. I strongly advise to use a custom component, even the simplest `p` or `Text` component
 
 ```javascript
 import { StyleProp, Text, TextProps, TextStyle } from "react-native";
+import { I18nText } from "i18n-keyless-react";
 import { colors } from "~/utils/colors";
 
 interface MyTextProps {
@@ -219,7 +215,7 @@ interface MyTextProps {
   textProps?: TextProps;
 }
 
-export default function MySimpleText({
+export default function MyText({
   className,
   style = {},
   children,
@@ -232,7 +228,7 @@ export default function MySimpleText({
       style={[style, { color: color ? colors[color] : undefined }]}
       {...textProps}
     >
-      {children}
+      <I18nText>{children}</I18nText>
     </Text>
   );
 }

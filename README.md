@@ -43,16 +43,14 @@ import { I18nText } from "i18n-keyless";
 <I18nText>Je mets mon texte dans ma langue, finies les clés !</I18nText>
 ```
 
-### **Hook Usage**
+### **Methods**
 
-For translating text outside of components, use the `useI18nKeyless` hook:
+For translating text outside of components, use the `getTranslation` method:
 
 ```javascript
-import { useI18nKeyless } from "i18n-keyless";
+import { getTranslation } from "i18n-keyless";
 
 export default function Home() {
-  const getTranslation = useI18nKeyless((state) => state.getTranslation);
-
   return (
     <HomeTabs.Navigator>
       <HomeTabs.Screen
@@ -62,6 +60,22 @@ export default function Home() {
     </HomeTabs.Navigator>
   );
 }
+```
+
+For setting a new current language, use the `setCurrentLanguage` method wherever you want:
+
+```javascript
+import { setCurrentLanguage } from "i18n-keyless";
+
+setCurrentLanguage("en");
+```
+
+To retrieve the current language, use the `useCurrentLanguage` hook:
+
+```javascript
+import { useCurrentLanguage } from "i18n-keyless";
+
+const currentLanguage = useCurrentLanguage();
 ```
 
 ---
@@ -77,11 +91,10 @@ import myStorage from "./src/services/storage";
 
 I18nKeyless.init({
   API_KEY: "<YOUR_API_KEY>",
-  component: MyCustomText, // Optional, default is React.Fragment - but I strongly advise to use a custom component, even the simplest `p` or `Text` component
-  storage: myStorage, // Example: MMKV, AsyncStorage, or any other storage solution
+  storage: myStorage, // Example: MMKV, AsyncStorage, window.localStorage, or any other storage solution
   languages: {
     primary: "fr", // Set the primary language ('fr' or 'en' available by default)
-    supported: ["en","nl","it","de","es","pl","pt","ro","sv","tr","ja","cn","ru","ko","ar"], // reach out if you need more
+    supported: ["fr", "en"], // this is what supports your app. But i18n-keyless allows also: nl,it,de,es,pl,pt,ro,sv,tr,ja,cn,ru,ko,ar. Reach out if you need more
   },
 });
 ```
@@ -134,12 +147,10 @@ Here's how to configure `i18n-keyless` with your `API_URL`:
 
 ```javascript
 import * as I18nKeyless from "i18n-keyless";
-import MyCustomText from "./src/components/MyCustomText";
 import myStorage from "./src/services/storage";
 
 I18nKeyless.init({
     API_URL: "https://your-api.com",
-    component: MyCustomText,
     storage: myStorage,
     languages: {
         primary: "fr",
@@ -191,7 +202,10 @@ I18nKeyless.init({
 
 ## 🛠️ **Custom Component Example**
 
-Create a custom text component for advanced text rendering needs:
+Create a custom text component for advanced text rendering needs.
+Nots
+- I strongly advise to use a custom component, even the simplest `p` or `Text` component
+- DON'T use the `I18nText` component inside the `I18nText` component, or you would trigger an infinite loop
 
 ```javascript
 import { StyleProp, Text, TextProps, TextStyle } from "react-native";

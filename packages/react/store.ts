@@ -112,10 +112,10 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
     setItem(storeKeys.translations, JSON.stringify(nextTranslations), storage);
   },
   translateKey: (key: string) => {
-    if (key.length > 280) {
-      console.error("i18n-keyless: Key length exceeds 280 characters limit:", key);
-      return;
-    }
+    // if (key.length > 280) {
+    //   console.error("i18n-keyless: Key length exceeds 280 characters limit:", key);
+    //   return;
+    // }
 
     const translation = get().translations[key];
     if (translation) {

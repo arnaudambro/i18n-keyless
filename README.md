@@ -43,6 +43,25 @@ import { I18nText } from "i18n-keyless";
 <I18nText>Je mets mon texte dans ma langue, finies les clés !</I18nText>
 ```
 
+### **Dynamic Text Replacement**
+
+For text with dynamic content, use the `I18nTextWithReplacement` component:
+
+```javascript
+import { I18nTextWithReplacement } from "i18n-keyless";
+
+// Replace specific text patterns with dynamic values
+<I18nTextWithReplacement 
+  replace={{
+    "{name}": user.name,
+    "{date}": formattedDate
+  }}
+>
+  Bonjour {name}, votre rendez-vous est confirmé pour le {date}
+</I18nTextWithReplacement>
+
+This will first translate the entire text, then replace the placeholders with their respective values. It's perfect for dynamic content like usernames, dates, or counts.
+
 ### **Methods**
 
 For translating text outside of components, use the `getTranslation` method:

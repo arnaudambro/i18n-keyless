@@ -6,23 +6,23 @@ Welcome to **i18n-keyless**! 🚀 This package provides a seamless way to handle
 
 ## 📜 **Table of Contents**
 
-- [How it works](#how-it-works)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Setup](#setup-with-i18n-keyless-service)
-- [Custom Component Example](#custom-component-example)
-- [What pains does it solve?](#what-pains-does-it-solve)
-- [Contact](#contact)
+- [How it works](#-how-it-works)
+- [Installation](#-installation)
+- [Usage](#-usage)
+- [Setup](#️-setup-with-i18n-keyless-service)
+- [Custom Component Example](#️-custom-component-example)
+- [What pains does it solve?](#-what-pains-does-it-solve)
+- [Contact](#-contact)
 
 ---
 
-## 🔧 **How it works**
+## 😎 **How it works**
 
-First, you should read the [What pains does it solve?](#what-pains-does-it-solve) section to understand the pains you have with the current i18n solutions.
+First, you should read the [What pains does it solve?](#-what-pains-does-it-solve) section to understand the pains you have with the current i18n solutions.
 
-i18n-keyless is a library that allows you to translate your text without the need to use keys.
+i18n-keyless is a library, combined with an API service (I [provide one](https://i18n-keyless.com), but [you can use your own](#%EF%B8%8F-setup-with-your-own-api)) that allows you to translate your text without the need to use keys.
 
-By calling `I18nKeyless.init` you [initialize](#setup-with-i18n-keyless-service) an object that will be used to translate your text.
+By calling `I18nKeyless.init` you [initialize](#%EF%B8%8F-setup-with-i18n-keyless-service) an object that will be used to translate your text.
 If your primary language is `en` and the user's language is `fr`, the object would look like this:
 
 ```javascript
@@ -32,10 +32,13 @@ If your primary language is `en` and the user's language is `fr`, the object wou
    ...
 }
 ```
-If the user's language is `en`, there is no need of this object.
+
+If the user's language is `en`, i18n-keyless won't use such an object and will use the default translations.
 
 If the translation is not found, there will be an asynchronous fetch to I18nKeyless' API (or your own if you prefer) to get the translation by an AI API call.
 Then the translation is returned and stored in the object.
+This operation is only made once ever per key, for all the users all over the world.
+The operation can be made in dev mode if you encounter that key, but it can also be made in production if the key is dynamic.
 
 At the first opening of the app ever in a new language, there is an API call to the server where all your translations are stored.
 Then it stores all those translations in the object and the storage you provide (localStorage, AsyncStorage, MMKV, etc.).
@@ -329,7 +332,24 @@ With i18n-keyless, you read natural language.
 So you know exactly what you are reading.
 And you can make sure the sentence is grammatically correct, in real time.
 
+### Time saving
 
+With basic i18n system on your own, you need at least to
+- setup the keys' system: at least 1 hour of senior dev time
+- back and forth for each new key: 1 minutes per key, x1000 keys = 1000 minutes = 16 hours
+
+At 100$ per hour, that's 1600$ for 1000 keys.
+
+With [i18n-keyless.com](https://i18n-keyless.com), at 8$ a month for 1000 keys, you can afford 200 months of subscription.
+
+You can setup your own system : it took me at least 1.5 day to make it strong enough, that would cost you at least 1200$ for
+- handling translation with AI
+- in several languages
+- storage in DB
+- retrieving translations from DB
+- only the latest ones to make the service fast and efficient
+- handling multiple languages
+- maintaining the service
 
 ## 📬 **Contact**
 

@@ -6,13 +6,43 @@ Welcome to **i18n-keyless**! 🚀 This package provides a seamless way to handle
 
 ## 📜 **Table of Contents**
 
+- [How it works](#how-it-works)
 - [Installation](#installation)
 - [Usage](#usage)
 - [Setup](#setup-with-i18n-keyless-service)
 - [Custom Component Example](#custom-component-example)
+- [What pains does it solve?](#what-pains-does-it-solve)
 - [Contact](#contact)
 
 ---
+
+## 🔧 **How it works**
+
+First, you should read the [What pains does it solve?](#what-pains-does-it-solve) section to understand the pains you have with the current i18n solutions.
+
+i18n-keyless is a library that allows you to translate your text without the need to use keys.
+
+By calling `I18nKeyless.init` you [initialize](#setup-with-i18n-keyless-service) an object that will be used to translate your text.
+If your primary language is `en` and the user's language is `fr`, the object would look like this:
+
+```javascript
+{
+   "Hello!": "Bonjour !",
+   "Welcome to our website": "Bienvenue sur notre site web",
+   ...
+}
+```
+If the user's language is `en`, there is no need of this object.
+
+If the translation is not found, there will be an asynchronous fetch to I18nKeyless' API (or your own if you prefer) to get the translation by an AI API call.
+Then the translation is returned and stored in the object.
+
+At the first opening of the app ever in a new language, there is an API call to the server where all your translations are stored.
+Then it stores all those translations in the object and the storage you provide (localStorage, AsyncStorage, MMKV, etc.).
+No translations are stored in the app initially.
+
+At each opening of the app, the newest translations are fetched from the storage and the object is updated.
+
 
 ## 🔧 **Installation**
 
@@ -61,6 +91,7 @@ import { I18nTextWithReplacement } from "i18n-keyless";
 </I18nTextWithReplacement>
 
 This will first translate the entire text, then replace the placeholders with their respective values. It's perfect for dynamic content like usernames, dates, or counts.
+```
 
 ### **Methods**
 
@@ -105,7 +136,6 @@ Here's a basic setup example to get started with i18n-keyless:
 
 ```javascript
 import * as I18nKeyless from "i18n-keyless";
-import MyCustomText from "./src/components/MyCustomText";
 import myStorage from "./src/services/storage";
 
 I18nKeyless.init({
@@ -253,7 +283,53 @@ export default function MyText({
 }
 ```
 
----
+
+
+## 🔧 **What pains does it solve?**
+
+Multiple pains exist with the current i18n solutions.
+
+### i18n key system management
+
+Today most of the systems use keys to translate the text:
+
+```javascript
+{
+   "en": {
+      "hello": "Hello"
+   },
+   "fr": {
+      "hello": "Bonjour"
+   }
+}
+```
+
+This is painful to generate.
+This is painful to maintain.
+
+When you see a text in the app, and you want to update it, you need to find the corresponding key, update the text, and make sure to not forget to update the key if needed.
+
+With i18n-keyless, you don't care about the i18n system at all.
+
+### Translation management
+
+With the key system, you also need to manage the translations in the app. 
+You need to not forget any. In all the languages you support.
+You need to check manually, or create a script to do it.
+
+With i18n-keyless, you don't care about the i18n system at all.
+
+### Code reading
+
+With the key system, when you read the code and the content, you have to read keys, not natural language.
+So you don't really know what you are reading.
+Sometimes you should make a fix because a sentence is not grammatically correct. But you don't know that because you read keys, not natural language.
+
+With i18n-keyless, you read natural language.
+So you know exactly what you are reading.
+And you can make sure the sentence is grammatically correct, in real time.
+
+
 
 ## 📬 **Contact**
 
@@ -265,3 +341,4 @@ Need help or have questions? Reach out to:
 ---
 
 © 2025 i18n-keyless
+

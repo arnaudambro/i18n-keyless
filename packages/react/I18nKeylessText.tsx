@@ -5,7 +5,7 @@ interface I18nTextProps {
   children: string;
 }
 
-export const I18nText: React.FC<I18nTextProps> = ({ children }) => {
+export const I18nKeylessText: React.FC<I18nTextProps> = ({ children }) => {
   const translations = useI18nKeyless((store) => store.translations);
   const currentLanguage = useI18nKeyless((store) => store.currentLanguage);
   const config = useI18nKeyless((store) => store.config);
@@ -20,12 +20,15 @@ export const I18nText: React.FC<I18nTextProps> = ({ children }) => {
   return <React.Fragment key={currentLanguage}>{translatedText}</React.Fragment>;
 };
 
-interface I18nTextWithReplacementProps {
+interface I18nKeylessTextWithReplacementProps {
   children: string;
   replace?: Record<string, string>;
 }
 
-export const I18nTextWithReplacement: React.FC<I18nTextWithReplacementProps> = ({ children, replace }) => {
+export const I18nKeylessTextWithReplacement: React.FC<I18nKeylessTextWithReplacementProps> = ({
+  children,
+  replace,
+}) => {
   const translations = useI18nKeyless((store) => store.translations);
   const currentLanguage = useI18nKeyless((store) => store.currentLanguage);
   const config = useI18nKeyless((store) => store.config);

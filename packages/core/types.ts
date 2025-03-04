@@ -88,6 +88,10 @@ export interface I18nConfig {
    */
   onInit?: (lang: Lang) => void;
   /**
+   * if true, all the logs will be displayed in the console
+   */
+  debug?: boolean;
+  /**
    * called everytime the language is set, maybe to set also the locale to dayjs or whatever
    */
   onSetLanguage?: (lang: Lang) => void;

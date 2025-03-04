@@ -68,22 +68,23 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
   storage: null,
   _hydrate: async () => {
     const storage = get().config?.storage;
+    const debug = get().config?.debug;
     if (!storage) {
       throw new Error("i18n-keyless: storage is not initialized");
     }
     const translations = await getItem(storeKeys.translations, storage);
     if (translations) {
-      console.log("i18n-keyless: _hydrate", translations);
+      if (debug) console.log("i18n-keyless: _hydrate", translations);
       set({ translations: JSON.parse(translations) });
     } else {
-      console.log("i18n-keyless: _hydrate: no translations");
+      if (debug) console.log("i18n-keyless: _hydrate: no translations");
     }
     const currentLanguage = await getItem(storeKeys.currentLanguage, storage);
     if (currentLanguage) {
-      console.log("i18n-keyless: _hydrate", currentLanguage);
+      if (debug) console.log("i18n-keyless: _hydrate", currentLanguage);
       set({ currentLanguage: currentLanguage as Lang });
     } else {
-      console.log("i18n-keyless: _hydrate: no current language");
+      if (debug) console.log("i18n-keyless: _hydrate: no current language");
       set({ currentLanguage: get().config?.languages.initWithDefault });
     }
     const uniqueId = await getItem(storeKeys.uniqueId, storage);
@@ -127,7 +128,6 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
     }
     queue.add(
       async () => {
-        // console.log("i18n-keyless: translateKey", key);
         try {
           if (get().translating[key]) {
             return;
@@ -144,7 +144,6 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
             };
             const apiUrl = config.API_URL || "https://api.i18n-keyless.com";
             const url = `${apiUrl}/translate`;
-            // console.log("i18n-keyless: POST", url);
             const response = await fetch(url, {
               method: "POST",
               headers: {
@@ -171,8 +170,9 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
     );
   },
   setLanguage: async (lang: I18nConfig["languages"]["supported"][number]) => {
-    console.log("i18n-keyless: setLanguage", lang);
     const config = get().config;
+    const debug = get().config?.debug;
+    if (debug) console.log("i18n-keyless: setLanguage", lang);
 
     const sanitizedLang = !config || !config.languages.supported.includes(lang) ? config?.languages.fallback : lang;
 
@@ -189,7 +189,6 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
 }));
 
 export async function init(config: I18nConfig) {
-  // console.log("i18n-keyless: init", config);
   if (!config.languages) {
     throw new Error("i18n-keyless: languages is required");
   }
@@ -244,7 +243,6 @@ export function setCurrentLanguage(lang: I18nConfig["languages"]["supported"][nu
 }
 
 export async function fetchAllTranslations(targetLanguage: Lang) {
-  // console.log("i18n-keyless: fetchAllTranslations", targetLanguage);
   const store = useI18nKeyless.getState();
   const config = store.config;
 
@@ -253,7 +251,6 @@ export async function fetchAllTranslations(targetLanguage: Lang) {
     return;
   }
   if (config.languages.primary === targetLanguage) {
-    // console.log("i18n-keyless: using primary language");
     return;
   }
 

@@ -68,30 +68,30 @@ yarn add i18n-keyless
 
 ### **Component Usage**
 
-Use the `I18nText` component to wrap your text in any supported language:
+Use the `I18nKeylessText` component to wrap your text in any supported language:
 
 ```javascript
-import { I18nText } from "i18n-keyless";
+import { I18nKeylessText } from "i18n-keyless";
 
-<I18nText>Je mets mon texte dans ma langue, finies les clés !</I18nText>
+<I18nKeylessText>Je mets mon texte dans ma langue, finies les clés !</I18nKeylessText>
 ```
 
 ### **Dynamic Text Replacement**
 
-For text with dynamic content, use the `I18nTextWithReplacement` component:
+For text with dynamic content, use the `I18nKeylessTextWithReplacement` component:
 
 ```javascript
-import { I18nTextWithReplacement } from "i18n-keyless";
+import { I18nKeylessTextWithReplacement } from "i18n-keyless";
 
 // Replace specific text patterns with dynamic values
-<I18nTextWithReplacement 
+<I18nKeylessTextWithReplacement 
   replace={{
     "{name}": user.name,
     "{date}": formattedDate
   }}
 >
   Bonjour {name}, votre rendez-vous est confirmé pour le {date}
-</I18nTextWithReplacement>
+</I18nKeylessTextWithReplacement>
 
 This will first translate the entire text, then replace the placeholders with their respective values. It's perfect for dynamic content like usernames, dates, or counts.
 ```
@@ -256,7 +256,7 @@ Create a custom text component for advanced text rendering needs. I strongly adv
 
 ```javascript
 import { StyleProp, Text, TextProps, TextStyle } from "react-native";
-import { I18nText } from "i18n-keyless-react";
+import { I18nKeylessText } from "i18n-keyless-react";
 import { colors } from "~/utils/colors";
 
 interface MyTextProps {
@@ -280,7 +280,7 @@ export default function MyText({
       style={[style, { color: color ? colors[color] : undefined }]}
       {...textProps}
     >
-      <I18nText>{children}</I18nText>
+      <I18nKeylessText>{children}</I18nKeylessText>
     </Text>
   );
 }

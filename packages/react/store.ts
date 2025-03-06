@@ -122,6 +122,9 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
     //   console.error("i18n-keyless: Key length exceeds 280 characters limit:", key);
     //   return;
     // }
+    if (!key) {
+      return;
+    }
 
     const translation = get().translations[key];
     if (translation) {
@@ -255,9 +258,9 @@ export async function fetchAllTranslations(targetLanguage: Lang) {
     console.error("i18n-keyless: No config found");
     return;
   }
-  if (config.languages.primary === targetLanguage) {
-    return;
-  }
+  // if (config.languages.primary === targetLanguage) {
+  //   return;
+  // }
 
   try {
     const response = config.getAllTranslations

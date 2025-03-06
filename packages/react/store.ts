@@ -97,6 +97,11 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
     }
   },
   getTranslation: (text: string) => {
+    const currentLanguage = get().currentLanguage;
+    const config = get().config;
+    if (currentLanguage === config!.languages.primary) {
+      return text;
+    }
     const translation = get().translations[text];
     if (!translation) {
       get().translateKey(text);

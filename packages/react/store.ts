@@ -96,7 +96,7 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
       set({ lastRefresh: lastRefresh as string });
     }
   },
-  getTranslation: (text: string) => {
+  getTranslation: (text: string, context?: string) => {
     const currentLanguage = get().currentLanguage;
     const config = get().config;
     if (currentLanguage === config!.languages.primary) {
@@ -104,7 +104,7 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
     }
     const translation = get().translations[text];
     if (!translation) {
-      get().translateKey(text);
+      get().translateKey(text, context);
     }
     return translation || text;
   },
@@ -117,7 +117,7 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
     }
     setItem(storeKeys.translations, JSON.stringify(nextTranslations), storage);
   },
-  translateKey: (key: string) => {
+  translateKey: (key: string, context?: string) => {
     // if (key.length > 280) {
     //   console.error("i18n-keyless: Key length exceeds 280 characters limit:", key);
     //   return;
@@ -147,6 +147,7 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
           } else {
             const body: I18nKeylessRequestBody = {
               key,
+              context,
               languages: config.languages.supported,
               primaryLanguage: config.languages.primary,
             };
@@ -242,8 +243,8 @@ export function useCurrentLanguage(): Lang | null {
   return currentLanguage;
 }
 
-export function getTranslation(key: string) {
-  return useI18nKeyless.getState().getTranslation(key);
+export function getTranslation(key: string, context?: string) {
+  return useI18nKeyless.getState().getTranslation(key, context);
 }
 
 export function setCurrentLanguage(lang: I18nConfig["languages"]["supported"][number]) {

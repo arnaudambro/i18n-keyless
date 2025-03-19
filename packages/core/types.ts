@@ -158,9 +158,9 @@ interface TranslationStoreState {
 
 interface TranslationStoreActions {
   _hydrate: () => Promise<void>;
-  getTranslation: (text: string) => string | undefined;
+  getTranslation: (text: string, context?: string) => string | undefined;
   setTranslations: (translations: Translations) => void;
-  translateKey: (key: string) => void;
+  translateKey: (key: string, context?: string) => void;
   setLanguage: (lang: Lang) => void;
 }
 
@@ -168,6 +168,7 @@ export type TranslationStore = TranslationStoreState & TranslationStoreActions;
 
 export interface I18nKeylessRequestBody {
   key: string;
+  context?: string;
   languages: I18nConfig["languages"]["supported"];
   primaryLanguage: I18nConfig["languages"]["primary"];
 }

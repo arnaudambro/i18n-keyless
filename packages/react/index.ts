@@ -1,4 +1,4 @@
-export { I18nKeylessText, I18nKeylessTextWithReplacement } from "./I18nKeylessText";
+export { I18nKeylessText } from "./I18nKeylessText";
 export {
   init,
   getTranslation,

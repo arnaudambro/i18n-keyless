@@ -1,7 +1,7 @@
 {
   "name": "i18n-keyless-react",
   "private": false,
-  "version": "1.7.0",
+  "version": "1.7.1",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",

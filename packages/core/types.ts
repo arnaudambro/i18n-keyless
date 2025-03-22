@@ -156,7 +156,7 @@ interface TranslationStoreState {
   storage: I18nConfig["storage"] | null;
 }
 
-type TranslationOptions = {
+export type TranslationOptions = {
   /**
    * the context of the translation
    * useful for ambiguous translations, like "8 heures" in French could be "8 AM" or "8 hours"

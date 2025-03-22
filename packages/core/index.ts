@@ -6,4 +6,5 @@ export type {
   TranslationStore,
   I18nKeylessRequestBody,
   I18nKeylessResponse,
+  TranslationOptions,
 } from "./types";

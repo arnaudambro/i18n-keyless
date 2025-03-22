@@ -7,3 +7,4 @@ export {
   clearI18nKeylessStorage,
   fetchAllTranslations,
 } from "./store";
+export type { I18nKeylessTextProps } from "./I18nKeylessText";

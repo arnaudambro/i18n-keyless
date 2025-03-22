@@ -2,7 +2,7 @@ import React, { useEffect, useMemo } from "react";
 import { useI18nKeyless } from "./store";
 import { TranslationOptions } from "i18n-keyless-core";
 
-interface I18nKeylessTextProps {
+export interface I18nKeylessTextProps {
   children: string;
   replace?: Record<string, string>;
   context?: string;

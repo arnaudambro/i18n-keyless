@@ -158,21 +158,21 @@ interface TranslationStoreState {
 
 export type TranslationOptions = {
   /**
-   * the context of the translation
-   * useful for ambiguous translations, like "8 heures" in French could be "8 AM" or "8 hours"
+   * The context of the translation.
+   * Useful for ambiguous translations, like "8 heures" in French could be "8 AM" or "8 hours".
    * You'll find it useful when it occurs to you, don't worry :)
    */
   context?: string;
   /**
-   * could be helpful if something weird happens with this particular key
+   * Could be helpful if something weird happens with this particular key.
    */
   debug?: boolean;
   /**
-   * if the proposed translation from AI is not satisfactory,
+   * If the proposed translation from AI is not satisfactory,
    * you can use this field to setup your own translation.
-   * You can leave it there forever, or remove it once your translation is saved
+   * You can leave it there forever, or remove it once your translation is saved.
    */
-  forceTemporary?: Record<Lang, string>;
+  forceTemporary?: Partial<Record<Lang, string>>;
 };
 
 interface TranslationStoreActions {

@@ -1,23 +1,31 @@
 import React, { useEffect, useMemo } from "react";
 import { useI18nKeyless } from "./store";
+import { TranslationOptions } from "i18n-keyless-core";
 
 interface I18nKeylessTextProps {
   children: string;
   replace?: Record<string, string>;
   context?: string;
   debug?: boolean;
+  forceTemporary?: TranslationOptions["forceTemporary"];
 }
 
-export const I18nKeylessText: React.FC<I18nKeylessTextProps> = ({ children, replace, context, debug = false }) => {
+export const I18nKeylessText: React.FC<I18nKeylessTextProps> = ({
+  children,
+  replace,
+  context,
+  debug = false,
+  forceTemporary,
+}) => {
   const translations = useI18nKeyless((store) => store.translations);
   const currentLanguage = useI18nKeyless((store) => store.currentLanguage);
   const config = useI18nKeyless((store) => store.config);
   const translateKey = useI18nKeyless((store) => store.translateKey);
 
   useEffect(() => {
-    translateKey(children, { context, debug });
+    translateKey(children, { context, debug, forceTemporary });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [children, currentLanguage, context, debug]);
+  }, [children, currentLanguage, context, debug, forceTemporary]);
 
   const translatedText =
     currentLanguage === config!.languages.primary
@@ -41,18 +49,15 @@ export const I18nKeylessText: React.FC<I18nKeylessTextProps> = ({ children, repl
   }, [translatedText, replace]);
 
   if (debug) {
-    console.log(
-      "children",
+    console.log({
       children,
-      "translatedText",
+      currentLanguage,
       translatedText,
-      "finalText",
       finalText,
-      "replace",
       replace,
-      "context",
-      context
-    );
+      context,
+      forceTemporary,
+    });
   }
   return <React.Fragment key={currentLanguage}>{finalText}</React.Fragment>;
 };

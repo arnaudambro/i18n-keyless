@@ -1,7 +1,14 @@
 import { create } from "zustand";
 import MyPQueue from "./my-pqueue";
 
-import { I18nConfig, I18nKeylessRequestBody, Lang, Translations, TranslationStore } from "i18n-keyless-core";
+import {
+  I18nConfig,
+  I18nKeylessRequestBody,
+  Lang,
+  Translations,
+  TranslationStore,
+  TranslationOptions,
+} from "i18n-keyless-core";
 import packageJson from "./package.json";
 
 const queue = new MyPQueue({ concurrency: 5 });
@@ -96,15 +103,16 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
       set({ lastRefresh: lastRefresh as string });
     }
   },
-  getTranslation: (text: string, context?: string, debug?: boolean) => {
+  getTranslation: (text: string, options?: TranslationOptions) => {
     const currentLanguage = get().currentLanguage;
     const config = get().config;
     if (currentLanguage === config!.languages.primary) {
       return text;
     }
+    const context = options?.context;
     const translation = context ? get().translations[`${text}__${context}`] : get().translations[text];
     if (!translation) {
-      get().translateKey(text, context, debug);
+      get().translateKey(text, options);
     }
     return translation || text;
   },
@@ -117,7 +125,9 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
     }
     setItem(storeKeys.translations, JSON.stringify(nextTranslations), storage);
   },
-  translateKey: (key: string, context?: string, debug?: boolean) => {
+  translateKey: (key: string, options?: TranslationOptions) => {
+    const context = options?.context;
+    const debug = options?.debug;
     // if (key.length > 280) {
     //   console.error("i18n-keyless: Key length exceeds 280 characters limit:", key);
     //   return;
@@ -153,6 +163,7 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
             const body: I18nKeylessRequestBody = {
               key,
               context,
+              forceTemporary: options?.forceTemporary,
               languages: config.languages.supported,
               primaryLanguage: config.languages.primary,
             };

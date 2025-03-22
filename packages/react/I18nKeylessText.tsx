@@ -15,7 +15,7 @@ export const I18nKeylessText: React.FC<I18nKeylessTextProps> = ({ children, repl
   const translateKey = useI18nKeyless((store) => store.translateKey);
 
   useEffect(() => {
-    translateKey(children, context, debug);
+    translateKey(children, { context, debug });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [children, currentLanguage, context, debug]);
 

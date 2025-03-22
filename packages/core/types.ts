@@ -156,11 +156,30 @@ interface TranslationStoreState {
   storage: I18nConfig["storage"] | null;
 }
 
+type TranslationOptions = {
+  /**
+   * the context of the translation
+   * useful for ambiguous translations, like "8 heures" in French could be "8 AM" or "8 hours"
+   * You'll find it useful when it occurs to you, don't worry :)
+   */
+  context?: string;
+  /**
+   * could be helpful if something weird happens with this particular key
+   */
+  debug?: boolean;
+  /**
+   * if the proposed translation from AI is not satisfactory,
+   * you can use this field to setup your own translation.
+   * You can leave it there forever, or remove it once your translation is saved
+   */
+  forceTemporary?: Record<Lang, string>;
+};
+
 interface TranslationStoreActions {
   _hydrate: () => Promise<void>;
-  getTranslation: (text: string, context?: string, debug?: boolean) => string | undefined;
+  getTranslation: (text: string, options?: TranslationOptions) => string | undefined;
   setTranslations: (translations: Translations) => void;
-  translateKey: (key: string, context?: string, debug?: boolean) => void;
+  translateKey: (key: string, options?: TranslationOptions) => void;
   setLanguage: (lang: Lang) => void;
 }
 
@@ -169,6 +188,7 @@ export type TranslationStore = TranslationStoreState & TranslationStoreActions;
 export interface I18nKeylessRequestBody {
   key: string;
   context?: string;
+  forceTemporary?: TranslationOptions["forceTemporary"];
   languages: I18nConfig["languages"]["supported"];
   primaryLanguage: I18nConfig["languages"]["primary"];
 }

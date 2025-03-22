@@ -96,15 +96,15 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
       set({ lastRefresh: lastRefresh as string });
     }
   },
-  getTranslation: (text: string, context?: string) => {
+  getTranslation: (text: string, context?: string, debug?: boolean) => {
     const currentLanguage = get().currentLanguage;
     const config = get().config;
     if (currentLanguage === config!.languages.primary) {
       return text;
     }
-    const translation = get().translations[text];
+    const translation = context ? get().translations[`${text}__${context}`] : get().translations[text];
     if (!translation) {
-      get().translateKey(text, context);
+      get().translateKey(text, context, debug);
     }
     return translation || text;
   },
@@ -117,7 +117,7 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
     }
     setItem(storeKeys.translations, JSON.stringify(nextTranslations), storage);
   },
-  translateKey: (key: string, context?: string) => {
+  translateKey: (key: string, context?: string, debug?: boolean) => {
     // if (key.length > 280) {
     //   console.error("i18n-keyless: Key length exceeds 280 characters limit:", key);
     //   return;
@@ -125,9 +125,14 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
     if (!key) {
       return;
     }
-
-    const translation = get().translations[key];
+    if (debug) {
+      console.log("translateKey", key, context, debug);
+    }
+    const translation = context ? get().translations[`${key}__${context}`] : get().translations[key];
     if (translation) {
+      if (debug) {
+        console.log("translation exists", `${key}__${context}`);
+      }
       return;
     }
     const config = get().config;
@@ -153,6 +158,9 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
             };
             const apiUrl = config.API_URL || "https://api.i18n-keyless.com";
             const url = `${apiUrl}/translate`;
+            if (debug) {
+              console.log("fetching translation", url, body);
+            }
             const response = await fetch(url, {
               method: "POST",
               headers: {
@@ -164,6 +172,9 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
               body: JSON.stringify(body),
             }).then((res) => res.json() as ReturnType<NonNullable<I18nConfig["handleTranslate"]>>);
 
+            if (debug) {
+              console.log("response", response);
+            }
             if (response.message) {
               console.warn("i18n-keyless: ", response.message);
             }

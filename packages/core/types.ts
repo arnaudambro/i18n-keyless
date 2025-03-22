@@ -158,9 +158,9 @@ interface TranslationStoreState {
 
 interface TranslationStoreActions {
   _hydrate: () => Promise<void>;
-  getTranslation: (text: string, context?: string) => string | undefined;
+  getTranslation: (text: string, context?: string, debug?: boolean) => string | undefined;
   setTranslations: (translations: Translations) => void;
-  translateKey: (key: string, context?: string) => void;
+  translateKey: (key: string, context?: string, debug?: boolean) => void;
   setLanguage: (lang: Lang) => void;
 }
 

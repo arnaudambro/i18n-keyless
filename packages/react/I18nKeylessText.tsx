@@ -5,18 +5,19 @@ interface I18nKeylessTextProps {
   children: string;
   replace?: Record<string, string>;
   context?: string;
+  debug?: boolean;
 }
 
-export const I18nKeylessText: React.FC<I18nKeylessTextProps> = ({ children, replace, context }) => {
+export const I18nKeylessText: React.FC<I18nKeylessTextProps> = ({ children, replace, context, debug = false }) => {
   const translations = useI18nKeyless((store) => store.translations);
   const currentLanguage = useI18nKeyless((store) => store.currentLanguage);
   const config = useI18nKeyless((store) => store.config);
   const translateKey = useI18nKeyless((store) => store.translateKey);
 
   useEffect(() => {
-    translateKey(children, context);
+    translateKey(children, context, debug);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [children, currentLanguage, context]);
+  }, [children, currentLanguage, context, debug]);
 
   const translatedText =
     currentLanguage === config!.languages.primary
@@ -39,5 +40,19 @@ export const I18nKeylessText: React.FC<I18nKeylessTextProps> = ({ children, repl
     return translatedText.replace(regex, (matched) => replace[matched] || matched);
   }, [translatedText, replace]);
 
+  if (debug) {
+    console.log(
+      "children",
+      children,
+      "translatedText",
+      translatedText,
+      "finalText",
+      finalText,
+      "replace",
+      replace,
+      "context",
+      context
+    );
+  }
   return <React.Fragment key={currentLanguage}>{finalText}</React.Fragment>;
 };

@@ -109,6 +109,10 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
     if (currentLanguage === config!.languages.primary) {
       return text;
     }
+    const forceTemporary = options?.forceTemporary;
+    if (forceTemporary?.[currentLanguage]) {
+      get().translateKey(forceTemporary[currentLanguage], options);
+    }
     const context = options?.context;
     const translation = context ? get().translations[`${text}__${context}`] : get().translations[text];
     if (!translation) {
@@ -138,8 +142,9 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
     if (debug) {
       console.log("translateKey", key, context, debug);
     }
+    const forceTemporaryLang = options?.forceTemporary?.[get().currentLanguage];
     const translation = context ? get().translations[`${key}__${context}`] : get().translations[key];
-    if (translation) {
+    if (translation && !forceTemporaryLang) {
       if (debug) {
         console.log("translation exists", `${key}__${context}`);
       }

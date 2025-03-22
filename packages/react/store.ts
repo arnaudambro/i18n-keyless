@@ -265,8 +265,8 @@ export function useCurrentLanguage(): Lang | null {
   return currentLanguage;
 }
 
-export function getTranslation(key: string, context?: string) {
-  return useI18nKeyless.getState().getTranslation(key, context);
+export function getTranslation(key: string, options?: TranslationOptions) {
+  return useI18nKeyless.getState().getTranslation(key, options);
 }
 
 export function setCurrentLanguage(lang: I18nConfig["languages"]["supported"][number]) {

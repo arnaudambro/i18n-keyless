@@ -32,6 +32,15 @@ export interface I18nKeylessTextProps {
   forceTemporary?: TranslationOptions["forceTemporary"];
 }
 
+const warnAboutWhitespace = (text: string) => {
+  if (process.env.NODE_ENV === "development" && text !== text.trim()) {
+    console.warn(
+      `I18nKeylessText received text with leading/trailing whitespace: "${text}". ` +
+        "This may cause inconsistencies in translations. Consider trimming the text."
+    );
+  }
+};
+
 export const I18nKeylessText: React.FC<I18nKeylessTextProps> = ({
   children,
   replace,
@@ -44,15 +53,22 @@ export const I18nKeylessText: React.FC<I18nKeylessTextProps> = ({
   const config = useI18nKeyless((store) => store.config);
   const translateKey = useI18nKeyless((store) => store.translateKey);
 
+  // Trim the source text immediately
+  const sourceText = children.trim();
+
   useEffect(() => {
-    translateKey(children, { context, debug, forceTemporary });
+    warnAboutWhitespace(children);
+  }, [children]);
+
+  useEffect(() => {
+    translateKey(sourceText, { context, debug, forceTemporary });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [children, currentLanguage, context, debug, forceTemporary]);
+  }, [sourceText, currentLanguage, context, debug, forceTemporary]);
 
   const translatedText =
     currentLanguage === config!.languages.primary
-      ? children
-      : translations[context ? `${children}__${context}` : children] || children;
+      ? sourceText
+      : translations[context ? `${sourceText}__${context}` : sourceText] || sourceText;
   const finalText = useMemo(() => {
     if (!replace) {
       return translatedText;
@@ -73,6 +89,7 @@ export const I18nKeylessText: React.FC<I18nKeylessTextProps> = ({
   if (debug) {
     console.log({
       children,
+      sourceText,
       currentLanguage,
       translatedText,
       finalText,

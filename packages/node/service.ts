@@ -5,8 +5,8 @@ import {
   type TranslationOptions,
   queue,
   getTranslationCore,
+  getAllTranslationsForAllLanguages,
 } from "i18n-keyless-core";
-import { getAllTranslationsForAllLanguages } from "i18n-keyless-core/service";
 
 const store: Omit<TranslationStore, "currentLanguage"> = {
   translations: {},

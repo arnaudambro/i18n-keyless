@@ -1,5 +1,4 @@
-import { TranslationStore } from "i18n-keyless-core";
-import { validateLanguage } from "../../utils";
+import { type TranslationStore, validateLanguage } from "i18n-keyless-core";
 import { vi } from "vitest";
 
 export const store: TranslationStore = {

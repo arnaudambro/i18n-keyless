@@ -2,8 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act } from "@testing-library/react";
 import { mockStore, mockStorage } from "./__mocks__/store";
 import { useI18nKeyless, init } from "../store";
-import { getTranslation, queue } from "../utils";
-
+import { getTranslation, queue } from "i18n-keyless-core";
 // These vi.mock calls must be at the top level, outside of any function or block
 vi.mock("zustand", () => ({
   create: () => ({
@@ -284,7 +283,7 @@ describe("i18n-keyless store", () => {
         headers: {
           Authorization: "Bearer test-api-key",
           "Content-Type": "application/json",
-          Version: "1.8.0",
+          Version: "1.9.1",
           unique_id: "",
         },
         method: "POST",
@@ -320,7 +319,7 @@ describe("i18n-keyless store", () => {
         headers: {
           Authorization: "Bearer test-api-key",
           "Content-Type": "application/json",
-          Version: "1.8.0",
+          Version: "1.9.1",
           unique_id: "",
         },
         method: "POST",

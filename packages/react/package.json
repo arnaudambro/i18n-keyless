@@ -1,7 +1,7 @@
 {
   "name": "i18n-keyless-react",
   "private": false,
-  "version": "1.8.0",
+  "version": "1.9.1",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -16,7 +16,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "i18n-keyless-core": "latest",
+    "i18n-keyless-core": "file:../core",
     "zustand": "^5.0.3"
   },
   "peerDependencies": {

@@ -1,17 +1,15 @@
-import { create } from "zustand";
-import { I18nConfig, Lang, TranslationStore } from "i18n-keyless-core";
 import {
+  type I18nConfig,
+  type Lang,
+  type TranslationStore,
+  type I18nKeylessResponse,
+  type Translations,
   queue,
-  init as initRoot,
   fetchAllTranslations,
-  storeKeys,
-  setItem,
-  getItem,
-  clearI18nKeylessStorage,
   validateLanguage,
-} from "./utils";
-import { I18nKeylessResponse } from "i18n-keyless-core";
-import { Translations } from "i18n-keyless-core";
+} from "i18n-keyless-core";
+import { create } from "zustand";
+import { init as initRoot, storeKeys, setItem, getItem, clearI18nKeylessStorage } from "./utils";
 
 queue.on("empty", () => {
   // when each word is translated, fetch the translations for the current language

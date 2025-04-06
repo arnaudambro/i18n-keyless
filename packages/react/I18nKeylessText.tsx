@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo } from "react";
+import { type TranslationOptions, getTranslation } from "i18n-keyless-core";
 import { useI18nKeyless } from "./store";
-import { TranslationOptions } from "i18n-keyless-core";
-import { getTranslation } from "./utils";
 
 export interface I18nKeylessTextProps {
   /**

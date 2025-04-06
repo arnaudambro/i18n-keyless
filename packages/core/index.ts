@@ -9,3 +9,4 @@ export type {
   I18nKeylessResponse,
   TranslationOptions,
 } from "./types";
+export { getTranslation, fetchAllTranslations, validateLanguage, queue } from "./service";

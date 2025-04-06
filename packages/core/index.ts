@@ -4,6 +4,7 @@ export type {
   PrimaryLang,
   Translations,
   TranslationStore,
+  TranslationStoreState,
   I18nKeylessRequestBody,
   I18nKeylessResponse,
   TranslationOptions,

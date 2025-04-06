@@ -12,7 +12,10 @@
     "build:react": "npm run build:lib --workspace=i18n-keyless-react",
     "clean": "npm run clean:core && npm run clean:react",
     "clean:core": "rm -rf packages/core/dist",
-    "clean:react": "rm -rf packages/react/dist"
+    "clean:react": "rm -rf packages/react/dist",
+    "test": "npm run test --workspace=i18n-keyless-react",
+    "test:watch": "npm run test:watch --workspace=i18n-keyless-react",
+    "test:coverage": "npm run test:coverage --workspace=i18n-keyless-react"
   },
   "devDependencies": {
     "typescript": "^5.5.3",

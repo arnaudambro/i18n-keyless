@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo } from "react";
 import { useI18nKeyless } from "./store";
 import { TranslationOptions } from "i18n-keyless-core";
+import { getTranslation } from "./utils";
 
 export interface I18nKeylessTextProps {
   /**
@@ -51,7 +52,6 @@ export const I18nKeylessText: React.FC<I18nKeylessTextProps> = ({
   const translations = useI18nKeyless((store) => store.translations);
   const currentLanguage = useI18nKeyless((store) => store.currentLanguage);
   const config = useI18nKeyless((store) => store.config);
-  const translateKey = useI18nKeyless((store) => store.translateKey);
 
   // Trim the source text immediately
   const sourceText = children.trim();
@@ -61,8 +61,8 @@ export const I18nKeylessText: React.FC<I18nKeylessTextProps> = ({
   }, [children]);
 
   useEffect(() => {
-    translateKey(sourceText, { context, debug, forceTemporary });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const store = useI18nKeyless.getState();
+    getTranslation(sourceText, store, { context, debug, forceTemporary });
   }, [sourceText, currentLanguage, context, debug, forceTemporary]);
 
   const translatedText =

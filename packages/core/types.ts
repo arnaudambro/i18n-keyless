@@ -17,7 +17,6 @@ export type Lang =
   | "ru"
   | "ko"
   | "ar";
-// import { StateStorage } from "zustand/middleware";
 
 export type Translations = Record<string, string>;
 
@@ -95,8 +94,6 @@ export interface I18nConfig {
    * called everytime the language is set, maybe to set also the locale to dayjs or whatever
    */
   onSetLanguage?: (lang: Lang) => void;
-  // zustandStorage?: StateStorage;
-  // onTranslate?: (key: string, lang: Lang, translation: string) => void;
   /**
    * if this function exists, it will be called instead of the API call
    * if this function doesn't exist, the default behavior is to call the API
@@ -143,17 +140,27 @@ export interface I18nConfig {
   } & ({ clear: ClearStorageFunction; clearAll?: never } | { clearAll: ClearStorageFunction; clear?: never });
 }
 
-interface TranslationStoreState {
+export interface TranslationStoreState {
+  /**
+   * the unique id of the consumer of i18n-keyless API, to help identify the usage API side
+   */
   uniqueId: string | null;
+  /**
+   * the last refresh of the translations, to only fetch the new ones if any
+   */
   lastRefresh: string | null;
+  /**
+   * the translations fetched from i18n-keyless' API
+   */
   translations: Translations;
+  /**
+   * the current language of the user
+   */
   currentLanguage: Lang;
+  /**
+   * i18n-keyless' config
+   */
   config: I18nConfig | null;
-  translating: Record<string, boolean>;
-  _hasHydrated: boolean;
-  // it's a function that could be window.localstorage or mmkv or asyncstorage
-  // i want to type that there should be
-  storage: I18nConfig["storage"] | null;
 }
 
 export type TranslationOptions = {
@@ -176,10 +183,7 @@ export type TranslationOptions = {
 };
 
 interface TranslationStoreActions {
-  _hydrate: () => Promise<void>;
-  getTranslation: (text: string, options?: TranslationOptions) => string | undefined;
-  setTranslations: (translations: Translations) => void;
-  translateKey: (key: string, options?: TranslationOptions) => void;
+  setTranslations: (translations: I18nKeylessResponse | void) => void;
   setLanguage: (lang: Lang) => void;
 }
 

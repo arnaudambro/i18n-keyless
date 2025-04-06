@@ -6,17 +6,17 @@ import {
   type Translations,
   type TranslationOptions,
   queue,
-  fetchAllTranslations,
+  getAllTranslationsFromLanguage,
   validateLanguage,
   getTranslationCore,
 } from "i18n-keyless-core";
 import { create } from "zustand";
-import { init as initRoot, storeKeys, setItem, getItem, clearI18nKeylessStorage } from "./utils";
+import { storeKeys, setItem, getItem, clearI18nKeylessStorage } from "./utils";
 
 queue.on("empty", () => {
   // when each word is translated, fetch the translations for the current language
   const store = useI18nKeyless.getState();
-  fetchAllTranslations(store.currentLanguage, store).then(store.setTranslations);
+  getAllTranslationsFromLanguage(store.currentLanguage, store).then(store.setTranslations);
 });
 
 export const useI18nKeyless = create<TranslationStore>((set, get) => ({
@@ -71,7 +71,7 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
 
     // Only fetch translations if the new language is not the primary language
     if (lang !== config.languages.primary) {
-      await fetchAllTranslations(lang, get()).then(get().setTranslations);
+      await getAllTranslationsFromLanguage(lang, get()).then(get().setTranslations);
     }
   },
 }));
@@ -111,13 +111,52 @@ async function hydrate() {
   }
 }
 
-export async function init(newConfig: I18nConfig) {
-  const config = await initRoot(newConfig);
+/**
+ * Initializes the i18n configuration with defaults and validation
+ * @param newConfig - The configuration object to initialize
+ * @returns The validated and completed configuration
+ * @throws Error if required configuration properties are missing
+ */
+export async function init(newConfig: Omit<I18nConfig, "getAllTranslationsForAllLanguages">) {
+  if (!newConfig.languages) {
+    throw new Error("i18n-keyless: languages is required");
+  }
+  if (!newConfig.languages.primary) {
+    throw new Error("i18n-keyless: primary is required");
+  }
+  if (!newConfig.languages.initWithDefault) {
+    newConfig.languages.initWithDefault = newConfig.languages.primary;
+  }
+  if (!newConfig.languages.fallback) {
+    newConfig.languages.fallback = newConfig.languages.primary;
+  }
+  if (!newConfig.languages.supported.includes(newConfig.languages.initWithDefault)) {
+    newConfig.languages.supported.push(newConfig.languages.initWithDefault);
+  }
+  if (!newConfig.storage) {
+    console.log("storage is required", newConfig.storage);
+    throw new Error(
+      "i18n-keyless: storage is required. You can use react-native-mmkv, @react-native-async-storage/async-storage, or window.localStorage, or any storage that has a getItem, setItem, removeItem, or get, set, and remove method"
+    );
+  }
+  if (!newConfig.getAllTranslations || !newConfig.handleTranslate) {
+    if (!newConfig.API_KEY) {
+      if (!newConfig.API_URL) {
+        throw new Error(
+          "i18n-keyless: you didn't provide an API_KEY nor an API_URL nor a handleTranslate + getAllTranslations function. You need to provide one of them to make i18n-keyless work"
+        );
+      }
+    }
+  }
+  if (newConfig.addMissingTranslations !== false) {
+    // default to true
+    newConfig.addMissingTranslations = true;
+  }
 
-  useI18nKeyless.setState({ config });
+  useI18nKeyless.setState({ config: newConfig });
   await hydrate();
   const currentLanguage = useI18nKeyless.getState().currentLanguage;
-  config.onInit?.(currentLanguage);
+  newConfig.onInit?.(currentLanguage);
 }
 
 export function useCurrentLanguage(): Lang | null {

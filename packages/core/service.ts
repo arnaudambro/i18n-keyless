@@ -154,7 +154,7 @@ export function translateKey(key: string, store: TranslationStore, options?: Tra
  * @param store - The translation store
  * @returns Promise resolving to the translation response or void if failed
  */
-export async function fetchAllTranslations(
+export async function getAllTranslationsFromLanguage(
   targetLanguage: Lang,
   store: TranslationStore
 ): Promise<I18nKeylessResponse | void> {
@@ -173,10 +173,62 @@ export async function fetchAllTranslations(
     const response = config.getAllTranslations
       ? await config.getAllTranslations()
       : await api
-          .fetchTranslations(
+          .fetchTranslationsForOneLanguage(
             `${
               config.API_URL || "https://api.i18n-keyless.com"
             }/translate/${targetLanguage}?last_refresh=${lastRefresh}`,
+            {
+              method: "GET",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${config.API_KEY}`,
+                Version: packageJson.version,
+                unique_id: uniqueId || "",
+              },
+            }
+          )
+          .then((res) => res as ReturnType<NonNullable<I18nConfig["getAllTranslations"]>>);
+
+    if (!response.ok) {
+      throw new Error(response.error);
+    }
+
+    if (response.message) {
+      console.warn("i18n-keyless: ", response.message);
+    }
+
+    return response;
+  } catch (error) {
+    console.error("i18n-keyless: fetch all translations error:", error);
+  }
+}
+
+/**
+ * Fetches all translations for a target language
+ * @param targetLanguage - The language code to fetch translations for
+ * @param store - The translation store
+ * @returns Promise resolving to the translation response or void if failed
+ */
+export async function getAllTranslationsForAllLanguages(
+  store: Omit<TranslationStore, "currentLanguage" | "setLanguage">
+): Promise<I18nKeylessResponse | void> {
+  const config = store.config;
+  const lastRefresh = store.lastRefresh;
+  const uniqueId = store.uniqueId;
+  if (!config) {
+    console.error("i18n-keyless: No config found");
+    return;
+  }
+  // if (config.languages.primary === targetLanguage) {
+  //   return;
+  // }
+
+  try {
+    const response = config.getAllTranslations
+      ? await config.getAllTranslations()
+      : await api
+          .fetchAllTranslationsForAllLanguages(
+            `${config.API_URL || "https://api.i18n-keyless.com"}/translate/?last_refresh=${lastRefresh}`,
             {
               method: "GET",
               headers: {

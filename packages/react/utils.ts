@@ -92,51 +92,6 @@ export async function deleteItem(key: string, storage: I18nConfig["storage"]) {
 }
 
 /**
- * Initializes the i18n configuration with defaults and validation
- * @param newConfig - The configuration object to initialize
- * @returns The validated and completed configuration
- * @throws Error if required configuration properties are missing
- */
-export async function init(newConfig: I18nConfig): Promise<I18nConfig> {
-  if (!newConfig.languages) {
-    throw new Error("i18n-keyless: languages is required");
-  }
-  if (!newConfig.languages.primary) {
-    throw new Error("i18n-keyless: primary is required");
-  }
-  if (!newConfig.languages.initWithDefault) {
-    newConfig.languages.initWithDefault = newConfig.languages.primary;
-  }
-  if (!newConfig.languages.fallback) {
-    newConfig.languages.fallback = newConfig.languages.primary;
-  }
-  if (!newConfig.languages.supported.includes(newConfig.languages.initWithDefault)) {
-    newConfig.languages.supported.push(newConfig.languages.initWithDefault);
-  }
-  if (!newConfig.storage) {
-    console.log("storage is required", newConfig.storage);
-    throw new Error(
-      "i18n-keyless: storage is required. You can use react-native-mmkv, @react-native-async-storage/async-storage, or window.localStorage, or any storage that has a getItem, setItem, removeItem, or get, set, and remove method"
-    );
-  }
-  if (!newConfig.getAllTranslations || !newConfig.handleTranslate) {
-    if (!newConfig.API_KEY) {
-      if (!newConfig.API_URL) {
-        throw new Error(
-          "i18n-keyless: you didn't provide an API_KEY nor an API_URL nor a handleTranslate + getAllTranslations function. You need to provide one of them to make i18n-keyless work"
-        );
-      }
-    }
-  }
-  if (newConfig.addMissingTranslations !== false) {
-    // default to true
-    newConfig.addMissingTranslations = true;
-  }
-
-  return newConfig;
-}
-
-/**
  * Clears all i18n-keyless data from storage
  * @param storage - The storage implementation to clear
  */

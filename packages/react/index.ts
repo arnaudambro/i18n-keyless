@@ -12,7 +12,7 @@ export {
   type I18nKeylessRequestBody,
   type I18nKeylessResponse,
   type TranslationOptions,
-  fetchAllTranslations,
+  getAllTranslationsFromLanguage,
   validateLanguage,
   queue,
 } from "i18n-keyless-core";

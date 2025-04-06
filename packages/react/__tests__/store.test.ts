@@ -20,7 +20,7 @@ vi.mock("../store", async () => {
     useCurrentLanguage: vi.fn(),
     getTranslationCore: vi.fn(),
     setCurrentLanguage: vi.fn(),
-    fetchAllTranslations: vi.fn(),
+    getAllTranslationsFromLanguage: vi.fn(),
     clearI18nKeylessStorage: vi.fn(),
     init: actual.init,
   };

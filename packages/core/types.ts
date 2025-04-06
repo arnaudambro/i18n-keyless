@@ -113,6 +113,15 @@ export interface I18nConfig {
    */
   getAllTranslations?: () => Promise<I18nKeylessResponse>;
   /**
+   * if this function exists, it will be called instead of the API call
+   * if this function doesn't exist, the default behavior is to call the API, with the API_KEY
+   * therefore you need either to
+   * - use this `getAllTranslationsForAllLanguages` function to handle the translation with your own API
+   * - not use this `getAllTranslationsForAllLanguages` function, and use the built in API call with the API_KEY filled
+   * - not use this `getAllTranslationsForAllLanguages` function nor API_KEY key, and provide your own API_URL
+   */
+  getAllTranslationsForAllLanguages?: () => Promise<I18nKeylessAllTranslationsResponse>;
+  /**
    * the storage to use for the translations
    *
    * you can use react-native-mmkv, @react-native-async-storage/async-storage, or window.localStorage, or idb-keyval for IndexedDB, or any storage that has a getItem, setItem, removeItem, or get, set, and remove method
@@ -201,6 +210,17 @@ export interface I18nKeylessResponse {
   ok: boolean;
   data: {
     translations: Translations; // { "un text": "a text" } // already translated
+    uniqueId: string | null;
+    lastRefresh: string | null;
+  };
+  error: string;
+  message: string;
+}
+
+export interface I18nKeylessAllTranslationsResponse {
+  ok: boolean;
+  data: {
+    translations: Record<Lang, Translations>; // { "fr": { "un text": "a text" }, "en": { "un text": "a text" }  } // already translated
     uniqueId: string | null;
     lastRefresh: string | null;
   };

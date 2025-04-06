@@ -1,5 +1,5 @@
 {
-  "name": "i18n-keyless-core",
+  "name": "i18n-keyless-node",
   "private": false,
   "version": "1.10.0",
   "type": "module",
@@ -11,11 +11,16 @@
   ],
   "scripts": {
     "prepublishOnly": "rm -rf ./dist && tsc --project tsconfig.json && npm pack",
-    "test": "echo 'no test for core'"
+    "test": "echo 'no test for node'"
+  },
+  "dependencies": {
+    "i18n-keyless-core": "latest"
   },
   "devDependencies": {
+    "@eslint/js": "^9.9.0",
     "@types/node": "^22.5.5",
-    "@types/react": "^19.0.8",
-    "@types/react-dom": "^19.0.3"
+    "eslint": "^9.9.0",
+    "eslint-plugin-react-hooks": "^5.1.0-rc.0",
+    "eslint-plugin-react-refresh": "^0.4.9"
   }
 }

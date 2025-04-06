@@ -10,6 +10,7 @@ export type {
   NodeConfig,
   I18nKeylessRequestBody,
   I18nKeylessResponse,
+  I18nKeylessAllTranslationsResponse,
   TranslationOptions,
 } from "./types";
 export {

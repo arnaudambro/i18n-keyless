@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo } from "react";
-import { type TranslationOptions, getTranslation } from "i18n-keyless-core";
-import { useI18nKeyless } from "./store";
+import { type TranslationOptions } from "i18n-keyless-core";
+import { useI18nKeyless, getTranslation } from "./store";
 
 export interface I18nKeylessTextProps {
   /**
@@ -60,8 +60,7 @@ export const I18nKeylessText: React.FC<I18nKeylessTextProps> = ({
   }, [children]);
 
   useEffect(() => {
-    const store = useI18nKeyless.getState();
-    getTranslation(sourceText, store, { context, debug, forceTemporary });
+    getTranslation(sourceText, { context, debug, forceTemporary });
   }, [sourceText, currentLanguage, context, debug, forceTemporary]);
 
   const translatedText =

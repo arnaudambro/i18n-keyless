@@ -12,7 +12,6 @@ export {
   type I18nKeylessRequestBody,
   type I18nKeylessResponse,
   type TranslationOptions,
-  getTranslation,
   fetchAllTranslations,
   validateLanguage,
   queue,

@@ -2,12 +2,13 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import { I18nKeylessText } from "../I18nKeylessText";
 import { vi, beforeEach, describe, it, expect, afterEach } from "vitest";
+import { getTranslationCore, type Lang } from "i18n-keyless-core";
 
 // Create a mock store before vi.mock call using vi.hoisted
 const mockStore = vi.hoisted(() => {
   const store = {
     config: null,
-    currentLanguage: "en",
+    currentLanguage: "en" as Lang,
     translations: {},
     uniqueId: null,
     lastRefresh: null,
@@ -36,17 +37,16 @@ const mockStore = vi.hoisted(() => {
 });
 
 // Mock the store module - this is hoisted to the top of the file
-vi.mock("../store", () => {
+vi.mock("../store", async () => {
   return {
     useI18nKeyless: mockStore,
-    // Add any other exports from the store that might be needed
-    getTranslation: vi.fn(),
+    getTranslation: vi.fn((key, options) => {
+      return getTranslationCore(key, mockStore.getState(), options);
+    }),
   };
 });
 
-// Mock utils module to avoid errors with getTranslation
 vi.mock("../utils", () => ({
-  getTranslation: vi.fn(),
   validateLanguage: vi.fn((lang) => lang),
 }));
 

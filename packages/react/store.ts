@@ -4,9 +4,11 @@ import {
   type TranslationStore,
   type I18nKeylessResponse,
   type Translations,
+  type TranslationOptions,
   queue,
   fetchAllTranslations,
   validateLanguage,
+  getTranslationCore,
 } from "i18n-keyless-core";
 import { create } from "zustand";
 import { init as initRoot, storeKeys, setItem, getItem, clearI18nKeylessStorage } from "./utils";
@@ -121,6 +123,11 @@ export async function init(newConfig: I18nConfig) {
 export function useCurrentLanguage(): Lang | null {
   const currentLanguage = useI18nKeyless((state) => state.currentLanguage);
   return currentLanguage;
+}
+
+export function getTranslation(key: string, options?: TranslationOptions): string {
+  const store = useI18nKeyless.getState();
+  return getTranslationCore(key, store, options);
 }
 
 export function setCurrentLanguage(lang: I18nConfig["languages"]["supported"][number]) {

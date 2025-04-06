@@ -37,7 +37,7 @@ export function validateLanguage(lang: I18nConfig["languages"]["supported"][numb
  * @returns The translated text or the original key if not found
  * @throws Error if config is not initialized
  */
-export function getTranslation(key: string, store: TranslationStore, options?: TranslationOptions): string {
+export function getTranslationCore(key: string, store: TranslationStore, options?: TranslationOptions): string {
   const currentLanguage = store.currentLanguage;
   const config = store.config;
   const translations = store.translations;

@@ -3,7 +3,7 @@ import { act } from "@testing-library/react";
 import packageJson from "../package.json";
 import { mockStore, mockStorage } from "./__mocks__/store";
 import { useI18nKeyless, init } from "../store";
-import { getTranslation, queue } from "i18n-keyless-core";
+import { getTranslationCore, queue } from "i18n-keyless-core";
 // These vi.mock calls must be at the top level, outside of any function or block
 vi.mock("zustand", () => ({
   create: () => ({
@@ -18,7 +18,7 @@ vi.mock("../store", async () => {
   return {
     useI18nKeyless: mockStore,
     useCurrentLanguage: vi.fn(),
-    getTranslation: vi.fn(),
+    getTranslationCore: vi.fn(),
     setCurrentLanguage: vi.fn(),
     fetchAllTranslations: vi.fn(),
     clearI18nKeylessStorage: vi.fn(),
@@ -227,14 +227,14 @@ describe("i18n-keyless store", () => {
     it("should return original text when current language is primary language", () => {
       useI18nKeyless.setState({ currentLanguage: "en" });
       const store = useI18nKeyless.getState();
-      const result = getTranslation("Hello World", store);
+      const result = getTranslationCore("Hello World", store);
       expect(result).toBe("Hello World");
     });
 
     it("should return original text when current language is primary language whatever context there is", () => {
       useI18nKeyless.setState({ currentLanguage: "en" });
       const store = useI18nKeyless.getState();
-      const result = getTranslation("Hello World again", store, { context: "whatever" });
+      const result = getTranslationCore("Hello World again", store, { context: "whatever" });
       expect(result).toBe("Hello World again");
     });
 
@@ -248,8 +248,8 @@ describe("i18n-keyless store", () => {
       });
 
       const store = useI18nKeyless.getState();
-      const headerResult = getTranslation("Welcome", store, { context: "header" });
-      const footerResult = getTranslation("Good bye", store, { context: "footer" });
+      const headerResult = getTranslationCore("Welcome", store, { context: "header" });
+      const footerResult = getTranslationCore("Good bye", store, { context: "footer" });
 
       expect(headerResult).toBe("Bienvenue");
       expect(footerResult).toBe("Au revoir");
@@ -263,7 +263,7 @@ describe("i18n-keyless store", () => {
         json: () => Promise.resolve({ ok: true, data: { translations: {} } }),
       });
 
-      const result = getTranslation("Hungry", store, {
+      const result = getTranslationCore("Hungry", store, {
         forceTemporary: {
           fr: "J'ai faim",
         },
@@ -299,7 +299,7 @@ describe("i18n-keyless store", () => {
         json: () => Promise.resolve({ ok: true }),
       });
 
-      const result = getTranslation("Happiness", store, {
+      const result = getTranslationCore("Happiness", store, {
         forceTemporary: {
           fr: "Joie temporaire",
         },
@@ -332,7 +332,7 @@ describe("i18n-keyless store", () => {
       const store = useI18nKeyless.getState();
       const queueSpy = vi.spyOn(queue, "add");
 
-      getTranslation("Missing Translation", store);
+      getTranslationCore("Missing Translation", store);
 
       expect(queueSpy).toHaveBeenCalled();
     });
@@ -345,7 +345,7 @@ describe("i18n-keyless store", () => {
       global.fetch = vi.fn().mockRejectedValue(new Error("API Error"));
       useI18nKeyless.setState({ currentLanguage: "fr" });
 
-      getTranslation("Test Error", store);
+      getTranslationCore("Test Error", store);
 
       // Wait for async queue to process
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -361,7 +361,7 @@ describe("i18n-keyless store", () => {
       const store = useI18nKeyless.getState();
       const queueSpy = vi.spyOn(queue, "add");
 
-      getTranslation("", store);
+      getTranslationCore("", store);
 
       expect(queueSpy).not.toHaveBeenCalled();
     });
@@ -373,7 +373,7 @@ describe("i18n-keyless store", () => {
       useI18nKeyless.setState({ currentLanguage: "fr" });
       const store = useI18nKeyless.getState();
 
-      getTranslation("Debug Test", store, { debug: true });
+      getTranslationCore("Debug Test", store, { debug: true });
 
       // Wait for any async operations to complete
       await new Promise((resolve) => setTimeout(resolve, 0));

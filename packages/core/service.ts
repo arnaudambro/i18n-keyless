@@ -5,9 +5,9 @@ import type {
   TranslationStore,
   TranslationOptions,
   I18nKeylessResponse,
-} from "i18n-keyless-core";
+} from "./types";
 import MyPQueue from "./my-pqueue";
-import packageJson from "./package.json";
+import packageJson from "../../package.json";
 import { api } from "./api";
 
 export const queue = new MyPQueue({ concurrency: 5 });

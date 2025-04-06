@@ -149,6 +149,8 @@ export interface I18nConfig {
   } & ({ clear: ClearStorageFunction; clearAll?: never } | { clearAll: ClearStorageFunction; clear?: never });
 }
 
+export type NodeConfig = Omit<I18nConfig, "storage">;
+
 export interface TranslationStoreState {
   /**
    * the unique id of the consumer of i18n-keyless API, to help identify the usage API side
@@ -197,6 +199,10 @@ interface TranslationStoreActions {
 }
 
 export type TranslationStore = TranslationStoreState & TranslationStoreActions;
+export interface MinimalTranslationStore extends Omit<TranslationStore, "setLanguage" | "storage" | "config"> {
+  config: NodeConfig | null;
+}
+export type OmitCurrentLanguageTranslationStore = Omit<MinimalTranslationStore, "currentLanguage">;
 
 export interface I18nKeylessRequestBody {
   key: string;

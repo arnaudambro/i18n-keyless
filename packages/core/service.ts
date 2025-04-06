@@ -2,7 +2,8 @@ import type {
   I18nConfig,
   I18nKeylessRequestBody,
   Lang,
-  TranslationStore,
+  OmitCurrentLanguageTranslationStore,
+  MinimalTranslationStore,
   TranslationOptions,
   I18nKeylessResponse,
 } from "./types";
@@ -37,7 +38,7 @@ export function validateLanguage(lang: I18nConfig["languages"]["supported"][numb
  * @returns The translated text or the original key if not found
  * @throws Error if config is not initialized
  */
-export function getTranslationCore(key: string, store: TranslationStore, options?: TranslationOptions): string {
+export function getTranslationCore(key: string, store: MinimalTranslationStore, options?: TranslationOptions): string {
   const currentLanguage = store.currentLanguage;
   const config = store.config;
   const translations = store.translations;
@@ -66,7 +67,7 @@ const translating: Record<string, boolean> = {};
  * @param options - Optional parameters for the translation process
  * @throws Error if config is not initialized
  */
-export function translateKey(key: string, store: TranslationStore, options?: TranslationOptions) {
+export function translateKey(key: string, store: MinimalTranslationStore, options?: TranslationOptions) {
   const currentLanguage = store.currentLanguage;
   const config = store.config;
   const translations = store.translations;
@@ -156,7 +157,7 @@ export function translateKey(key: string, store: TranslationStore, options?: Tra
  */
 export async function getAllTranslationsFromLanguage(
   targetLanguage: Lang,
-  store: TranslationStore
+  store: MinimalTranslationStore
 ): Promise<I18nKeylessResponse | void> {
   const config = store.config;
   const lastRefresh = store.lastRefresh;
@@ -210,7 +211,7 @@ export async function getAllTranslationsFromLanguage(
  * @returns Promise resolving to the translation response or void if failed
  */
 export async function getAllTranslationsForAllLanguages(
-  store: Omit<TranslationStore, "currentLanguage" | "setLanguage">
+  store: OmitCurrentLanguageTranslationStore
 ): Promise<I18nKeylessResponse | void> {
   const config = store.config;
   const lastRefresh = store.lastRefresh;

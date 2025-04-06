@@ -5,6 +5,8 @@ export type {
   Translations,
   TranslationStore,
   TranslationStoreState,
+  MinimalTranslationStore,
+  OmitCurrentLanguageTranslationStore,
   I18nKeylessRequestBody,
   I18nKeylessResponse,
   TranslationOptions,

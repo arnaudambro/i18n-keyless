@@ -8,7 +8,12 @@ import {
   getAllTranslationsForAllLanguages,
 } from "i18n-keyless-core";
 
-const store: Omit<TranslationStore, "currentLanguage"> = {
+type NodeConfig = Omit<I18nConfig, "getAllTranslations" | "storage">;
+interface NodeStore extends Omit<TranslationStore, "currentLanguage" | "storage" | "config"> {
+  config: NodeConfig | null;
+}
+
+const store: NodeStore = {
   translations: {},
   uniqueId: "",
   lastRefresh: "",
@@ -22,9 +27,7 @@ queue.on("empty", () => {
   getAllTranslationsForAllLanguages(store).then(store.setTranslations);
 });
 
-export async function init(
-  newConfig: Omit<I18nConfig, "getAllTranslations">
-): Promise<Omit<I18nConfig, "getAllTranslations">> {
+export async function init(newConfig: NodeConfig): Promise<NodeConfig> {
   if (!newConfig.languages) {
     throw new Error("i18n-keyless: languages is required");
   }

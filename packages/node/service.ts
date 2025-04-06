@@ -51,11 +51,14 @@ export async function init(newConfig: NodeConfig): Promise<NodeConfig> {
   store.config = newConfig;
   store.config.onInit?.(newConfig.languages.primary);
 
-  getAllTranslationsForAllLanguages(store).then(store.setTranslations);
+  await getAllTranslationsForAllLanguages(store);
 
   return newConfig;
 }
 
 export function getTranslation(key: string, currentLanguage: Lang, options?: TranslationOptions): string {
+  if (options?.debug) {
+    console.log("getTranslation", key, currentLanguage, store.translations);
+  }
   return getTranslationCore(key, { ...store, currentLanguage }, options);
 }

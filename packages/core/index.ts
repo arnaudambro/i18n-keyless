@@ -7,6 +7,7 @@ export type {
   TranslationStoreState,
   MinimalTranslationStore,
   OmitCurrentLanguageTranslationStore,
+  NodeConfig,
   I18nKeylessRequestBody,
   I18nKeylessResponse,
   TranslationOptions,

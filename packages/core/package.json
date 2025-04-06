@@ -1,7 +1,7 @@
 {
   "name": "i18n-keyless-core",
   "private": false,
-  "version": "1.10.2",
+  "version": "1.10.3",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",

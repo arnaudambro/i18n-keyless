@@ -1,15 +1,14 @@
 import {
-  type I18nConfig,
   type Lang,
-  type TranslationStore,
+  type NodeConfig,
   type TranslationOptions,
   queue,
   getTranslationCore,
   getAllTranslationsForAllLanguages,
+  MinimalTranslationStore,
 } from "i18n-keyless-core";
 
-type NodeConfig = Omit<I18nConfig, "getAllTranslations" | "storage">;
-interface NodeStore extends Omit<TranslationStore, "currentLanguage" | "storage" | "config"> {
+interface NodeStore extends Omit<MinimalTranslationStore, "currentLanguage" | "storage"> {
   config: NodeConfig | null;
 }
 
@@ -19,7 +18,6 @@ const store: NodeStore = {
   lastRefresh: "",
   config: null,
   setTranslations: () => {},
-  setLanguage: () => {},
 };
 
 queue.on("empty", () => {
@@ -52,6 +50,8 @@ export async function init(newConfig: NodeConfig): Promise<NodeConfig> {
   }
   store.config = newConfig;
   store.config.onInit?.(newConfig.languages.primary);
+
+  getAllTranslationsForAllLanguages(store).then(store.setTranslations);
 
   return newConfig;
 }

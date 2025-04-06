@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act } from "@testing-library/react";
+import packageJson from "../../../package.json";
 import { mockStore, mockStorage } from "./__mocks__/store";
 import { useI18nKeyless, init } from "../store";
 import { getTranslation, queue } from "i18n-keyless-core";
@@ -283,7 +284,7 @@ describe("i18n-keyless store", () => {
         headers: {
           Authorization: "Bearer test-api-key",
           "Content-Type": "application/json",
-          Version: "1.9.1",
+          Version: packageJson.version,
           unique_id: "",
         },
         method: "POST",
@@ -319,7 +320,7 @@ describe("i18n-keyless store", () => {
         headers: {
           Authorization: "Bearer test-api-key",
           "Content-Type": "application/json",
-          Version: "1.9.1",
+          Version: packageJson.version,
           unique_id: "",
         },
         method: "POST",

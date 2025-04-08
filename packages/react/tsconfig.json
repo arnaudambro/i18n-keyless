@@ -13,10 +13,7 @@
     "declaration": true,
     "jsx": "react-jsx",
     "strict": true,
-    "baseUrl": ".",
-    "paths": {
-      "i18n-keyless-core": ["../core"],
-    }
+    "baseUrl": "."
   },
   "include": ["./**/*"],
   "exclude": ["node_modules"]

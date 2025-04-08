@@ -80,7 +80,7 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
 
     // Only fetch translations if the new language is not the primary language
     if (lang !== store.config.languages.primary) {
-      await getAllTranslationsFromLanguage(lang, store).then(store.setTranslations);
+      await getAllTranslationsFromLanguage(lang, { ...store, lastRefresh: null }).then(store.setTranslations);
     }
   },
 }));

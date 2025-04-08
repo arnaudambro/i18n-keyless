@@ -15,3 +15,4 @@ export type {
   TranslationOptions,
 } from "./types";
 export { getTranslationCore, getAllTranslationsFromLanguage, queue } from "./service";
+export { api } from "./api";

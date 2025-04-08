@@ -72,8 +72,10 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
     }
 
     set({ currentLanguage: validatedLang });
+    set({ lastRefresh: null });
     if (store.config.storage) {
       setItem(storeKeys.currentLanguage, validatedLang!, store.config.storage);
+      setItem(storeKeys.lastRefresh, "", store.config.storage);
     }
 
     // Only fetch translations if the new language is not the primary language

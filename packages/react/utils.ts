@@ -1,4 +1,4 @@
-import type { I18nConfig } from "i18n-keyless-core";
+import type { I18nConfig } from "./types";
 
 /**
  * The keys used to store i18n-keyless data in storage
@@ -99,4 +99,21 @@ export async function clearI18nKeylessStorage(storage: I18nConfig["storage"]) {
   for (const key of Object.keys(storeKeys)) {
     deleteItem(key, storage);
   }
+}
+
+/**
+ * Validates the language against the supported languages
+ * @param lang - The language to validate
+ * @param config - The configuration object
+ * @returns The validated language or the fallback language if not supported
+ * @throws Error if config is not initialized
+ */
+export function validateLanguage(lang: I18nConfig["languages"]["supported"][number], config: I18nConfig) {
+  if (!config.API_KEY) {
+    throw new Error(`i18n-keyless: config is not initialized validating language`);
+  }
+  if (!config.languages.supported.includes(lang)) {
+    return config.languages.fallback;
+  }
+  return lang;
 }

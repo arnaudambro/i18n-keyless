@@ -2,12 +2,18 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import { I18nKeylessText } from "../I18nKeylessText";
 import { vi, beforeEach, describe, it, expect, afterEach } from "vitest";
-import { getTranslationCore, type Lang } from "i18n-keyless-core";
+import { getTranslationCore, type PrimaryLang, type Lang } from "i18n-keyless-core";
 
 // Create a mock store before vi.mock call using vi.hoisted
 const mockStore = vi.hoisted(() => {
   const store = {
-    config: null,
+    config: {
+      API_KEY: "any-fucking-key",
+      languages: {
+        primary: "en" as PrimaryLang,
+        supported: ["en"] as Lang[],
+      },
+    },
     currentLanguage: "en" as Lang,
     translations: {},
     uniqueId: null,
@@ -66,9 +72,10 @@ describe("I18nKeylessText", () => {
       translations: {},
       currentLanguage: "en",
       config: {
+        API_KEY: "any-fucking-key",
         languages: {
-          primary: "en",
-          supported: ["en", "fr"],
+          primary: "en" as PrimaryLang,
+          supported: ["en"] as Lang[],
         },
       },
     });

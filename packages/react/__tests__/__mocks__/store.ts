@@ -1,8 +1,16 @@
-import { type TranslationStore, validateLanguage } from "i18n-keyless-core";
+import { type TranslationStore } from "../../types";
 import { vi } from "vitest";
+import { validateLanguage } from "../../utils";
+import type { Lang, PrimaryLang } from "i18n-keyless-core";
 
 export const store: TranslationStore = {
-  config: null,
+  config: {
+    API_KEY: "any-fucking-keyk",
+    languages: {
+      primary: "fr" as PrimaryLang,
+      supported: ["fr"] as Lang[],
+    },
+  },
   currentLanguage: "fr",
   translations: {},
   uniqueId: null,
@@ -15,6 +23,7 @@ export const store: TranslationStore = {
 };
 
 // Create a function that supports the selector pattern
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const useI18nKeylessMock = ((selectorOrStore: any) => {
   // If it's a function (selector), call it with the store
   if (typeof selectorOrStore === "function") {
@@ -22,6 +31,7 @@ const useI18nKeylessMock = ((selectorOrStore: any) => {
   }
   // Otherwise return the store
   return store;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 }) as any;
 
 // Add the getState and setState methods to the mock function

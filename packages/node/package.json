@@ -1,7 +1,7 @@
 {
   "name": "i18n-keyless-node",
   "private": false,
-  "version": "1.10.5",
+  "version": "1.10.6",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -11,7 +11,8 @@
   ],
   "scripts": {
     "prepublishOnly": "rm -rf ./dist && tsc --project tsconfig.json && npm pack",
-    "test": "echo 'no test for node'"
+    "test": "echo 'no test for node'",
+    "postpublish": "rm -rf ./dist && rm *.tgz"
   },
   "dependencies": {
     "i18n-keyless-core": "latest"

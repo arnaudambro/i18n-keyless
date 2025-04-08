@@ -1,7 +1,7 @@
 {
   "name": "i18n-keyless-react",
   "private": false,
-  "version": "1.10.5",
+  "version": "1.10.6",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -13,7 +13,8 @@
     "prepublishOnly": "rm -rf ./dist && tsc --project tsconfig.json && npm run test && npm pack",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "postpublish": "rm -rf ./dist && rm *.tgz"
   },
   "dependencies": {
     "i18n-keyless-core": "latest",

@@ -1,34 +1,17 @@
 import type {
-  I18nConfig,
+  HandleTranslateFunction,
   I18nKeylessRequestBody,
   Lang,
-  OmitCurrentLanguageTranslationStore,
-  MinimalTranslationStore,
   TranslationOptions,
   I18nKeylessResponse,
+  FetchTranslationParams,
+  GetAllTranslationsFunction,
 } from "./types";
 import MyPQueue from "./my-pqueue";
 import packageJson from "./package.json";
 import { api } from "./api";
 
 export const queue = new MyPQueue({ concurrency: 5 });
-
-/**
- * Validates the language against the supported languages
- * @param lang - The language to validate
- * @param config - The configuration object
- * @returns The validated language or the fallback language if not supported
- * @throws Error if config is not initialized
- */
-export function validateLanguage(lang: I18nConfig["languages"]["supported"][number], config: I18nConfig) {
-  if (!config) {
-    throw new Error(`i18n-keyless: config is not initialized validating language`);
-  }
-  if (!config.languages.supported.includes(lang)) {
-    return config.languages.fallback;
-  }
-  return lang;
-}
 
 /**
  * Gets a translation for the specified key from the store
@@ -38,11 +21,11 @@ export function validateLanguage(lang: I18nConfig["languages"]["supported"][numb
  * @returns The translated text or the original key if not found
  * @throws Error if config is not initialized
  */
-export function getTranslationCore(key: string, store: MinimalTranslationStore, options?: TranslationOptions): string {
+export function getTranslationCore(key: string, store: FetchTranslationParams, options?: TranslationOptions): string {
   const currentLanguage = store.currentLanguage;
   const config = store.config;
   const translations = store.translations;
-  if (!config) {
+  if (!config.API_KEY) {
     throw new Error("i18n-keyless: config is not initialized");
   }
   if (currentLanguage === config.languages.primary) {
@@ -67,12 +50,12 @@ const translating: Record<string, boolean> = {};
  * @param options - Optional parameters for the translation process
  * @throws Error if config is not initialized
  */
-export function translateKey(key: string, store: MinimalTranslationStore, options?: TranslationOptions) {
+export function translateKey(key: string, store: FetchTranslationParams, options?: TranslationOptions) {
   const currentLanguage = store.currentLanguage;
   const config = store.config;
   const translations = store.translations;
   const uniqueId = store.uniqueId;
-  if (!config) {
+  if (!config.API_KEY) {
     throw new Error("i18n-keyless: config is not initialized");
   }
   const context = options?.context;
@@ -129,7 +112,7 @@ export function translateKey(key: string, store: MinimalTranslationStore, option
               },
               body: JSON.stringify(body),
             })
-            .then((res) => res as ReturnType<NonNullable<I18nConfig["handleTranslate"]>>);
+            .then((res) => res as ReturnType<NonNullable<HandleTranslateFunction>>);
 
           if (debug) {
             console.log("response", response);
@@ -157,12 +140,12 @@ export function translateKey(key: string, store: MinimalTranslationStore, option
  */
 export async function getAllTranslationsFromLanguage(
   targetLanguage: Lang,
-  store: MinimalTranslationStore
+  store: FetchTranslationParams
 ): Promise<I18nKeylessResponse | void> {
   const config = store.config;
   const lastRefresh = store.lastRefresh;
   const uniqueId = store.uniqueId;
-  if (!config) {
+  if (!config.API_KEY) {
     console.error("i18n-keyless: No config found");
     return;
   }
@@ -188,59 +171,7 @@ export async function getAllTranslationsFromLanguage(
               },
             }
           )
-          .then((res) => res as ReturnType<NonNullable<I18nConfig["getAllTranslations"]>>);
-
-    if (!response.ok) {
-      throw new Error(response.error);
-    }
-
-    if (response.message) {
-      console.warn("i18n-keyless: ", response.message);
-    }
-
-    return response;
-  } catch (error) {
-    console.error("i18n-keyless: fetch all translations error:", error);
-  }
-}
-
-/**
- * Fetches all translations for a target language
- * @param targetLanguage - The language code to fetch translations for
- * @param store - The translation store
- * @returns Promise resolving to the translation response or void if failed
- */
-export async function getAllTranslationsForAllLanguages(
-  store: OmitCurrentLanguageTranslationStore
-): Promise<I18nKeylessResponse | void> {
-  const config = store.config;
-  const lastRefresh = store.lastRefresh;
-  const uniqueId = store.uniqueId;
-  if (!config) {
-    console.error("i18n-keyless: No config found");
-    return;
-  }
-  // if (config.languages.primary === targetLanguage) {
-  //   return;
-  // }
-
-  try {
-    const response = config.getAllTranslations
-      ? await config.getAllTranslations()
-      : await api
-          .fetchAllTranslationsForAllLanguages(
-            `${config.API_URL || "https://api.i18n-keyless.com"}/translate/?last_refresh=${lastRefresh}`,
-            {
-              method: "GET",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${config.API_KEY}`,
-                Version: packageJson.version,
-                unique_id: uniqueId || "",
-              },
-            }
-          )
-          .then((res) => res as ReturnType<NonNullable<I18nConfig["getAllTranslations"]>>);
+          .then((res) => res as ReturnType<NonNullable<GetAllTranslationsFunction>>);
 
     if (!response.ok) {
       throw new Error(response.error);

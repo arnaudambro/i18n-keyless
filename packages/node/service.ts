@@ -1,39 +1,110 @@
 import {
   type Lang,
-  type NodeConfig,
   type TranslationOptions,
   queue,
   getTranslationCore,
-  getAllTranslationsForAllLanguages,
-  MinimalTranslationStore,
+  I18nKeylessAllTranslationsResponse,
 } from "i18n-keyless-core";
+import { api } from "i18n-keyless-core/api";
+import { I18nKeylessNodeConfig, I18nKeylessNodeStore } from "types";
+import packageJson from "../../package.json";
 
-interface NodeStore extends Omit<MinimalTranslationStore, "currentLanguage" | "storage"> {
-  config: NodeConfig | null;
-}
-
-const store: NodeStore = {
-  translations: {},
+const store: I18nKeylessNodeStore = {
+  translations: {
+    fr: {},
+    en: {},
+    es: {},
+    nl: {},
+    it: {},
+    de: {},
+    pl: {},
+    pt: {},
+    ro: {},
+    sv: {},
+    tr: {},
+    ja: {},
+    cn: {},
+    ru: {},
+    ko: {},
+    ar: {},
+  },
   uniqueId: "",
   lastRefresh: "",
-  config: null,
-  setTranslations: () => {},
+  config: {
+    API_KEY: "",
+    languages: {
+      primary: "fr",
+      supported: ["fr"],
+    },
+  },
 };
+
+/**
+ * Fetches all translations
+ * @param store - The translation store
+ * @returns Promise resolving to the translation response or void if failed
+ */
+export async function getAllTranslationsForAllLanguages(
+  store: I18nKeylessNodeStore
+): Promise<I18nKeylessAllTranslationsResponse | void> {
+  const config = store.config;
+  const lastRefresh = store.lastRefresh;
+  const uniqueId = store.uniqueId;
+  if (!config.API_KEY) {
+    console.error("i18n-keyless: No config found");
+    return;
+  }
+  // if (config.languages.primary === targetLanguage) {
+  //   return;
+  // }
+
+  try {
+    const response = config.getAllTranslationsForAllLanguages
+      ? await config.getAllTranslationsForAllLanguages()
+      : await api
+          .fetchAllTranslationsForAllLanguages(
+            `${config.API_URL || "https://api.i18n-keyless.com"}/translate/?last_refresh=${lastRefresh}`,
+            {
+              method: "GET",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${config.API_KEY}`,
+                Version: packageJson.version,
+                unique_id: uniqueId || "",
+              },
+            }
+          )
+          .then((res) => res as I18nKeylessAllTranslationsResponse);
+
+    if (!response.ok) {
+      throw new Error(response.error);
+    }
+
+    if (response.message) {
+      console.warn("i18n-keyless: ", response.message);
+    }
+
+    return response;
+  } catch (error) {
+    console.error("i18n-keyless: fetch all translations error:", error);
+  }
+}
 
 queue.on("empty", () => {
   // when each word is translated, fetch the translations for the current language
-  getAllTranslationsForAllLanguages(store).then(store.setTranslations);
+  getAllTranslationsForAllLanguages(store).then((res) => {
+    if (res?.ok) {
+      store.translations = res.data.translations;
+    }
+  });
 });
 
-export async function init(newConfig: NodeConfig): Promise<NodeConfig> {
+export async function init(newConfig: I18nKeylessNodeConfig): Promise<I18nKeylessNodeConfig> {
   if (!newConfig.languages) {
     throw new Error("i18n-keyless: languages is required");
   }
   if (!newConfig.languages.primary) {
     throw new Error("i18n-keyless: primary is required");
-  }
-  if (!newConfig.languages.fallback) {
-    newConfig.languages.fallback = newConfig.languages.primary;
   }
   if (!newConfig.getAllTranslationsForAllLanguages || !newConfig.handleTranslate) {
     if (!newConfig.API_KEY) {
@@ -44,14 +115,14 @@ export async function init(newConfig: NodeConfig): Promise<NodeConfig> {
       }
     }
   }
-  if (newConfig.addMissingTranslations !== false) {
-    // default to true
-    newConfig.addMissingTranslations = true;
-  }
+  newConfig.addMissingTranslations = true;
   store.config = newConfig;
   store.config.onInit?.(newConfig.languages.primary);
 
-  await getAllTranslationsForAllLanguages(store);
+  const response = await getAllTranslationsForAllLanguages(store);
+  if (response?.ok) {
+    store.translations = response.data.translations;
+  }
 
   return newConfig;
 }
@@ -60,5 +131,14 @@ export function getTranslation(key: string, currentLanguage: Lang, options?: Tra
   if (options?.debug) {
     console.log("getTranslation", key, currentLanguage, store.translations);
   }
-  return getTranslationCore(key, { ...store, currentLanguage }, options);
+  return getTranslationCore(
+    key,
+    {
+      ...store,
+      config: store.config!,
+      currentLanguage,
+      translations: store.translations[currentLanguage],
+    },
+    options
+  );
 }

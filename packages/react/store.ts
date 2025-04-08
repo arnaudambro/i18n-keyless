@@ -124,7 +124,7 @@ async function hydrate() {
  * @returns The validated and completed configuration
  * @throws Error if required configuration properties are missing
  */
-export async function init(newConfig: Omit<I18nConfig, "getAllTranslationsForAllLanguages">) {
+export async function init(newConfig: I18nConfig) {
   if (!newConfig.languages) {
     throw new Error("i18n-keyless: languages is required");
   }

@@ -7,7 +7,7 @@ import {
 } from "i18n-keyless-core";
 import { api } from "i18n-keyless-core/api";
 import { I18nKeylessNodeConfig, I18nKeylessNodeStore } from "types";
-import packageJson from "../../package.json";
+import packageJson from "./package.json";
 
 const store: I18nKeylessNodeStore = {
   translations: {

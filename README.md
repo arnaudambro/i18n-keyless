@@ -9,6 +9,8 @@ Welcome to **i18n-keyless**! 🚀 This package provides a seamless way to handle
 - [How it works](#-how-it-works)
 - [Installation](#-installation)
 - [Usage](#-usage)
+  - [React](#-react-usage-i18n-keyless-react)
+  - [Node](#-node-usage-i18n-keyless-node)
 - [Setup](#️-setup-with-i18n-keyless-service)
 - [Custom Component Example](#️-custom-component-example)
 - [What pains does it solve?](#-what-pains-does-it-solve)
@@ -46,32 +48,46 @@ No translations are stored in the app initially.
 
 At each opening of the app, the newest translations are fetched from the storage and the object is updated.
 
-
 ## 🔧 **Installation**
+
+### **React Installation**
 
 Install the package via npm or yarn:
 
 ```bash
-npm install i18n-keyless
+npm install i18n-keyless-react
 ```
 
 or
 
 ```bash
-yarn add i18n-keyless
+yarn add i18n-keyless-react
+```
+
+### **Node Installation**
+
+Install the package via npm or yarn:
+
+```bash
+npm install i18n-keyless-node
+```
+
+or
+
+```bash
+yarn add i18n-keyless-node
 ```
 
 ---
 
-
-## 🚀 **Usage**
+## 🚀 **React Usage (i18n-keyless-react)**
 
 ### **Component Usage**
 
 Use the `I18nKeylessText` component to wrap your text in any supported language:
 
 ```javascript
-import { I18nKeylessText } from "i18n-keyless";
+import { I18nKeylessText } from "i18n-keyless-react";
 
 <I18nKeylessText>Je mets mon texte dans ma langue, finies les clés !</I18nKeylessText>
 ```
@@ -81,7 +97,7 @@ import { I18nKeylessText } from "i18n-keyless";
 For text with dynamic content, use the `I18nKeylessTextWithReplacement` component:
 
 ```javascript
-import { I18nKeylessTextWithReplacement } from "i18n-keyless";
+import { I18nKeylessTextWithReplacement } from "i18n-keyless-react";
 
 // Replace specific text patterns with dynamic values
 <I18nKeylessTextWithReplacement 
@@ -93,15 +109,15 @@ import { I18nKeylessTextWithReplacement } from "i18n-keyless";
   Bonjour {name}, votre rendez-vous est confirmé pour le {date}
 </I18nKeylessTextWithReplacement>
 
-This will first translate the entire text, then replace the placeholders with their respective values. It's perfect for dynamic content like usernames, dates, or counts.
+// This will first translate the entire text, then replace the placeholders with their respective values. It's perfect for dynamic content like usernames, dates, or counts.
 ```
 
-### **Methods**
+### **React Hooks and Methods**
 
 For translating text outside of components, use the `getTranslation` method:
 
 ```javascript
-import { getTranslation } from "i18n-keyless";
+import { getTranslation } from "i18n-keyless-react";
 
 export default function Home() {
   return (
@@ -118,7 +134,7 @@ export default function Home() {
 For setting a new current language, use the `setCurrentLanguage` method wherever you want:
 
 ```javascript
-import { setCurrentLanguage } from "i18n-keyless";
+import { setCurrentLanguage } from "i18n-keyless-react";
 
 setCurrentLanguage("en");
 ```
@@ -126,22 +142,84 @@ setCurrentLanguage("en");
 To retrieve the current language, use the `useCurrentLanguage` hook:
 
 ```javascript
-import { useCurrentLanguage } from "i18n-keyless";
+import { useCurrentLanguage } from "i18n-keyless-react";
 
 const currentLanguage = useCurrentLanguage();
+```
+
+### **Storage Management**
+
+Clear the i18n-keyless storage:
+
+```javascript
+import { clearI18nKeylessStorage } from "i18n-keyless-react";
+
+// Clear all translations from storage
+clearI18nKeylessStorage();
+```
+
+## 🚀 **Node Usage (i18n-keyless-node)**
+
+### **Initialization**
+
+Initialize the i18n system with your configuration:
+
+```javascript
+import { init } from "i18n-keyless-node";
+
+await init({
+  API_KEY: "<YOUR_API_KEY>",
+  languages: {
+    primary: "fr",
+    supported: ["fr", "en"]
+  }
+});
+```
+
+### **Translation Methods**
+
+Translate text in your Node.js application:
+
+```javascript
+import { getTranslation } from "i18n-keyless-node";
+
+// Translate a phrase from your primary language to target language
+const translatedText = getTranslation("Bonjour le monde", "en");
+console.log(translatedText); // "Hello world"
+
+// With options
+const translatedTextWithOptions = getTranslation("Bonjour {name}", "en", { 
+  debug: true, // Logs translation process
+  skipTranslation: false // Whether to skip translation 
+});
+```
+
+### **Managing Translations**
+
+Fetch all translations for all supported languages:
+
+```javascript
+import { getAllTranslationsForAllLanguages } from "i18n-keyless-node";
+
+// Fetch and update translation store with latest translations
+const response = await getAllTranslationsForAllLanguages(store);
+if (response?.ok) {
+  // Handle successful translation update
+  console.log("Translations updated successfully");
+}
 ```
 
 ---
 
 ## ⚙️ **Setup with [i18n-keyless service](https://i18n-keyless.com)**
 
-Here's a basic setup example to get started with i18n-keyless:
+### **React Setup**
 
 ```javascript
-import * as I18nKeyless from "i18n-keyless";
+import { init } from "i18n-keyless-react";
 import myStorage from "./src/services/storage";
 
-I18nKeyless.init({
+init({
   API_KEY: "<YOUR_API_KEY>",
   storage: myStorage, // Example: MMKV, AsyncStorage, window.localStorage, or any other storage solution
   languages: {
@@ -151,11 +229,29 @@ I18nKeyless.init({
 });
 ```
 
+### **Node Setup**
+
+```javascript
+import { init } from "i18n-keyless-node";
+
+await init({
+  API_KEY: "<YOUR_API_KEY>",
+  languages: {
+    primary: "fr", // Set the primary language ('fr' or 'en' available by default)
+    supported: ["fr", "en"], // List of languages your application supports
+  },
+  // Optional callback when initialization is complete
+  onInit: (primaryLanguage) => {
+    console.log(`Initialized with primary language: ${primaryLanguage}`);
+  }
+});
+```
+
 ## ⚙️ **Setup with your own API**
 
 ### **Using `API_URL`**
 
-To use your own API, you need to provide the `API_URL` in the `I18nKeyless.init` configuration. Your API must implement the following routes:
+To use your own API, you need to provide the `API_URL` in the init configuration. Your API must implement the following routes:
 
 -   `GET /translate/:lang`: This route should return all translations for a given language.
     **Response format to GET /translate/en:**
@@ -195,13 +291,14 @@ To use your own API, you need to provide the `API_URL` in the `I18nKeyless.init`
     }
     ```
 
-Here's how to configure `i18n-keyless` with your `API_URL`:
+Here's how to configure with your `API_URL`:
 
 ```javascript
-import * as I18nKeyless from "i18n-keyless";
+// For React
+import { init } from "i18n-keyless-react";
 import myStorage from "./src/services/storage";
 
-I18nKeyless.init({
+init({
     API_URL: "https://your-api.com",
     storage: myStorage,
     languages: {
@@ -209,35 +306,46 @@ I18nKeyless.init({
         supported: ["en", "fr"],
     },
 });
+
+// For Node.js
+import { init } from "i18n-keyless-node";
+
+await init({
+    API_URL: "https://your-api.com",
+    languages: {
+        primary: "fr",
+        supported: ["en", "fr"],
+    },
+});
 ```
 
-### **Using `handleTranslate` and `getAllTranslations`**
+### **Using Custom Handlers**
 
-Alternatively, you can provide custom functions to handle the translation and retrieval of all translations. This is useful if you want to integrate with an existing translation service or database.
+Alternatively, you can provide custom functions to handle the translation and retrieval of all translations:
 
 ```javascript
-import * as I18nKeyless from "i18n-keyless";
-import MyCustomText from "./src/components/MyCustomText";
+// For React
+import { init } from "i18n-keyless-react";
 import myStorage from "./src/services/storage";
 
-async function handleTranslate(key: string) {
+async function handleTranslate(key, languages, primaryLanguage) {
     // Your custom logic to translate the key
+    return { ok: true, message: "" };
 }
 
-async function getAllTranslations() {
-    // Your custom logic to fetch all translations
-    // return all translations for all languages
+async function getAllTranslations(lang) {
+    // Your custom logic to fetch all translations for a specific language
     return {
-        "ok": true,
-        "data": {
-            "translations": {
+        ok: true,
+        data: {
+            translations: {
                 "Bonjour le monde": "Hello world",
             }
         }
-    }
+    };
 }
 
-I18nKeyless.init({
+init({
     storage: myStorage,
     languages: {
         primary: "fr",
@@ -246,13 +354,45 @@ I18nKeyless.init({
     handleTranslate: handleTranslate,
     getAllTranslations: getAllTranslations
 });
+
+// For Node.js
+import { init } from "i18n-keyless-node";
+
+async function handleTranslate(key, languages, primaryLanguage) {
+    // Your custom logic to translate the key
+    return { ok: true, message: "" };
+}
+
+async function getAllTranslationsForAllLanguages() {
+    // Your custom logic to fetch translations for all languages
+    return {
+        ok: true,
+        data: {
+            translations: {
+                en: {
+                    "Bonjour le monde": "Hello world"
+                },
+                fr: {}
+            }
+        }
+    };
+}
+
+await init({
+    languages: {
+        primary: "fr",
+        supported: ["en", "fr"],
+    },
+    handleTranslate: handleTranslate,
+    getAllTranslationsForAllLanguages: getAllTranslationsForAllLanguages
+});
 ```
 
 ---
 
 ## 🛠️ **Custom Component Example**
 
-Create a custom text component for advanced text rendering needs. I strongly advise to use a custom component, even the simplest `p` or `Text` component
+Create a custom text component for advanced text rendering needs. I strongly advise to use a custom component, even the simplest `p` or `Text` component:
 
 ```javascript
 import { StyleProp, Text, TextProps, TextStyle } from "react-native";
@@ -285,8 +425,6 @@ export default function MyText({
   );
 }
 ```
-
-
 
 ## 🔧 **What pains does it solve?**
 

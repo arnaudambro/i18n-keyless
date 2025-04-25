@@ -58,24 +58,12 @@ Install the package via npm or yarn:
 npm install i18n-keyless-react
 ```
 
-or
-
-```bash
-yarn add i18n-keyless-react
-```
-
 ### **Node Installation**
 
 Install the package via npm or yarn:
 
 ```bash
 npm install i18n-keyless-node
-```
-
-or
-
-```bash
-yarn add i18n-keyless-node
 ```
 
 ---
@@ -89,8 +77,6 @@ Get up and running in minutes!
 1.  **Install:**
     ```bash
     npm install i18n-keyless-react
-    # or
-    yarn add i18n-keyless-react
     ```
 
 2.  **Initialize:** Call `init` once at the root of your app (e.g., `App.js` or `index.js`).
@@ -126,6 +112,10 @@ Get up and running in minutes!
           <p>
             <I18nKeylessText>This text will be automatically translated.</I18nKeylessText>
           </p>
+          {/* Example with context for disambiguation */}
+          <button>
+            <I18nKeylessText context="this is a back button">Back</I18nKeylessText>
+          </button>
         </div>
       );
     }
@@ -136,8 +126,6 @@ Get up and running in minutes!
 1.  **Install:**
     ```bash
     npm install i18n-keyless-node
-    # or
-    yarn add i18n-keyless-node
     ```
 
 2.  **Initialize:** Call `init` at the start of your application.
@@ -167,6 +155,20 @@ Get up and running in minutes!
 
     const message = getTranslation("Processing complete.", "es"); // Target language 'es'
     console.log(message); // Output: "Procesamiento completo." (or similar)
+    ```
+
+4.  **Ensure Translation Exists (Optional):** If you need to guarantee a translation is fetched *before* using it (e.g., immediately after `init` or changing language), use `awaitForTranslation`.
+    ```javascript
+    import { awaitForTranslation } from "i18n-keyless-node";
+
+    // Example: Ensure French translation for "Hello world" is ready
+    const { ok } = await awaitForTranslation("Hello world", "fr");
+    if (ok) {
+      const guaranteedGreeting = getTranslation("Hello world", "fr");
+      console.log("Guaranteed:", guaranteedGreeting); // Output: Guaranteed: Bonjour le monde
+    } else {
+      console.error("Translation could not be fetched.");
+    }
     ```
 
 ---

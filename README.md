@@ -80,6 +80,97 @@ yarn add i18n-keyless-node
 
 ---
 
+## ⚡ **Quick Start**
+
+Get up and running in minutes!
+
+### **React Quick Start**
+
+1.  **Install:**
+    ```bash
+    npm install i18n-keyless-react
+    # or
+    yarn add i18n-keyless-react
+    ```
+
+2.  **Initialize:** Call `init` once at the root of your app (e.g., `App.js` or `index.js`).
+    ```javascript
+    import { init } from "i18n-keyless-react";
+    import myStorage from "./src/services/storage"; // Use your preferred storage solution
+
+    init({
+      API_KEY: "<YOUR_API_KEY>", // Get your key from i18n-keyless.com
+      storage: myStorage, 
+      languages: {
+        primary: "en", // Your app's primary language
+        supported: ["en", "fr", "es"], // Languages your app supports
+      },
+    });
+    ```
+    *Note: You'll need an `API_KEY` from [i18n-keyless.com](https://i18n-keyless.com) or configure your [own API](#️-setup-with-your-own-api).*
+
+3.  **Use:** Wrap text with the `I18nKeylessText` component.
+    ```javascript
+    import { I18nKeylessText } from "i18n-keyless-react";
+    import { setCurrentLanguage } from "i18n-keyless-react"; // Optional: for changing language
+
+    // Example Component
+    function MyComponent() {
+      return (
+        <div>
+          <button onClick={() => setCurrentLanguage("fr")}>Set FR</button>
+          <button onClick={() => setCurrentLanguage("es")}>Set ES</button>
+          <h1>
+            <I18nKeylessText>Welcome to our app!</I18nKeylessText>
+          </h1>
+          <p>
+            <I18nKeylessText>This text will be automatically translated.</I18nKeylessText>
+          </p>
+        </div>
+      );
+    }
+    ```
+
+### **Node Quick Start**
+
+1.  **Install:**
+    ```bash
+    npm install i18n-keyless-node
+    # or
+    yarn add i18n-keyless-node
+    ```
+
+2.  **Initialize:** Call `init` at the start of your application.
+    ```javascript
+    import { init } from "i18n-keyless-node";
+
+    (async () => {
+      await init({
+        API_KEY: "<YOUR_API_KEY>", // Get your key from i18n-keyless.com
+        languages: {
+          primary: "en", // Your primary language
+          supported: ["en", "fr", "es"], // Languages you need translations for
+        },
+      });
+      console.log("i18n-keyless initialized!");
+    })();
+    ```
+     *Note: You'll need an `API_KEY` from [i18n-keyless.com](https://i18n-keyless.com) or configure your [own API](#️-setup-with-your-own-api).*
+
+3.  **Use:** Use `getTranslation` to translate strings.
+    ```javascript
+    import { getTranslation } from "i18n-keyless-node";
+
+    // Assuming init has completed
+    const greeting = getTranslation("Hello world", "fr"); // Target language 'fr'
+    console.log(greeting); // Output: "Bonjour le monde" (or similar)
+
+    const message = getTranslation("Processing complete.", "es"); // Target language 'es'
+    console.log(message); // Output: "Procesamiento completo." (or similar)
+    ```
+
+---
+
 ## 🚀 **React Usage (i18n-keyless-react)**
 
 ### **Component Usage**
@@ -162,7 +253,7 @@ clearI18nKeylessStorage();
 
 ### **Initialization**
 
-Initialize the i18n system with your configuration:
+Initialize the i18n system with your configuration (usually done once at startup):
 
 ```javascript
 import { init } from "i18n-keyless-node";
@@ -211,45 +302,23 @@ if (response?.ok) {
 
 ---
 
-## ⚙️ **Setup with [i18n-keyless service](https://i18n-keyless.com)**
+## ⚙️ **Setup Options**
 
-### **React Setup**
+While the Quick Start uses the [i18n-keyless service](https://i18n-keyless.com) via `API_KEY`, you have other options:
 
-```javascript
-import { init } from "i18n-keyless-react";
-import myStorage from "./src/services/storage";
+### **Using the i18n-keyless Service (Default)**
 
-init({
-  API_KEY: "<YOUR_API_KEY>",
-  storage: myStorage, // Example: MMKV, AsyncStorage, window.localStorage, or any other storage solution
-  languages: {
-    primary: "fr", // Set the primary language ('fr' or 'en' available by default)
-    supported: ["fr", "en"], // this is what supports your app. But i18n-keyless allows also: nl,it,de,es,pl,pt,ro,sv,tr,ja,cn,ru,ko,ar. Reach out if you need more
-  },
-});
-```
+This is the easiest way to get started. Provide your `API_KEY` during initialization as shown in the Quick Start guides.
 
-### **Node Setup**
+*(React Setup Example - Covered in Quick Start)*
 
-```javascript
-import { init } from "i18n-keyless-node";
+*(Node Setup Example - Covered in Quick Start)*
 
-await init({
-  API_KEY: "<YOUR_API_KEY>",
-  languages: {
-    primary: "fr", // Set the primary language ('fr' or 'en' available by default)
-    supported: ["fr", "en"], // List of languages your application supports
-  },
-  // Optional callback when initialization is complete
-  onInit: (primaryLanguage) => {
-    console.log(`Initialized with primary language: ${primaryLanguage}`);
-  }
-});
-```
+### **Using your own API**
 
-## ⚙️ **Setup with your own API**
+If you prefer to host your own translation backend, you can configure `i18n-keyless` to point to your API endpoints.
 
-### **Using `API_URL`**
+#### **Using `API_URL`**
 
 To use your own API, you need to provide the `API_URL` in the init configuration. Your API must implement the following routes:
 
@@ -319,7 +388,7 @@ await init({
 });
 ```
 
-### **Using Custom Handlers**
+#### **Using Custom Handlers**
 
 Alternatively, you can provide custom functions to handle the translation and retrieval of all translations:
 
@@ -390,9 +459,9 @@ await init({
 
 ---
 
-## 🛠️ **Custom Component Example**
+## 🛠️ **Custom Component Example (React)**
 
-Create a custom text component for advanced text rendering needs. I strongly advise to use a custom component, even the simplest `p` or `Text` component:
+For better integration and consistency, wrap `I18nKeylessText` within your own custom text component:
 
 ```javascript
 import { StyleProp, Text, TextProps, TextStyle } from "react-native";

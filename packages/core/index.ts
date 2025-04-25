@@ -14,5 +14,5 @@ export type {
   FetchTranslationParams,
   TranslationOptions,
 } from "./types";
-export { awaitForTranslation, getTranslationCore, getAllTranslationsFromLanguage, queue } from "./service";
+export { getTranslationCore, getAllTranslationsFromLanguage, queue } from "./service";
 export { api } from "./api";

@@ -1,6 +1,8 @@
 import {
   type Lang,
   type TranslationOptions,
+  type I18nKeylessRequestBody,
+  type HandleTranslateFunction,
   queue,
   getTranslationCore,
   I18nKeylessAllTranslationsResponse,
@@ -142,3 +144,96 @@ export function getTranslation(key: string, currentLanguage: Lang, options?: Tra
     options
   );
 }
+
+/**
+ * Queues a key for translation if not already translated
+ * @param key - The text to translate
+ * @param store - The translation store
+ * @param options - Optional parameters for the translation process
+ * @throws Error if config is not initialized
+ */
+export const awaitForTranslation = new Proxy(
+  async function (key: string, currentLanguage: Lang, options?: TranslationOptions) {
+    const config = store.config;
+    const translations = store.translations;
+    const uniqueId = store.uniqueId;
+    if (!config.API_KEY) {
+      throw new Error("i18n-keyless: config is not initialized");
+    }
+    const context = options?.context;
+    const debug = options?.debug;
+    // if (key.length > 280) {
+    //   console.error("i18n-keyless: Key length exceeds 280 characters limit:", key);
+    //   return;
+    // }
+    if (!key) {
+      return null;
+    }
+    if (debug) {
+      console.log("translateKey", key, context, debug);
+    }
+    const forceTemporaryLang = options?.forceTemporary?.[currentLanguage];
+    const translation = context
+      ? translations[currentLanguage][`${key}__${context}`]
+      : translations[currentLanguage][key];
+    if (translation && !forceTemporaryLang) {
+      if (debug) {
+        console.log("translation exists", `${key}__${context}`);
+      }
+      return translation;
+    }
+    try {
+      if (config.handleTranslate) {
+        await config.handleTranslate?.(key);
+      } else {
+        const body: I18nKeylessRequestBody = {
+          key,
+          context,
+          forceTemporary: options?.forceTemporary,
+          languages: config.languages.supported,
+          primaryLanguage: config.languages.primary,
+        };
+        const apiUrl = config.API_URL || "https://api.i18n-keyless.com";
+        const url = `${apiUrl}/translate?return_translation=true`;
+        if (debug) {
+          console.log("fetching translation", url, body);
+        }
+        const response = await api
+          .fetchTranslation(url, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${config.API_KEY}`,
+              unique_id: uniqueId || "",
+              Version: packageJson.version,
+            },
+            body: JSON.stringify(body),
+          })
+          .then((res) => res as ReturnType<NonNullable<HandleTranslateFunction>>);
+
+        if (debug) {
+          console.log("response", response);
+        }
+        if (response.message) {
+          console.warn("i18n-keyless: ", response.message);
+        }
+        return response.data;
+      }
+      return null;
+    } catch (error) {
+      console.error("i18n-keyless: Error await translating key:", error);
+    }
+  },
+  {
+    apply(target, thisArg, args) {
+      const result = Reflect.apply(target, thisArg, args);
+      if (result instanceof Promise) {
+        result.catch((error) => {
+          console.error("awaitForTranslation was not properly awaited:", error);
+          throw error;
+        });
+      }
+      return result;
+    },
+  }
+);

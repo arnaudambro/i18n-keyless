@@ -194,7 +194,7 @@ export const awaitForTranslation = new Proxy(
           primaryLanguage: config.languages.primary,
         };
         const apiUrl = config.API_URL || "https://api.i18n-keyless.com";
-        const url = `${apiUrl}/translate?return_translation=true`;
+        const url = `${apiUrl}/translate`;
         if (debug) {
           console.log("fetching translation", url, body);
         }
@@ -217,7 +217,7 @@ export const awaitForTranslation = new Proxy(
         if (response.message) {
           console.warn("i18n-keyless: ", response.message);
         }
-        return response.data || key;
+        return response.data.translation[currentLanguage] || key;
       }
     } catch (error) {
       console.error("i18n-keyless: Error await translating key:", error);

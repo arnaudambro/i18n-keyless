@@ -1,4 +1,4 @@
-import { Lang, PrimaryLang } from "i18n-keyless-core";
+import { HandleTranslateFunction, Lang, PrimaryLang } from "i18n-keyless-core";
 
 export type Translations = Record<string, string>;
 
@@ -56,7 +56,7 @@ export interface I18nKeylessNodeConfig {
    * - not use this `handleTranslate` function, and use the built in API call with API_KEY filled
    * - not use this `handleTranslate` function nor API_KEY key, and provide your own API_URL
    */
-  handleTranslate?: (key: string) => Promise<{ ok: boolean; message: string }>;
+  handleTranslate?: HandleTranslateFunction;
   /**
    * if this function exists, it will be called instead of the API call
    * if this function doesn't exist, the default behavior is to call the API, with the API_KEY

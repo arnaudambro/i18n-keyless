@@ -20,7 +20,9 @@ export type Lang =
 
 export type Translations = Record<string, string>;
 
-export type HandleTranslateFunction = (key: string) => Promise<{ ok: boolean; message: string; data?: string }>;
+export type HandleTranslateFunction = (
+  key: string
+) => Promise<{ ok: boolean; message: string; data: { translation: Translations } }>;
 export type GetAllTranslationsFunction = () => Promise<I18nKeylessResponse>;
 export type GetAllTranslationsForAllLanguagesFunction = () => Promise<I18nKeylessAllTranslationsResponse>;
 

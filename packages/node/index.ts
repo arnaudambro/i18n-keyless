@@ -1,4 +1,5 @@
 export { init, getTranslation, getAllTranslationsForAllLanguages } from "./service";
+export { awaitForTranslation } from "i18n-keyless-core";
 export type {
   Translations,
   I18nKeylessNodeConfig,

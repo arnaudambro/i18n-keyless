@@ -145,30 +145,43 @@ Get up and running in minutes!
     ```
      *Note: You'll need an `API_KEY` from [i18n-keyless.com](https://i18n-keyless.com) or configure your [own API](#️-setup-with-your-own-api).*
 
-3.  **Use:** Use `getTranslation` to translate strings.
-    ```javascript
-    import { getTranslation } from "i18n-keyless-node";
+3.  **Use:** Use `awaitForTranslation` to fetch and retrieve translations.
 
-    // Assuming init has completed
-    const greeting = getTranslation("Hello world", "fr"); // Target language 'fr'
-    console.log(greeting); // Output: "Bonjour le monde" (or similar)
 
-    const message = getTranslation("Processing complete.", "es"); // Target language 'es'
-    console.log(message); // Output: "Procesamiento completo." (or similar)
-    ```
 
-4.  **Ensure Translation Exists (Optional):** If you need to guarantee a translation is fetched *before* using it (e.g., immediately after `init` or changing language), use `awaitForTranslation`.
     ```javascript
     import { awaitForTranslation } from "i18n-keyless-node";
 
-    // Example: Ensure French translation for "Hello world" is ready
-    const { ok } = await awaitForTranslation("Hello world", "fr");
-    if (ok) {
-      const guaranteedGreeting = getTranslation("Hello world", "fr");
-      console.log("Guaranteed:", guaranteedGreeting); // Output: Guaranteed: Bonjour le monde
-    } else {
-      console.error("Translation could not be fetched.");
-    }
+    // Assuming init has completed
+    (async () => {
+      // Fetch and get the French translation for "Hello world"
+      const greeting = await awaitForTranslation("Hello world", "fr"); // Target language 'fr'
+      console.log(greeting); // Output: "Bonjour le monde" (or similar)
+
+      // Fetch and get the Spanish translation for "Processing complete."
+      const message = await awaitForTranslation("Processing complete.", "es"); // Target language 'es'
+      console.log(message); // Output: "Procesamiento completo." (or similar)
+
+      // Example with context
+      const backButtonText = await awaitForTranslation("Back", "es", { context: "this is a back button" });
+      console.log(backButtonText); // Output: Spanish translation for "Back" (e.g., "Atrás")
+
+      // ⚠️ IMPORTANT: Always await translations to avoid API rate limiting
+      // Bad - could get rate limited:
+      awaitForTranslation("Hello", "fr");
+      awaitForTranslation("World", "fr");
+      
+      // Good - await each translation:
+      await awaitForTranslation("Hello", "fr");
+      await awaitForTranslation("World", "fr");
+      
+      // Even better - await in parallel if possible:
+      await Promise.all([
+        awaitForTranslation("Hello", "fr"),
+        awaitForTranslation("World", "fr") 
+      ]);
+
+    })();
     ```
 
 ---
@@ -271,20 +284,70 @@ await init({
 
 ### **Translation Methods**
 
-Translate text in your Node.js application:
+#### `getTranslation` (Synchronous)
+
+Use `getTranslation` for retrieving translations that are expected to be already loaded in memory. It does **not** fetch missing translations.
 
 ```javascript
 import { getTranslation } from "i18n-keyless-node";
 
-// Translate a phrase from your primary language to target language
-const translatedText = getTranslation("Bonjour le monde", "en");
-console.log(translatedText); // "Hello world"
+// Attempt to get an already loaded translation
+// If not found, returns the original key.
+const maybeTranslatedText = getTranslation("Bonjour le monde", "en");
+console.log(maybeTranslatedText); // "Hello world" if loaded, otherwise "Bonjour le monde"
 
-// With options
+// With options (Note: `getTranslation` is synchronous and doesn't use `forceTemporary`)
 const translatedTextWithOptions = getTranslation("Bonjour {name}", "en", { 
-  debug: true, // Logs translation process
-  skipTranslation: false // Whether to skip translation 
+  debug: true, // Logs retrieval process
+  context: "greeting" // Uses context if available
 });
+```
+
+#### `awaitForTranslation` (Asynchronous - **MANDATORY AWAIT**)
+
+Use `awaitForTranslation` to retrieve a translation, automatically fetching it from the backend via API or custom handler if it's missing locally. 
+
+**🚨 CRITICAL NODE.JS USAGE NOTE 🚨**
+
+**You MUST `await` the `awaitForTranslation` function call within a `try...catch` block, or chain a `.catch()` handler to the returned promise.**
+
+Failure to do so is **not optional**. If the underlying translation process encounters an error (network issue, API error, etc.) and the promise rejects, **the unhandled rejection WILL cause a fatal error and CRASH your Node.js application.** This is by design to prevent silent failures in a server environment.
+
+**Strongly Recommended:** Enable the `@typescript-eslint/no-floating-promises` lint rule in your project to detect unhandled promises during development.
+
+```javascript
+import { awaitForTranslation } from "i18n-keyless-node";
+
+// --- CORRECT USAGE (Mandatory) ---
+async function getGreetingSafe(name: string, lang: string): Promise<string> {
+  try {
+    // ALWAYS await inside try/catch
+    const greetingTemplate = await awaitForTranslation("Hello {user}", lang, { context: "polite_greeting" });
+    return greetingTemplate.replace("{user}", name);
+  } catch (error) {
+    console.error(`FATAL: Failed to get greeting translation for lang ${lang}:`, error);
+    // Return a fallback or re-throw a specific application error
+    return `Hello ${name}`; // Fallback
+  }
+}
+
+// Alternative: Using .catch() (Less common in async/await contexts)
+awaitForTranslation("Processing complete.", "es")
+  .then(message => {
+    console.log(message); // Output: "Procesamiento completo."
+  })
+  .catch(error => {
+    console.error("FATAL: Failed to get processing message:", error);
+    // Handle error, maybe use fallback text
+  });
+
+// --- INCORRECT USAGE (Will crash on error) ---
+// DO NOT DO THIS:
+// awaitForTranslation("This will crash if it rejects!", "de");
+
+// ALSO DO NOT DO THIS (assigning promise without handling rejection):
+// const promise = awaitForTranslation("This also crashes if it rejects!", "it");
+
 ```
 
 ### **Managing Translations**

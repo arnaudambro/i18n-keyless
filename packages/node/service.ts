@@ -2,9 +2,7 @@ import {
   type Lang,
   type TranslationOptions,
   type I18nKeylessRequestBody,
-  type HandleTranslateFunction,
   queue,
-  getTranslationCore,
   I18nKeylessAllTranslationsResponse,
   api,
 } from "i18n-keyless-core";
@@ -129,111 +127,183 @@ export async function init(newConfig: I18nKeylessNodeConfig): Promise<I18nKeyles
   return newConfig;
 }
 
-export function getTranslation(key: string, currentLanguage: Lang, options?: TranslationOptions): string {
-  if (options?.debug) {
-    console.log("getTranslation", key, currentLanguage, store.translations);
+/**
+ * Core logic for fetching/retrieving a translation asynchronously.
+ * @param key - The text to translate
+ * @param currentLanguage - The language to translate to
+ * @param options - Optional parameters for the translation process
+ * @returns Promise resolving to the translated string or the original key
+ */
+async function awaitForTranslationFn(
+  key: string,
+  currentLanguage: Lang,
+  options?: TranslationOptions
+): Promise<string> {
+  const config = store.config;
+  const translations = store.translations;
+  const uniqueId = store.uniqueId;
+  const context = options?.context;
+  const debug = options?.debug;
+
+  try {
+    // Ensure config is initialized enough for either API call or custom handler
+    if (!config.API_KEY && !config.handleTranslate) {
+      throw new Error("i18n-keyless: config lacks API_KEY and handleTranslate. Cannot proceed.");
+    }
+
+    if (!key) {
+      return "";
+    }
+
+    if (debug) {
+      console.log("i18n-keyless: awaitForTranslationFn called with:", { key, currentLanguage, context, options });
+    }
+
+    const forceTemporaryLang = options?.forceTemporary?.[currentLanguage];
+    const translationKey = context ? `${key}__${context}` : key;
+    // Safe navigation for potentially undefined language store
+    const translation = translations[currentLanguage]?.[translationKey];
+
+    // Return existing translation if found and not forced temporary
+    if (translation && !forceTemporaryLang) {
+      if (debug) {
+        console.log(`i18n-keyless: Translation found in store for key: "${translationKey}"`);
+      }
+      return translation;
+    }
+
+    // Use custom handler if provided
+    if (config.handleTranslate) {
+      if (debug) {
+        console.log(`i18n-keyless: Using handleTranslate for key: "${key}"`);
+      }
+      // Expect handleTranslate to manage its own errors/state updates
+      await config.handleTranslate(key); // Pass only the key
+      // Re-check store after custom handler, maybe it populated the translation
+      const updatedTranslation = translations[currentLanguage]?.[translationKey];
+      if (updatedTranslation) {
+        if (debug) {
+          console.log(`i18n-keyless: Translation found for key "${translationKey}" after handleTranslate`);
+        }
+        return updatedTranslation;
+      }
+      // If still not found after custom handler, return original key
+      if (debug) {
+        console.warn(`i18n-keyless: Translation for key "${translationKey}" still not found after handleTranslate.`);
+      }
+      return key;
+    }
+
+    // Proceed with API call if no custom handler
+    if (!config.API_KEY) {
+      // This should technically be caught earlier, but belt-and-suspenders
+      throw new Error("i18n-keyless: API_KEY is required for API translation but missing.");
+    }
+
+    const body: I18nKeylessRequestBody = {
+      key,
+      context,
+      forceTemporary: options?.forceTemporary,
+      languages: config.languages.supported,
+      primaryLanguage: config.languages.primary,
+    };
+    const apiUrl = config.API_URL || "https://api.i18n-keyless.com";
+    const url = `${apiUrl}/translate`;
+
+    if (debug) {
+      console.log("i18n-keyless: Fetching translation from API:", { url, body });
+    }
+
+    // Type assertion for the expected API response structure
+    type ApiResponse = { ok: boolean; data?: { translation: Record<Lang, string> }; error?: string; message?: string };
+
+    const response = await api
+      .fetchTranslation(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${config.API_KEY}`,
+          unique_id: uniqueId || "",
+          Version: packageJson.version,
+        },
+        body: JSON.stringify(body),
+      })
+      .then((res) => res as ApiResponse);
+
+    if (debug) {
+      console.log("i18n-keyless: API response received:", response);
+    }
+
+    if (!response.ok) {
+      // Throw an error if the API response indicates failure
+      throw new Error(response.error || `i18n-keyless: API request failed for key "${key}"`);
+    }
+
+    if (response.message) {
+      // Log any informational messages from the API
+      console.warn("i18n-keyless: API message:", response.message);
+    }
+
+    // Return the fetched translation or the original key if not available for the current language
+    const fetchedTranslation = response.data?.translation?.[currentLanguage];
+    if (debug && !fetchedTranslation) {
+      console.log(
+        `i18n-keyless: Translation for lang "${currentLanguage}" not found in API response for key "${key}". Returning original key.`
+      );
+    }
+    return fetchedTranslation || key;
+  } catch (error) {
+    // Log the specific error during translation attempt
+    console.error(`i18n-keyless: Error during awaitForTranslationFn for key "${key}":`, error);
+    // Re-throw the error to ensure the promise returned by this async function rejects
+    throw error;
   }
-  return getTranslationCore(
-    key,
-    {
-      ...store,
-      config: store.config!,
-      currentLanguage,
-      translations: store.translations[currentLanguage],
-    },
-    options
-  );
 }
 
 /**
- * Queues a key for translation if not already translated
+ * **MANDATORY AWAIT / PROMISE HANDLING REQUIRED IN NODE.JS**
+ *
+ * Asynchronously retrieves a translation for a key, fetching from the backend if necessary.
+ * In a Node.js environment, failure to `await` this function inside a `try...catch` block
+ * or attach a `.catch()` handler WILL lead to an unhandled promise rejection if an error
+ * occurs during translation (e.g., network error, API error). This unhandled rejection
+ * is designed to cause a **FATAL ERROR** and **CRASH** the Node.js process to prevent
+ * silent failures. Ensure all calls are properly handled.
+ *
+ * **Recommendation:** Use the `@typescript-eslint/no-floating-promises` lint rule.
+ *
  * @param key - The text to translate
- * @param store - The translation store
+ * @param currentLanguage - The language to translate to
  * @param options - Optional parameters for the translation process
- * @throws Error if config is not initialized
+ * @returns A Promise resolving to the translated string or the original key if not found/on error *after handling*.
+ * @throws Re-throws any internal error if the promise rejection is not handled by the caller.
  */
 export const awaitForTranslation = new Proxy(
-  async function (key: string, currentLanguage: Lang, options?: TranslationOptions): Promise<string> {
-    try {
-      const config = store.config;
-      const translations = store.translations;
-      const uniqueId = store.uniqueId;
-      if (!config.API_KEY) {
-        throw new Error("i18n-keyless: config is not initialized");
-      }
-      const context = options?.context;
-      const debug = options?.debug;
-      // if (key.length > 280) {
-      //   console.error("i18n-keyless: Key length exceeds 280 characters limit:", key);
-      //   return;
-      // }
-      if (!key) {
-        return "";
-      }
-      if (debug) {
-        console.log("translateKey", key, context, debug);
-      }
-      const forceTemporaryLang = options?.forceTemporary?.[currentLanguage];
-      const translation = context
-        ? translations[currentLanguage][`${key}__${context}`]
-        : translations[currentLanguage][key];
-      if (translation && !forceTemporaryLang) {
-        if (debug) {
-          console.log("translation exists", `${key}__${context}`);
-        }
-        return translation;
-      }
-      if (config.handleTranslate) {
-        await config.handleTranslate?.(key);
-      } else {
-        const body: I18nKeylessRequestBody = {
-          key,
-          context,
-          forceTemporary: options?.forceTemporary,
-          languages: config.languages.supported,
-          primaryLanguage: config.languages.primary,
-        };
-        const apiUrl = config.API_URL || "https://api.i18n-keyless.com";
-        const url = `${apiUrl}/translate`;
-        if (debug) {
-          console.log("fetching translation", url, body);
-        }
-        const response = await api
-          .fetchTranslation(url, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${config.API_KEY}`,
-              unique_id: uniqueId || "",
-              Version: packageJson.version,
-            },
-            body: JSON.stringify(body),
-          })
-          .then((res) => res as ReturnType<NonNullable<HandleTranslateFunction>>);
-
-        if (debug) {
-          console.log("response", response);
-        }
-        if (response.message) {
-          console.warn("i18n-keyless: ", response.message);
-        }
-        return response.data.translation[currentLanguage] || key;
-      }
-    } catch (error) {
-      console.error("i18n-keyless: Error await translating key:", error);
-    }
-    return key;
-  },
+  awaitForTranslationFn, // Target the named async function
   {
     apply(target, thisArg, args) {
-      const result = Reflect.apply(target, thisArg, args);
-      if (result instanceof Promise) {
-        result.catch((error) => {
-          console.error("awaitForTranslation was not properly awaited:", error);
-          throw error;
-        });
-      }
-      return result;
+      // Call the actual async function
+      const promise = Reflect.apply(target, thisArg, args) as Promise<string>;
+
+      // Attach a catch handler. This runs ONLY if the promise REJECTS.
+      promise.catch((error) => {
+        // Log a specific error message indicating an unhandled rejection.
+        console.error(
+          `i18n-keyless: FATAL: Unhandled rejection in awaitForTranslation! ` +
+            `The promise for key "${String(args[0])}" was rejected and not caught. ` +
+            `Ensure the call is wrapped in try/catch and awaited, or attach a .catch() handler. ` +
+            `Original error:`,
+          error
+        );
+
+        // Re-throw the error. In Node.js, an uncaught promise rejection
+        // will typically terminate the process (depending on Node version and handlers).
+        // This enforces handling of translation errors.
+        throw error;
+      });
+
+      // Return the original promise to the caller
+      return promise;
     },
   }
 );

@@ -284,25 +284,6 @@ await init({
 
 ### **Translation Methods**
 
-#### `getTranslation` (Synchronous)
-
-Use `getTranslation` for retrieving translations that are expected to be already loaded in memory. It does **not** fetch missing translations.
-
-```javascript
-import { getTranslation } from "i18n-keyless-node";
-
-// Attempt to get an already loaded translation
-// If not found, returns the original key.
-const maybeTranslatedText = getTranslation("Bonjour le monde", "en");
-console.log(maybeTranslatedText); // "Hello world" if loaded, otherwise "Bonjour le monde"
-
-// With options (Note: `getTranslation` is synchronous and doesn't use `forceTemporary`)
-const translatedTextWithOptions = getTranslation("Bonjour {name}", "en", { 
-  debug: true, // Logs retrieval process
-  context: "greeting" // Uses context if available
-});
-```
-
 #### `awaitForTranslation` (Asynchronous - **MANDATORY AWAIT**)
 
 Use `awaitForTranslation` to retrieve a translation, automatically fetching it from the backend via API or custom handler if it's missing locally. 
@@ -421,7 +402,8 @@ To use your own API, you need to provide the `API_URL` in the init configuration
     ```json
     {
         "ok": true,
-        "message": "" // there would be a message if the key is not valid, or whatever
+        "message": "", // there would be a message if the key is not valid, or whatever
+        "data": { "translation": { "fr": "Bonjour tout le monde", "en": "Hello world" } }
     }
     ```
 
@@ -530,15 +512,20 @@ For better integration and consistency, wrap `I18nKeylessText` within your own c
 
 ```javascript
 import { StyleProp, Text, TextProps, TextStyle } from "react-native";
-import { I18nKeylessText } from "i18n-keyless-react";
+import { I18nKeylessText, type I18nKeylessTextProps } from "i18n-keyless-react";
 import { colors } from "~/utils/colors";
 
 interface MyTextProps {
   className?: string;
   style?: StyleProp<TextStyle>;
-  children: string;
   color?: keyof typeof colors;
   textProps?: TextProps;
+  skipTranslation?: boolean;
+  children: I18nKeylessTextProps["children"];
+  debug?: I18nKeylessTextProps["debug"];
+  context?: I18nKeylessTextProps["context"];
+  replace?: I18nKeylessTextProps["replace"];
+  forceTemporary?: I18nKeylessTextProps["forceTemporary"];
 }
 
 export default function MyText({
@@ -547,14 +534,43 @@ export default function MyText({
   children,
   color = "app-white",
   textProps,
+  skipTranslation = false,
+  debug = false,
+  context,
+  replace,
+  forceTemporary,
 }: MyTextProps) {
+  if (skipTranslation) {
+    if (debug) {
+      console.log("skipTranslation", children);
+    }
+    return (
+      <Text
+        className={["text-dark dark:text-white", className].join(" ")}
+        style={[style, { color: color ? colors[color] : undefined }]}
+        {...textProps}
+      >
+        {children}
+      </Text>
+    );
+  }
+  if (debug) {
+    console.log("children translated", children);
+  }
   return (
     <Text
       className={["text-dark dark:text-white", className].join(" ")}
       style={[style, { color: color ? colors[color] : undefined }]}
       {...textProps}
     >
-      <I18nKeylessText>{children}</I18nKeylessText>
+      <I18nKeylessText
+        context={context}
+        replace={replace}
+        forceTemporary={forceTemporary}
+        debug={debug}
+      >
+        {children}
+      </I18nKeylessText>
     </Text>
   );
 }

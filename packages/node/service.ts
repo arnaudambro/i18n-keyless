@@ -44,9 +44,7 @@ const store: I18nKeylessNodeStore = {
  * @param store - The translation store
  * @returns Promise resolving to the translation response or void if failed
  */
-export async function getAllTranslationsForAllLanguages(
-  store: I18nKeylessNodeStore
-): Promise<I18nKeylessAllTranslationsResponse | void> {
+export async function getAllTranslationsForAllLanguages(): Promise<I18nKeylessAllTranslationsResponse | void> {
   const config = store.config;
   const lastRefresh = store.lastRefresh;
   const uniqueId = store.uniqueId;
@@ -92,7 +90,7 @@ export async function getAllTranslationsForAllLanguages(
 
 queue.on("empty", () => {
   // when each word is translated, fetch the translations for the current language
-  getAllTranslationsForAllLanguages(store).then((res) => {
+  getAllTranslationsForAllLanguages().then((res) => {
     if (res?.ok) {
       store.translations = res.data.translations;
     }
@@ -119,7 +117,7 @@ export async function init(newConfig: I18nKeylessNodeConfig): Promise<I18nKeyles
   store.config = newConfig;
   store.config.onInit?.(newConfig.languages.primary);
 
-  const response = await getAllTranslationsForAllLanguages(store);
+  const response = await getAllTranslationsForAllLanguages();
   if (response?.ok) {
     store.translations = response.data.translations;
   }

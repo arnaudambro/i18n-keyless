@@ -11,7 +11,7 @@ import MyPQueue from "./my-pqueue";
 import packageJson from "./package.json";
 import { api } from "./api";
 
-export const queue = new MyPQueue({ concurrency: 5 });
+export const queue = new MyPQueue({ concurrency: 30 });
 
 /**
  * Gets a translation for the specified key from the store

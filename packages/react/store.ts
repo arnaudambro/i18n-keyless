@@ -169,6 +169,8 @@ export async function init(newConfig: I18nConfig) {
   await hydrate();
   const currentLanguage = useI18nKeyless.getState().currentLanguage;
   newConfig.onInit?.(currentLanguage);
+  // initialize the language to fetch all the translations
+  useI18nKeyless.getState().setLanguage(currentLanguage);
 }
 
 export function useCurrentLanguage(): Lang | null {

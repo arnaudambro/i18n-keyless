@@ -178,6 +178,10 @@ export function useCurrentLanguage(): Lang | null {
   return currentLanguage;
 }
 
+export function getSupportedLanguages(): I18nConfig["languages"]["supported"] {
+  return useI18nKeyless.getState().config.languages.supported;
+}
+
 export function getTranslation(key: string, options?: TranslationOptions): string {
   const store = useI18nKeyless.getState();
   return getTranslationCore(key, store, options);

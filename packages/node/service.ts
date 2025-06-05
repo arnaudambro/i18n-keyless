@@ -305,3 +305,7 @@ export const awaitForTranslation = new Proxy(
     },
   }
 );
+
+export function getSupportedLanguages() {
+  return store.config.languages.supported;
+}

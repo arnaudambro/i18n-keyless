@@ -1,4 +1,4 @@
-export { init, getAllTranslationsForAllLanguages, awaitForTranslation } from "./service";
+export { init, getAllTranslationsForAllLanguages, getSupportedLanguages, awaitForTranslation } from "./service";
 export type {
   Translations,
   I18nKeylessNodeConfig,

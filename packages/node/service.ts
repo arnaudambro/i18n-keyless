@@ -150,11 +150,6 @@ queue.on("empty", () => {
       store.translations = res.data.translations;
     }
   });
-  sendTranslationsUsageToI18nKeyless().then((res) => {
-    if (res?.ok) {
-      store.lastUsedTranslations = {};
-    }
-  });
 });
 
 export async function init(newConfig: I18nKeylessNodeConfig): Promise<I18nKeylessNodeConfig> {
@@ -220,7 +215,12 @@ async function awaitForTranslationFn(
     const forceTemporaryLang = options?.forceTemporary?.[currentLanguage];
     const translationKey = context ? `${key}__${context}` : key;
 
-    store.lastUsedTranslations[translationKey] = new Date().toISOString().split("T")[0];
+    const lastUsedAt = store.lastUsedTranslations[translationKey];
+    const newLastUsedAt = new Date().toISOString().split("T")[0];
+    if (lastUsedAt !== newLastUsedAt) {
+      store.lastUsedTranslations[translationKey] = newLastUsedAt;
+    }
+
     // Safe navigation for potentially undefined language store
     const translation = translations[currentLanguage]?.[translationKey];
 
@@ -228,6 +228,9 @@ async function awaitForTranslationFn(
     if (translation && !forceTemporaryLang) {
       if (debug) {
         console.log(`i18n-keyless: Translation found in store for key: "${translationKey}"`);
+      }
+      if (lastUsedAt !== newLastUsedAt) {
+        sendTranslationsUsageToI18nKeyless();
       }
       return translation;
     }

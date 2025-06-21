@@ -12,6 +12,7 @@ export type {
   UniqueId,
   I18nKeylessRequestBody,
   I18nKeylessResponse,
+  I18nKeylessTranslationsUsageRequestBody,
   I18nKeylessAllTranslationsResponse,
   FetchTranslationParams,
   TranslationOptions,

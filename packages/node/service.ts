@@ -219,6 +219,8 @@ async function awaitForTranslationFn(
 
     const forceTemporaryLang = options?.forceTemporary?.[currentLanguage];
     const translationKey = context ? `${key}__${context}` : key;
+
+    store.lastUsedTranslations[translationKey] = new Date().toISOString().split("T")[0];
     // Safe navigation for potentially undefined language store
     const translation = translations[currentLanguage]?.[translationKey];
 

@@ -213,6 +213,12 @@ export function getSupportedLanguages(): I18nConfig["languages"]["supported"] {
 
 export function getTranslation(key: string, options?: TranslationOptions): string {
   const store = useI18nKeyless.getState();
+  const lastUpdatedAt = new Date().toISOString().split("T")[0];
+  if (options?.context) {
+    store.lastUsedTranslations[`${key}__${options.context}`] = lastUpdatedAt;
+  } else {
+    store.lastUsedTranslations[key] = lastUpdatedAt;
+  }
   return getTranslationCore(key, store, options);
 }
 

@@ -1,10 +1,11 @@
 import type {
-  PrimaryLang,
   I18nKeylessResponse,
   Lang,
   Translations,
+  LastUsedTranslation,
   HandleTranslateFunction,
   GetAllTranslationsFunction,
+  SendTranslationsUsageFunction,
   UniqueId,
   LastRefresh,
   LanguagesConfig,
@@ -82,6 +83,15 @@ export interface I18nConfig {
    */
   getAllTranslations?: GetAllTranslationsFunction;
   /**
+   * if this function exists, it will be called instead of the API call
+   * if this function doesn't exist, the default behavior is to call the API
+   * therefore you need either to
+   * - use this `sendTranslationsUsage` function to handle the translation with your own API
+   * - not use this `sendTranslationsUsage` function, and use the built in API call with the API_KEY filled
+   * - not use this `sendTranslationsUsage` function nor API_KEY key, and provide your own API_URL
+   */
+  sendTranslationsUsage?: SendTranslationsUsageFunction;
+  /**
    * the storage to use for the translations
    *
    * you can use react-native-mmkv, @react-native-async-storage/async-storage, or window.localStorage, or idb-keyval for IndexedDB, or any storage that has a getItem, setItem, removeItem, or get, set, and remove method
@@ -123,6 +133,13 @@ export interface TranslationStoreState {
    */
   translations: Translations;
   /**
+   * save the date in format YYYY-MM-DD when a key is used
+   * this information is sent to i18n-keyless' API on lib initialization
+   * it's used to clean up the translations database
+   * and to avoid paying for translations that are not used anymore
+   */
+  lastUsedTranslation: LastUsedTranslation;
+  /**
    * the current language of the user
    */
   currentLanguage: Lang;
@@ -154,6 +171,7 @@ export type TranslationOptions = {
 interface TranslationStoreActions {
   setTranslations: (translations: I18nKeylessResponse | void) => void;
   setLanguage: (lang: Lang) => void;
+  sendTranslationsUsage: () => Promise<void>;
 }
 
 export type TranslationStore = TranslationStoreState & TranslationStoreActions;

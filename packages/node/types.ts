@@ -1,4 +1,10 @@
-import { HandleTranslateFunction, Lang, PrimaryLang } from "i18n-keyless-core";
+import {
+  HandleTranslateFunction,
+  Lang,
+  LastUsedTranslation,
+  PrimaryLang,
+  SendTranslationsUsageFunction,
+} from "i18n-keyless-core";
 
 export type Translations = Record<string, string>;
 
@@ -66,6 +72,15 @@ export interface I18nKeylessNodeConfig {
    * - not use this `getAllTranslationsForAllLanguages` function nor API_KEY key, and provide your own API_URL
    */
   getAllTranslationsForAllLanguages?: () => Promise<I18nKeylessAllTranslationsResponse>;
+  /**
+   * if this function exists, it will be called instead of the API call
+   * if this function doesn't exist, the default behavior is to call the API, with the API_KEY
+   * therefore you need either to
+   * - use this `sendTranslationsUsage` function to handle the translation with your own API
+   * - not use this `sendTranslationsUsage` function, and use the built in API call with the API_KEY filled
+   * - not use this `sendTranslationsUsage` function nor API_KEY key, and provide your own API_URL
+   */
+  sendTranslationsUsage?: SendTranslationsUsageFunction;
 }
 
 export interface I18nKeylessNodeStore {
@@ -81,6 +96,10 @@ export interface I18nKeylessNodeStore {
    * the translations fetched from i18n-keyless' API
    */
   translations: Record<Lang, Translations>;
+  /**
+   * the last used translations
+   */
+  lastUsedTranslation: LastUsedTranslation;
   /**
    * i18n-keyless' config
    */

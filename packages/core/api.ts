@@ -20,4 +20,11 @@ export const api = {
         return { ok: false, error: err.message };
       });
   },
+  postLastUsedTranslations: async (url: string, options: RequestInit) => {
+    return fetch(url, options)
+      .then((res) => (res.status === 200 ? res.json() : { ok: false, error: res.statusText }))
+      .catch((err) => {
+        return { ok: false, error: err.message };
+      });
+  },
 };

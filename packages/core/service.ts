@@ -1,11 +1,14 @@
 import type {
   HandleTranslateFunction,
   I18nKeylessRequestBody,
+  I18nKeylessTranslationsUsageRequestBody,
   Lang,
   TranslationOptions,
   I18nKeylessResponse,
   FetchTranslationParams,
   GetAllTranslationsFunction,
+  LastUsedTranslation,
+  SendTranslationsUsageFunction,
 } from "./types";
 import MyPQueue from "./my-pqueue";
 import packageJson from "./package.json";
@@ -184,5 +187,60 @@ export async function getAllTranslationsFromLanguage(
     return response;
   } catch (error) {
     console.error("i18n-keyless: fetch all translations error:", error);
+  }
+}
+
+/**
+ * Send the last used translations to i18n-keyless API
+ *
+ * This is used to clean up the translations database
+ * and to avoid paying for translations that are not used anymore
+ *
+ * It's called on lib initialization
+ * and everytime the language is set
+ * @param lastUsedTranslation - The last used translations
+ * @param store - The translation store
+ * @returns Promise resolving to the translation response or void if failed
+ */
+export async function sendTranslationsUsageToI18nKeyless(
+  lastUsedTranslation: LastUsedTranslation,
+  store: FetchTranslationParams
+): Promise<{ ok: boolean; message: string } | void> {
+  const config = store.config;
+  if (!config.API_KEY) {
+    console.error("i18n-keyless: No config found");
+    return;
+  }
+  if (Object.keys(lastUsedTranslation).length === 0) {
+    return;
+  }
+  try {
+    const response = config.sendTranslationsUsage
+      ? await config.sendTranslationsUsage(lastUsedTranslation)
+      : await api
+          .postLastUsedTranslations(
+            `${config.API_URL || "https://api.i18n-keyless.com"}/translate/last-used-translations`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${config.API_KEY}`,
+                Version: packageJson.version,
+              },
+              body: JSON.stringify({
+                primaryLanguage: config.languages.primary,
+                lastUsedTranslation,
+              } satisfies I18nKeylessTranslationsUsageRequestBody),
+            }
+          )
+          .then((res) => res as ReturnType<NonNullable<SendTranslationsUsageFunction>>);
+
+    if (response.message) {
+      console.warn("i18n-keyless: ", response.message);
+    }
+
+    return response;
+  } catch (error) {
+    console.error("i18n-keyless: send last used translation error:", error);
   }
 }

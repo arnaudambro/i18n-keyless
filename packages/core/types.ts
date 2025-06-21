@@ -19,13 +19,21 @@ export type Lang =
   | "ar";
 
 export type Translations = Record<string, string>;
+/**
+ * The last used translation for a key
+ * Useful to clean up the translations database and to avoid paying for translations that are not used anymore
+ * Record<string, YYYY-MM-DD>;
+ */
+export type LastUsedTranslation = Record<string, string>;
 
 export type HandleTranslateFunction = (
   key: string
 ) => Promise<{ ok: boolean; message: string; data: { translation: Translations } }>;
 export type GetAllTranslationsFunction = () => Promise<I18nKeylessResponse>;
 export type GetAllTranslationsForAllLanguagesFunction = () => Promise<I18nKeylessAllTranslationsResponse>;
-
+export type SendTranslationsUsageFunction = (
+  lastUsedTranslation: LastUsedTranslation
+) => Promise<{ ok: boolean; message: string }>;
 export type LastRefresh = string | null;
 export type UniqueId = string | null;
 
@@ -79,6 +87,11 @@ export interface I18nKeylessRequestBody {
   primaryLanguage: LanguagesConfig["primary"];
 }
 
+export interface I18nKeylessTranslationsUsageRequestBody {
+  primaryLanguage: LanguagesConfig["primary"];
+  lastUsedTranslation: LastUsedTranslation;
+}
+
 export interface I18nKeylessResponse {
   ok: boolean;
   data: {
@@ -114,6 +127,7 @@ export type FetchTranslationParams = {
     handleTranslate?: HandleTranslateFunction;
     getAllTranslations?: GetAllTranslationsFunction;
     getAllTranslationsForAllLanguages?: GetAllTranslationsForAllLanguagesFunction;
+    sendTranslationsUsage?: SendTranslationsUsageFunction;
   };
   translations: Translations;
 };

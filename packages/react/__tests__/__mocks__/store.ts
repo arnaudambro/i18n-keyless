@@ -21,6 +21,7 @@ export const store: TranslationStore = {
     const validated = validateLanguage(lang, store.config!);
     store.currentLanguage = validated!;
   }),
+  sendTranslationsUsage: vi.fn(),
 };
 
 // Create a function that supports the selector pattern

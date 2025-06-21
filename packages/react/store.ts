@@ -215,9 +215,16 @@ export function getTranslation(key: string, options?: TranslationOptions): strin
   const store = useI18nKeyless.getState();
   const lastUpdatedAt = new Date().toISOString().split("T")[0];
   if (options?.context) {
-    store.lastUsedTranslations[`${key}__${options.context}`] = lastUpdatedAt;
+    useI18nKeyless.setState({
+      lastUsedTranslations: {
+        ...store.lastUsedTranslations,
+        [`${key}__${options.context}`]: lastUpdatedAt,
+      },
+    });
   } else {
-    store.lastUsedTranslations[key] = lastUpdatedAt;
+    useI18nKeyless.setState({
+      lastUsedTranslations: { ...store.lastUsedTranslations, [key]: lastUpdatedAt },
+    });
   }
   return getTranslationCore(key, store, options);
 }

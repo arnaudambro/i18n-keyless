@@ -22,6 +22,7 @@ export const store: TranslationStore = {
     store.currentLanguage = validated!;
   }),
   sendTranslationsUsage: vi.fn(),
+  setTranslationUsage: vi.fn(),
 };
 
 // Create a function that supports the selector pattern

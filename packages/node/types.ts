@@ -1,7 +1,7 @@
 import {
   HandleTranslateFunction,
   Lang,
-  LastUsedTranslation,
+  LastUsedTranslations,
   PrimaryLang,
   SendTranslationsUsageFunction,
 } from "i18n-keyless-core";
@@ -99,7 +99,7 @@ export interface I18nKeylessNodeStore {
   /**
    * the last used translations
    */
-  lastUsedTranslation: LastUsedTranslation;
+  lastUsedTranslations: LastUsedTranslations;
   /**
    * i18n-keyless' config
    */

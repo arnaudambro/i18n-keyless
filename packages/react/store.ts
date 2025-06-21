@@ -6,7 +6,7 @@ import {
   queue,
   getAllTranslationsFromLanguage,
   getTranslationCore,
-  LastUsedTranslation,
+  LastUsedTranslations,
 } from "i18n-keyless-core";
 import { type I18nConfig, type TranslationStore } from "./types";
 import { create } from "zustand";
@@ -25,7 +25,7 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
   uniqueId: null,
   lastRefresh: null,
   translations: {},
-  lastUsedTranslation: {},
+  lastUsedTranslations: {},
   currentLanguage: "fr",
   config: {
     API_KEY: "",
@@ -67,15 +67,15 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
       throw new Error(`i18n-keyless: config is not initialized sending last used translation`);
     }
     const storage = store.config.storage;
-    const lastUsedTranslation = store.lastUsedTranslation;
-    if (Object.keys(lastUsedTranslation).length === 0) {
+    const lastUsedTranslations = store.lastUsedTranslations;
+    if (Object.keys(lastUsedTranslations).length === 0) {
       return;
     }
-    const response = await sendTranslationsUsageToI18nKeyless(lastUsedTranslation, store);
+    const response = await sendTranslationsUsageToI18nKeyless(lastUsedTranslations, store);
     if (response?.ok) {
-      set({ lastUsedTranslation: {} });
+      set({ lastUsedTranslations: {} });
       if (storage) {
-        setItem(storeKeys.lastUsedTranslation, "", storage);
+        setItem(storeKeys.lastUsedTranslations, "", storage);
       }
     }
   },
@@ -123,10 +123,10 @@ async function hydrate() {
   } else {
     if (debug) console.log("i18n-keyless: _hydrate: no translations");
   }
-  const lastUsedTranslation = await getItem(storeKeys.lastUsedTranslation, storage, JSON.parse);
-  if (lastUsedTranslation) {
-    if (debug) console.log("i18n-keyless: _hydrate: last used translation", lastUsedTranslation);
-    useI18nKeyless.setState({ lastUsedTranslation: lastUsedTranslation as LastUsedTranslation });
+  const lastUsedTranslations = await getItem(storeKeys.lastUsedTranslations, storage, JSON.parse);
+  if (lastUsedTranslations) {
+    if (debug) console.log("i18n-keyless: _hydrate: last used translation", lastUsedTranslations);
+    useI18nKeyless.setState({ lastUsedTranslations: lastUsedTranslations as LastUsedTranslations });
   } else {
     if (debug) console.log("i18n-keyless: _hydrate: no last used translation");
   }

@@ -7,7 +7,7 @@ import type {
   I18nKeylessResponse,
   FetchTranslationParams,
   GetAllTranslationsFunction,
-  LastUsedTranslation,
+  LastUsedTranslations,
   SendTranslationsUsageFunction,
 } from "./types";
 import MyPQueue from "./my-pqueue";
@@ -198,12 +198,12 @@ export async function getAllTranslationsFromLanguage(
  *
  * It's called on lib initialization
  * and everytime the language is set
- * @param lastUsedTranslation - The last used translations
+ * @param lastUsedTranslations - The last used translations
  * @param store - The translation store
  * @returns Promise resolving to the translation response or void if failed
  */
 export async function sendTranslationsUsageToI18nKeyless(
-  lastUsedTranslation: LastUsedTranslation,
+  lastUsedTranslations: LastUsedTranslations,
   store: FetchTranslationParams
 ): Promise<{ ok: boolean; message: string } | void> {
   const config = store.config;
@@ -211,12 +211,12 @@ export async function sendTranslationsUsageToI18nKeyless(
     console.error("i18n-keyless: No config found");
     return;
   }
-  if (Object.keys(lastUsedTranslation).length === 0) {
+  if (Object.keys(lastUsedTranslations).length === 0) {
     return;
   }
   try {
     const response = config.sendTranslationsUsage
-      ? await config.sendTranslationsUsage(lastUsedTranslation)
+      ? await config.sendTranslationsUsage(lastUsedTranslations)
       : await api
           .postLastUsedTranslations(
             `${config.API_URL || "https://api.i18n-keyless.com"}/translate/last-used-translations`,
@@ -229,7 +229,7 @@ export async function sendTranslationsUsageToI18nKeyless(
               },
               body: JSON.stringify({
                 primaryLanguage: config.languages.primary,
-                lastUsedTranslation,
+                lastUsedTranslations,
               } satisfies I18nKeylessTranslationsUsageRequestBody),
             }
           )

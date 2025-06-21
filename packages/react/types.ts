@@ -2,7 +2,7 @@ import type {
   I18nKeylessResponse,
   Lang,
   Translations,
-  LastUsedTranslation,
+  LastUsedTranslations,
   HandleTranslateFunction,
   GetAllTranslationsFunction,
   SendTranslationsUsageFunction,
@@ -138,7 +138,7 @@ export interface TranslationStoreState {
    * it's used to clean up the translations database
    * and to avoid paying for translations that are not used anymore
    */
-  lastUsedTranslation: LastUsedTranslation;
+  lastUsedTranslations: LastUsedTranslations;
   /**
    * the current language of the user
    */

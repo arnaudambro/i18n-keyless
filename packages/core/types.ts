@@ -24,7 +24,7 @@ export type Translations = Record<string, string>;
  * Useful to clean up the translations database and to avoid paying for translations that are not used anymore
  * Record<string, YYYY-MM-DD>;
  */
-export type LastUsedTranslation = Record<string, string>;
+export type LastUsedTranslations = Record<string, string>;
 
 export type HandleTranslateFunction = (
   key: string
@@ -32,7 +32,7 @@ export type HandleTranslateFunction = (
 export type GetAllTranslationsFunction = () => Promise<I18nKeylessResponse>;
 export type GetAllTranslationsForAllLanguagesFunction = () => Promise<I18nKeylessAllTranslationsResponse>;
 export type SendTranslationsUsageFunction = (
-  lastUsedTranslation: LastUsedTranslation
+  lastUsedTranslations: LastUsedTranslations
 ) => Promise<{ ok: boolean; message: string }>;
 export type LastRefresh = string | null;
 export type UniqueId = string | null;
@@ -89,7 +89,7 @@ export interface I18nKeylessRequestBody {
 
 export interface I18nKeylessTranslationsUsageRequestBody {
   primaryLanguage: LanguagesConfig["primary"];
-  lastUsedTranslation: LastUsedTranslation;
+  lastUsedTranslations: LastUsedTranslations;
 }
 
 export interface I18nKeylessResponse {

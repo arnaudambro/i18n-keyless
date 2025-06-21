@@ -17,5 +17,10 @@ export type {
   FetchTranslationParams,
   TranslationOptions,
 } from "./types";
-export { getTranslationCore, getAllTranslationsFromLanguage, queue } from "./service";
+export {
+  getTranslationCore,
+  getAllTranslationsFromLanguage,
+  sendTranslationsUsageToI18nKeyless,
+  queue,
+} from "./service";
 export { api } from "./api";

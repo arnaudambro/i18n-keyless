@@ -7,11 +7,11 @@ import {
   getAllTranslationsFromLanguage,
   getTranslationCore,
   LastUsedTranslations,
+  sendTranslationsUsageToI18nKeyless,
 } from "i18n-keyless-core";
 import { type I18nConfig, type TranslationStore } from "./types";
 import { create } from "zustand";
 import { storeKeys, setItem, getItem, clearI18nKeylessStorage, validateLanguage } from "./utils";
-import { sendTranslationsUsageToI18nKeyless } from "i18n-keyless-core/service";
 
 queue.on("empty", () => {
   // when each word is translated, fetch the translations for the current language

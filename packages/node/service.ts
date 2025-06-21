@@ -150,6 +150,11 @@ queue.on("empty", () => {
       store.translations = res.data.translations;
     }
   });
+  sendTranslationsUsageToI18nKeyless().then((res) => {
+    if (res?.ok) {
+      store.lastUsedTranslation = {};
+    }
+  });
 });
 
 export async function init(newConfig: I18nKeylessNodeConfig): Promise<I18nKeylessNodeConfig> {

@@ -79,6 +79,27 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
       }
     }
   },
+  setTranslationUsage: async (key: string, context?: string) => {
+    const store = get();
+    if (!store.config) {
+      throw new Error(`i18n-keyless: config is not initialized sending last used translation`);
+    }
+    const storage = store.config.storage;
+    const lastUsedTranslations = store.lastUsedTranslations;
+    if (Object.keys(lastUsedTranslations).length === 0) {
+      return;
+    }
+    const lastUpdatedAt = new Date().toISOString().split("T")[0];
+    if (context) {
+      lastUsedTranslations[`${key}__${context}`] = lastUpdatedAt;
+    } else {
+      lastUsedTranslations[key] = lastUpdatedAt;
+    }
+    set({ lastUsedTranslations });
+    if (storage) {
+      setItem(storeKeys.lastUsedTranslations, JSON.stringify(lastUsedTranslations), storage);
+    }
+  },
   setLanguage: async (lang: I18nConfig["languages"]["supported"][number]) => {
     const store = get();
     if (!store.config) {
@@ -213,19 +234,7 @@ export function getSupportedLanguages(): I18nConfig["languages"]["supported"] {
 
 export function getTranslation(key: string, options?: TranslationOptions): string {
   const store = useI18nKeyless.getState();
-  const lastUpdatedAt = new Date().toISOString().split("T")[0];
-  if (options?.context) {
-    useI18nKeyless.setState({
-      lastUsedTranslations: {
-        ...store.lastUsedTranslations,
-        [`${key}__${options.context}`]: lastUpdatedAt,
-      },
-    });
-  } else {
-    useI18nKeyless.setState({
-      lastUsedTranslations: { ...store.lastUsedTranslations, [key]: lastUpdatedAt },
-    });
-  }
+  store.setTranslationUsage(key, options?.context);
   return getTranslationCore(key, store, options);
 }
 

@@ -172,6 +172,7 @@ interface TranslationStoreActions {
   setTranslations: (translations: I18nKeylessResponse | void) => void;
   setLanguage: (lang: Lang) => void;
   sendTranslationsUsage: () => Promise<void>;
+  setTranslationUsage: (key: string, context?: string) => Promise<void>;
 }
 
 export type TranslationStore = TranslationStoreState & TranslationStoreActions;

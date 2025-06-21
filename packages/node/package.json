@@ -1,7 +1,7 @@
 {
   "name": "i18n-keyless-node",
   "private": false,
-  "version": "1.14.0",
+  "version": "1.14.1",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -15,7 +15,7 @@
     "postpublish": "rm -rf ./dist && rm *.tgz"
   },
   "dependencies": {
-    "i18n-keyless-core": "1.14.0"
+    "i18n-keyless-core": "1.14.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.0",

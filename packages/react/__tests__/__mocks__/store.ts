@@ -13,6 +13,7 @@ export const store: TranslationStore = {
   },
   currentLanguage: "fr",
   translations: {},
+  lastUsedTranslation: {},
   uniqueId: null,
   lastRefresh: null,
   setTranslations: vi.fn(),

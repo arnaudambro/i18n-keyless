@@ -8,7 +8,7 @@ export const storeKeys = {
   lastRefresh: "i18n-keyless-last-refresh" as const,
   translations: "i18n-keyless-translations" as const,
   currentLanguage: "i18n-keyless-current-language" as const,
-  lastUsedTranslations: "i18n-keyless-last-used-translations" as const,
+  translationsUsage: "i18n-keyless-translations-usage" as const,
 };
 
 /**

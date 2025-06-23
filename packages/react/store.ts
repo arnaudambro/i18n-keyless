@@ -6,7 +6,7 @@ import {
   queue,
   getAllTranslationsFromLanguage,
   getTranslationCore,
-  LastUsedTranslations,
+  TranslationsUsage,
   sendTranslationsUsageToI18nKeyless,
 } from "i18n-keyless-core";
 import { type I18nConfig, type TranslationStore } from "./types";
@@ -25,7 +25,7 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
   uniqueId: null,
   lastRefresh: null,
   translations: {},
-  lastUsedTranslations: {},
+  translationsUsage: {},
   currentLanguage: "fr",
   config: {
     API_KEY: "",
@@ -64,40 +64,37 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
   sendTranslationsUsage: async () => {
     const store = get();
     if (!store.config) {
-      throw new Error(`i18n-keyless: config is not initialized sending last used translation`);
+      throw new Error(`i18n-keyless: config is not initialized sending translations usage`);
     }
     const storage = store.config.storage;
-    const lastUsedTranslations = store.lastUsedTranslations;
-    if (Object.keys(lastUsedTranslations).length === 0) {
+    const translationsUsage = store.translationsUsage;
+    if (Object.keys(translationsUsage).length === 0) {
       return;
     }
-    const response = await sendTranslationsUsageToI18nKeyless(lastUsedTranslations, store);
+    const response = await sendTranslationsUsageToI18nKeyless(translationsUsage, store);
     if (response?.ok) {
-      set({ lastUsedTranslations: {} });
+      set({ translationsUsage: {} });
       if (storage) {
-        setItem(storeKeys.lastUsedTranslations, "", storage);
+        setItem(storeKeys.translationsUsage, "", storage);
       }
     }
   },
   setTranslationUsage: async (key: string, context?: string) => {
     const store = get();
     if (!store.config) {
-      throw new Error(`i18n-keyless: config is not initialized sending last used translation`);
+      throw new Error(`i18n-keyless: config is not initialized setting translation usage translation`);
     }
     const storage = store.config.storage;
-    const lastUsedTranslations = store.lastUsedTranslations;
-    if (Object.keys(lastUsedTranslations).length === 0) {
-      return;
-    }
+    const translationsUsage = store.translationsUsage;
     const lastUpdatedAt = new Date().toISOString().split("T")[0];
     if (context) {
-      lastUsedTranslations[`${key}__${context}`] = lastUpdatedAt;
+      translationsUsage[`${key}__${context}`] = lastUpdatedAt;
     } else {
-      lastUsedTranslations[key] = lastUpdatedAt;
+      translationsUsage[key] = lastUpdatedAt;
     }
-    set({ lastUsedTranslations });
+    set({ translationsUsage });
     if (storage) {
-      setItem(storeKeys.lastUsedTranslations, JSON.stringify(lastUsedTranslations), storage);
+      setItem(storeKeys.translationsUsage, JSON.stringify(translationsUsage), storage);
     }
   },
   setLanguage: async (lang: I18nConfig["languages"]["supported"][number]) => {
@@ -144,12 +141,12 @@ async function hydrate() {
   } else {
     if (debug) console.log("i18n-keyless: _hydrate: no translations");
   }
-  const lastUsedTranslations = await getItem(storeKeys.lastUsedTranslations, storage, JSON.parse);
-  if (lastUsedTranslations) {
-    if (debug) console.log("i18n-keyless: _hydrate: last used translation", lastUsedTranslations);
-    useI18nKeyless.setState({ lastUsedTranslations: lastUsedTranslations as LastUsedTranslations });
+  const translationsUsage = await getItem(storeKeys.translationsUsage, storage, JSON.parse);
+  if (translationsUsage) {
+    if (debug) console.log("i18n-keyless: _hydrate: translations usage", translationsUsage);
+    useI18nKeyless.setState({ translationsUsage: translationsUsage as TranslationsUsage });
   } else {
-    if (debug) console.log("i18n-keyless: _hydrate: no last used translation");
+    if (debug) console.log("i18n-keyless: _hydrate: no translations usage");
   }
   const currentLanguage = await getItem(storeKeys.currentLanguage, storage);
   if (currentLanguage) {

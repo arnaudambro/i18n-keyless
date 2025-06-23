@@ -2,7 +2,7 @@ export type {
   Lang,
   PrimaryLang,
   Translations,
-  LastUsedTranslations,
+  TranslationsUsage,
   HandleTranslateFunction,
   GetAllTranslationsFunction,
   SendTranslationsUsageFunction,

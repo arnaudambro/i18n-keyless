@@ -1,4 +1,4 @@
-export { I18nKeylessText } from "./I18nKeylessText";
+export { I18nKeylessText, I18nKeylessText as T } from "./I18nKeylessText";
 export { init, setCurrentLanguage, useCurrentLanguage, getTranslation, getSupportedLanguages } from "./store";
 export { clearI18nKeylessStorage, validateLanguage } from "./utils";
 export type { I18nKeylessTextProps } from "./I18nKeylessText";

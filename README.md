@@ -86,6 +86,11 @@ Get up and running in minutes!
 
     init({
       API_KEY: "<YOUR_API_KEY>", // Get your key from i18n-keyless.com
+      /**
+         * the storage to use for the translations -  any storage that has a getItem, setItem, removeItem, or get, set, and remove method
+        *
+        * in React Native you can use react-native-mmkv, @react-native-async-storage/async-storage, and in Web window.localStorage, or idb-keyval for IndexedDB, or any storage whose methods are compatible
+      */
       storage: myStorage, 
       languages: {
         primary: "en", // Your app's primary language
@@ -97,7 +102,7 @@ Get up and running in minutes!
 
 3.  **Use:** Wrap text with the `I18nKeylessText` component.
     ```javascript
-    import { I18nKeylessText } from "i18n-keyless-react";
+    import { I18nKeylessText } from "i18n-keyless-react"; // `import { T } from "i18n-keyless-react"` also works
     import { setCurrentLanguage } from "i18n-keyless-react"; // Optional: for changing language
 
     // Example Component
@@ -290,29 +295,21 @@ Use `awaitForTranslation` to retrieve a translation, automatically fetching it f
 
 **🚨 CRITICAL NODE.JS USAGE NOTE 🚨**
 
-**You MUST `await` the `awaitForTranslation` function call within a `try...catch` block, or chain a `.catch()` handler to the returned promise.**
+**You MUST `await` the `awaitForTranslation` function calls**. You would be blocked by 429 Too many requests if you didn't.
 
-Failure to do so is **not optional**. If the underlying translation process encounters an error (network issue, API error, etc.) and the promise rejects, **the unhandled rejection WILL cause a fatal error and CRASH your Node.js application.** This is by design to prevent silent failures in a server environment.
-
-**Strongly Recommended:** Enable the `@typescript-eslint/no-floating-promises` lint rule in your project to detect unhandled promises during development.
+Failure to do so is **not optional**. If the underlying translation process encounters an error (network issue, API error, etc.) and the promise rejects.
 
 ```javascript
 import { awaitForTranslation } from "i18n-keyless-node";
 
 // --- CORRECT USAGE (Mandatory) ---
 async function getGreetingSafe(name: string, lang: string): Promise<string> {
-  try {
-    // ALWAYS await inside try/catch
-    const greetingTemplate = await awaitForTranslation("Hello {user}", lang, { context: "polite_greeting" });
-    return greetingTemplate.replace("{user}", name);
-  } catch (error) {
-    console.error(`FATAL: Failed to get greeting translation for lang ${lang}:`, error);
-    // Return a fallback or re-throw a specific application error
-    return `Hello ${name}`; // Fallback
-  }
+  const greetingTemplate = await awaitForTranslation("Hello {user}", lang);
+  return greetingTemplate.replace("{user}", name);
 }
 
-// Alternative: Using .catch() (Less common in async/await contexts)
+
+// --- INCORRECT USAGE (Will crash on error) ---
 awaitForTranslation("Processing complete.", "es")
   .then(message => {
     console.log(message); // Output: "Procesamiento completo."
@@ -322,12 +319,11 @@ awaitForTranslation("Processing complete.", "es")
     // Handle error, maybe use fallback text
   });
 
-// --- INCORRECT USAGE (Will crash on error) ---
 // DO NOT DO THIS:
-// awaitForTranslation("This will crash if it rejects!", "de");
+awaitForTranslation("This will crash if it rejects!", "de");
 
 // ALSO DO NOT DO THIS (assigning promise without handling rejection):
-// const promise = awaitForTranslation("This also crashes if it rejects!", "it");
+const promise = awaitForTranslation("This also crashes if it rejects!", "it");
 
 ```
 
@@ -579,6 +575,15 @@ export default function MyText({
 ## 🔧 **What pains does it solve?**
 
 Multiple pains exist with the current i18n solutions.
+
+| Pain Point | Traditional i18n | i18n-keyless |
+|------------|------------------|--------------|
+| **Key Management** | Manual key creation & maintenance required | No keys needed - use natural language directly |
+| **Translation Management** | Manual tracking of missing translations across languages | Automatic translation handling via AI |
+| **Code Readability** | Read cryptic keys like `"user.welcome.message"` | Read actual text like `"Welcome to our app!"` |
+| **Setup Time** | Hours of dev setup + ongoing maintenance | Minutes to initialize |
+| **Cost** | ~$1600 for 1000 keys (dev time) | $8/month for 1000 keys |
+
 
 ### i18n key system management
 

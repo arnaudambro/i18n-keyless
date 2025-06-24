@@ -207,23 +207,28 @@ import { I18nKeylessText } from "i18n-keyless-react";
 
 ### **Dynamic Text Replacement**
 
-For text with dynamic content, use the `I18nKeylessTextWithReplacement` component:
+For text with dynamic content, use the `I18nKeylessText` component:
 
 ```javascript
-import { I18nKeylessTextWithReplacement } from "i18n-keyless-react";
+import { I18nKeylessText } from "i18n-keyless-react";
 
 // Replace specific text patterns with dynamic values
-<I18nKeylessTextWithReplacement 
+<I18nKeylessText 
   replace={{
     "{name}": user.name,
     "{date}": formattedDate
   }}
 >
   Bonjour {name}, votre rendez-vous est confirmé pour le {date}
-</I18nKeylessTextWithReplacement>
+</I18nKeylessText>
 
 // This will first translate the entire text, then replace the placeholders with their respective values. It's perfect for dynamic content like usernames, dates, or counts.
 ```
+
+### **Plural and gender**
+
+We didn't build any complicated internal system for plural and gender management. 
+For now, you need to use JavaScript to switch between cases, and maybe context to specify plural and gender.
 
 ### **React Hooks and Methods**
 

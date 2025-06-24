@@ -2,7 +2,7 @@
 
 Welcome to **i18n-keyless**! 🚀 This package provides a seamless way to handle translations without the need for cumbersome key management. This README will guide you through the setup and usage of the library.
 
-[https://stackblitz.com/edit/vitejs-vite-ttaib9fx?file=src%2FApp.tsx](Try it by yourself in this Stackblitz)
+[Try it by yourself in this Stackblitz](https://stackblitz.com/edit/vitejs-vite-ttaib9fx?file=src%2FApp.tsx)
 
 ---
 

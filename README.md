@@ -513,6 +513,50 @@ await init({
 
 For better integration and consistency, wrap `I18nKeylessText` within your own custom text component:
 
+### React web with markdown
+
+```javascript
+import * as I18nKeyless from 'i18n-keyless-react';
+import type { I18nKeylessTextProps } from 'i18n-keyless-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
+
+I18nKeyless.init({
+  API_KEY: 'API_KEY',
+  storage: window.localStorage,
+  languages: {
+    primary: 'en',
+    supported: [ 'en', 'fr', /* 'es', 'pt', 'ar', 'de', 'it', 'ja', 'ko', 'nl', 'pl', 'ro', 'ru', 'sv', 'tr', 'cn' */ ],
+  },
+});
+
+export default function MyText({
+  children,
+  i18nProps,
+}: {
+  children: string;
+  i18nProps?: I18nKeylessTextProps;
+}) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      rehypePlugins={[rehypeRaw]}
+      components={{
+        // put your custom components - all the default italic/bold etc. are already setup in the lib
+        strong: ({ ...props }) => <span className="text-neo-pink" {...props} />,
+      }}
+    >
+      {I18nKeyless.getTranslation(children, i18nProps)}
+    </ReactMarkdown>
+  );
+}
+```
+
+### React Native
+
+You could also put markdown the same way here
+
 ```javascript
 import { StyleProp, Text, TextProps, TextStyle } from "react-native";
 import { I18nKeylessText, type I18nKeylessTextProps } from "i18n-keyless-react";

@@ -10,6 +10,7 @@ export type Lang =
   | "pl"
   | "pt"
   | "ro"
+  | "hu"
   | "sv"
   | "tr"
   | "ja"
@@ -50,7 +51,7 @@ export type LanguagesConfig = {
   /**
    * the languages supported for the user.
    * For now we support:
-   * fr, nl, it, de, es, pl, pt, ro, sv, tr, ja, cn, ru, ko, ar
+   * fr, nl, it, de, es, pl, pt, ro, hu, sv, tr, ja, cn, ru, ko, ar
    *
    * If you need more, please reach out to @ambroselli_io on X/Twitter or by mail at arnaud.ambroselli.io@gmail.com
    */

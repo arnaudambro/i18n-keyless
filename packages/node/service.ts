@@ -21,6 +21,7 @@ const store: I18nKeylessNodeStore = {
     pl: {},
     pt: {},
     ro: {},
+    hu: {},
     sv: {},
     tr: {},
     ja: {},

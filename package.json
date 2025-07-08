@@ -2,7 +2,7 @@
   "name": "i18n-keyless",
   "private": false,
   "type": "module",
-  "version": "1.15.0",
+  "version": "1.15.1",
   "workspaces": [
     "packages/*"
   ],

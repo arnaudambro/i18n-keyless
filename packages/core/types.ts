@@ -83,6 +83,13 @@ export type TranslationOptions = {
    * You can leave it there forever, or remove it once your translation is saved.
    */
   forceTemporary?: Partial<Record<Lang, string>>;
+  /**
+   * The keys to replace in the text.
+   * It's an object where the key is the placeholder and the value is the replacement.
+   * Example: { "{{name}}": "John" } will replace all the {{name}} in the text with "John".
+   * RegEx is `key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))` so you can use use your own syntax.
+   */
+  replace?: Record<string, string>;
 };
 
 export interface I18nKeylessRequestBody {

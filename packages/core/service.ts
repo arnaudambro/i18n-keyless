@@ -42,7 +42,20 @@ export function getTranslationCore(key: string, store: FetchTranslationParams, o
   if (!translation) {
     translateKey(key, store, options);
   }
-  return translation || key;
+  if (!options?.replace) {
+    return translation || key;
+  }
+
+  // Create a regex that matches all keys to replace
+  // Escape special regex characters in keys
+  const pattern = Object.keys(options.replace)
+    .map((key) => key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("|");
+
+  const regex = new RegExp(pattern, "g");
+
+  // Replace all occurrences in a single pass
+  return translation.replace(regex, (matched) => options.replace?.[matched] || matched);
 }
 
 const translating: Record<string, boolean> = {};

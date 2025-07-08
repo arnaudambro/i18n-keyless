@@ -14,7 +14,7 @@ export interface I18nKeylessTextProps {
    * Example: { "{{name}}": "John" } will replace all the {{name}} in the text with "John".
    * RegEx is `key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))` so you can use use your own syntax.
    */
-  replace?: Record<string, string>;
+  replace?: TranslationOptions["replace"];
   /**
    * The context of the translation.
    * It's useful for ambiguous translations, like "8 heures" in French could be "8 AM" or "8 hours".

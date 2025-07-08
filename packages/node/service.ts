@@ -198,6 +198,7 @@ async function awaitForTranslationFn(
   const uniqueId = store.uniqueId;
   const context = options?.context;
   const debug = options?.debug;
+  const replace = options?.replace;
 
   try {
     // Ensure config is initialized enough for either API call or custom handler
@@ -233,7 +234,20 @@ async function awaitForTranslationFn(
       if (lastUsedAt !== newLastUsedAt) {
         sendTranslationsUsageToI18nKeyless();
       }
-      return translation;
+      if (!replace) {
+        return translation;
+      }
+
+      // Create a regex that matches all keys to replace
+      // Escape special regex characters in keys
+      const pattern = Object.keys(replace)
+        .map((key) => key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+        .join("|");
+
+      const regex = new RegExp(pattern, "g");
+
+      // Replace all occurrences in a single pass
+      return translation.replace(regex, (matched) => replace[matched] || matched);
     }
 
     // Use custom handler if provided

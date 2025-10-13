@@ -527,7 +527,7 @@ I18nKeyless.init({
   storage: window.localStorage,
   languages: {
     primary: 'en',
-    supported: [ 'en', 'fr', /* 'es', 'pt', 'ar', 'de', 'it', 'ja', 'ko', 'nl', 'pl', 'ro', 'hu', 'ru', 'sv', 'tr', 'cn' */ ],
+    supported: [ 'en', 'fr', /* 'es', 'pt', 'ar', 'de', 'it', 'ja', 'ko', 'nl', 'pl', 'ro', 'hu', 'ru', 'sv', 'tr', 'cn', 'cz' */ ],
   },
 });
 

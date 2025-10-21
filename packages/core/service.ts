@@ -31,16 +31,18 @@ export function getTranslationCore(key: string, store: FetchTranslationParams, o
   if (!config.API_KEY) {
     throw new Error("i18n-keyless: config is not initialized");
   }
+  let translation = key;
   if (currentLanguage === config.languages.primary) {
-    return key;
-  }
-  if (options?.forceTemporary?.[currentLanguage]) {
-    translateKey(key, store, options);
-  }
-  const context = options?.context;
-  const translation = context ? translations[`${key}__${context}`] : translations[key];
-  if (!translation) {
-    translateKey(key, store, options);
+    translation = key;
+  } else {
+    if (options?.forceTemporary?.[currentLanguage]) {
+      translateKey(key, store, options);
+    }
+    const context = options?.context;
+    translation = context ? translations[`${key}__${context}`] : translations[key];
+    if (!translation) {
+      translateKey(key, store, options);
+    }
   }
   if (!options?.replace) {
     return translation || key;

@@ -236,6 +236,7 @@ export function getTranslation(key: string, options?: TranslationOptions): strin
 }
 
 export function setCurrentLanguage(lang: I18nConfig["languages"]["supported"][number]) {
+  useI18nKeyless.getState().config.onSetLanguage?.(lang);
   return useI18nKeyless.getState().setLanguage(lang);
 }
 

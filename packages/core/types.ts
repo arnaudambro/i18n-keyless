@@ -65,6 +65,12 @@ export type LanguagesConfig = {
    * the language to use when the app is initialized
    */
   initWithDefault?: Lang;
+  /**
+   * if true, the current language will not be hydrated from the storage, and the app will use the initWithDefault language
+   * this is useful if the language state commes from the url for example,
+   * like /{lang}/path/to/something or /path/to/something?lang={lang}
+   */
+  skipCurrentLanguageHydration?: boolean;
 };
 
 export type TranslationOptions = {

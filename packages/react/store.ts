@@ -149,12 +149,16 @@ async function hydrate() {
     if (debug) console.log("i18n-keyless: _hydrate: no translations usage");
   }
   const currentLanguage = await getItem(storeKeys.currentLanguage, storage);
-  if (currentLanguage) {
+  const skipCurrentLanguageHydration = config.languages.skipCurrentLanguageHydration;
+  if (skipCurrentLanguageHydration) {
+    if (debug) console.log("i18n-keyless: _hydrate: skip current language hydration");
+    useI18nKeyless.setState({ currentLanguage: config?.languages.initWithDefault });
+  } else if (currentLanguage) {
     if (debug) console.log("i18n-keyless: _hydrate", currentLanguage);
     useI18nKeyless.setState({ currentLanguage: currentLanguage as Lang });
   } else {
     if (debug) console.log("i18n-keyless: _hydrate: no current language");
-    useI18nKeyless.setState({ currentLanguage: useI18nKeyless.getState().config?.languages.initWithDefault });
+    useI18nKeyless.setState({ currentLanguage: config?.languages.initWithDefault });
   }
   const uniqueId = await getItem(storeKeys.uniqueId, storage);
   if (uniqueId) {

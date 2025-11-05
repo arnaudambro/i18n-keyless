@@ -38,6 +38,7 @@ export interface I18nConfig {
    * supported: the languages supported for the user
    * fallback: if the user's langauge is not supported, the fallback language will be used
    * initWithDefault: the language to use when the app is initialized for the first time
+   * skipCurrentLanguageHydration: if true, the current language will not be hydrated from the storage, and the app will use the initWithDefault language
    */
   languages: LanguagesConfig;
   /**

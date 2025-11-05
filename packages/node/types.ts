@@ -28,8 +28,6 @@ export interface I18nKeylessNodeConfig {
    *
    * primary: the language used by the developer
    * supported: the languages supported for the user
-   * fallback: if the user's langauge is not supported, the fallback language will be used
-   * initWithDefault: the language to use when the app is initialized for the first time
    */
   languages: {
     /**

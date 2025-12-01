@@ -7,7 +7,7 @@
     "skipLibCheck": true,
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": false,
-    "resolveJsonModule": true,
+    "rewriteRelativeImportExtensions": true,
     "isolatedModules": true,
     "outDir": "./dist",
     "declaration": true,

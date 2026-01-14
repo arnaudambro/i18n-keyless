@@ -350,7 +350,7 @@ async function awaitForTranslationFn(
     const regex = new RegExp(pattern, "g");
 
     // Replace all occurrences in a single pass
-    return translation.replace(regex, (matched) => replace[matched] || matched);
+    return (fetchedTranslation || key).replace(regex, (matched) => replace[matched] || matched);
   } catch (error) {
     // Log the specific error during translation attempt
     console.error(`i18n-keyless: Error during awaitForTranslationFn for key "${key}":`, error);

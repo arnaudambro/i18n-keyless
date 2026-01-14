@@ -220,6 +220,10 @@ async function awaitForTranslationFn(
 
     const lastUsedAt = store.translationsUsage[translationKey];
     const newLastUsedAt = new Date().toISOString().split("T")[0];
+    if (debug) {
+      console.log("i18n-keyless: lastUsedAt", lastUsedAt);
+      console.log("i18n-keyless: newLastUsedAt", newLastUsedAt);
+    }
     if (lastUsedAt !== newLastUsedAt) {
       store.translationsUsage[translationKey] = newLastUsedAt;
     }
@@ -227,6 +231,9 @@ async function awaitForTranslationFn(
     // Safe navigation for potentially undefined language store
     const translation = translations[currentLanguage]?.[translationKey];
 
+    if (debug) {
+      console.log("i18n-keyless: translation", translation);
+    }
     // Return existing translation if found and not forced temporary
     if (translation && !forceTemporaryLang) {
       if (debug) {
@@ -330,7 +337,20 @@ async function awaitForTranslationFn(
         `i18n-keyless: Translation for lang "${currentLanguage}" not found in API response for key "${key}". Returning original key.`
       );
     }
-    return fetchedTranslation || key;
+    if (!replace) {
+      return fetchedTranslation || key;
+    }
+
+    // Create a regex that matches all keys to replace
+    // Escape special regex characters in keys
+    const pattern = Object.keys(replace)
+      .map((key) => key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .join("|");
+
+    const regex = new RegExp(pattern, "g");
+
+    // Replace all occurrences in a single pass
+    return translation.replace(regex, (matched) => replace[matched] || matched);
   } catch (error) {
     // Log the specific error during translation attempt
     console.error(`i18n-keyless: Error during awaitForTranslationFn for key "${key}":`, error);

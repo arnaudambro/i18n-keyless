@@ -1,7 +1,7 @@
 {
   "name": "i18n-keyless-core",
   "private": false,
-  "version": "1.17.5",
+  "version": "1.17.6",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -24,7 +24,7 @@
   "scripts": {
     "prepublishOnly": "rm -rf ./dist && tsc --project tsconfig.json && npm pack",
     "test": "echo 'no test for core'",
-    "postpublish": "rm -rf ./dist && rm *.tgz"
+    "postpublish": "rm -f *.tgz"
   },
   "devDependencies": {
     "@types/node": "^22.5.5",

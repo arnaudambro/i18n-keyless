@@ -1,24 +1,28 @@
 import type React from "react";
 export type PrimaryLang = "fr" | "en";
-export type Lang =
-  | "fr"
-  | "en"
-  | "nl"
-  | "it"
-  | "de"
-  | "es"
-  | "pl"
-  | "pt"
-  | "ro"
-  | "hu"
-  | "sv"
-  | "tr"
-  | "ja"
-  | "cn"
-  | "cz"
-  | "ru"
-  | "ko"
-  | "ar";
+
+export const AVAILABLE_LANGS = [
+  "fr",
+  "en",
+  "nl",
+  "it",
+  "de",
+  "es",
+  "pl",
+  "pt",
+  "ro",
+  "hu",
+  "sv",
+  "tr",
+  "ja",
+  "cn",
+  "cz",
+  "ru",
+  "ko",
+  "ar"
+] as const;
+
+export type Lang = (typeof AVAILABLE_LANGS)[number];
 
 /**
  * The translations for a key

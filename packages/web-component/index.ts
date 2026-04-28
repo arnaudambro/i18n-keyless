@@ -11,6 +11,7 @@ export { clearI18nKeylessStorage, validateLanguage } from "./utils";
 export type { I18nKeylessTextProps } from "./I18nKeylessText";
 export { type I18nConfig, type TranslationStoreState, type TranslationOptions, type TranslationStore } from "./types";
 export {
+  availableLangs,
   type Lang,
   type PrimaryLang,
   type Translations,

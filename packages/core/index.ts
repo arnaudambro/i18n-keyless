@@ -1,3 +1,4 @@
+export { AVAILABLE_LANGS } from "./types";
 export type {
   Lang,
   PrimaryLang,
@@ -15,12 +16,12 @@ export type {
   I18nKeylessTranslationsUsageRequestBody,
   I18nKeylessAllTranslationsResponse,
   FetchTranslationParams,
-  TranslationOptions,
+  TranslationOptions
 } from "./types";
 export {
   getTranslationCore,
   getAllTranslationsFromLanguage,
   sendTranslationsUsageToI18nKeyless,
-  queue,
+  queue
 } from "./service";
 export { api } from "./api";

@@ -5,17 +5,18 @@ export {
   useCurrentLanguage,
   getTranslation,
   getSupportedLanguages,
-  useI18nKeyless,
+  useI18nKeyless
 } from "./store";
 export { clearI18nKeylessStorage, validateLanguage } from "./utils";
 export type { I18nKeylessTextProps } from "./I18nKeylessText";
 export { type I18nConfig, type TranslationStoreState, type TranslationOptions, type TranslationStore } from "./types";
 export {
+  AVAILABLE_LANGS,
   type Lang,
   type PrimaryLang,
   type Translations,
   type I18nKeylessRequestBody,
   type I18nKeylessResponse,
   getAllTranslationsFromLanguage,
-  queue,
+  queue
 } from "i18n-keyless-core";

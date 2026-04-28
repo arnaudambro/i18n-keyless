@@ -7,7 +7,7 @@ export interface I18nKeylessTextProps {
    * The `children` prop must be a string.
    * It's the text to translate from your primary language.
    */
-  children: string;
+  children: string | React.ReactNode;
   /**
    * The keys to replace in the text.
    * It's an object where the key is the placeholder and the value is the replacement.
@@ -46,18 +46,19 @@ export const I18nKeylessText: React.FC<I18nKeylessTextProps> = ({
   replace,
   context,
   debug = false,
-  forceTemporary,
+  forceTemporary
 }) => {
   const translations = useI18nKeyless((store) => store.translations);
   const currentLanguage = useI18nKeyless((store) => store.currentLanguage);
   const config = useI18nKeyless((store) => store.config);
 
   // Trim the source text immediately
-  const sourceText = children.trim();
+  const rawText = Array.isArray(children) ? children.join("") : String(children ?? "");
+  const sourceText = rawText.trim();
 
   useEffect(() => {
-    warnAboutWhitespace(children);
-  }, [children]);
+    warnAboutWhitespace(rawText);
+  }, [rawText]);
 
   useEffect(() => {
     getTranslation(sourceText, { context, debug, forceTemporary });
@@ -93,7 +94,7 @@ export const I18nKeylessText: React.FC<I18nKeylessTextProps> = ({
       finalText,
       replace,
       context,
-      forceTemporary,
+      forceTemporary
     });
   }
   return <React.Fragment key={currentLanguage}>{finalText}</React.Fragment>;

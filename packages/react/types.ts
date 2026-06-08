@@ -62,6 +62,18 @@ export interface I18nConfig {
    */
   debug?: boolean;
   /**
+   * Read-only mode for server-side rendering.
+   *
+   * When the lib runs on a server (no `window`) it is automatically treated as
+   * read-only: usage analytics are not sent and not recorded (a server render can be
+   * triggered by a crawler, which would pollute the prune signal, and serverless
+   * per-request inits would POST on every request). Set `ssr: true` to force this
+   * read-only behavior explicitly even in an environment where `window` exists.
+   *
+   * This does NOT affect translate-on-miss — missing keys are still requested. See docs/SSR.md.
+   */
+  ssr?: boolean;
+  /**
    * called everytime the language is set, maybe to set also the locale to dayjs or whatever
    */
   onSetLanguage?: (lang: Lang) => void;

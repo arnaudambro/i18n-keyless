@@ -9,9 +9,18 @@ import {
   TranslationsUsage,
   sendTranslationsUsageToI18nKeyless,
 } from "i18n-keyless-core";
-import { type I18nConfig, type TranslationStore } from "./types";
+import { type I18nConfig, type TranslationStore } from "./types.ts";
 import { create } from "zustand";
-import { storeKeys, setItem, getItem, clearI18nKeylessStorage, validateLanguage } from "./utils";
+import { storeKeys, setItem, getItem, clearI18nKeylessStorage, validateLanguage, createMemoryStorage } from "./utils.ts";
+
+/**
+ * True when running without a DOM (server-side rendering). On the server the lib is
+ * read-only: usage analytics are neither recorded nor sent. Evaluated at call time so
+ * the environment can be detected (and stubbed in tests) per call. See docs/SSR.md.
+ */
+function isServerEnv(): boolean {
+  return typeof window === "undefined";
+}
 
 queue.on("empty", () => {
   // when each word is translated, fetch the translations for the current language
@@ -193,10 +202,17 @@ export async function init(newConfig: I18nConfig) {
     newConfig.languages.supported.push(newConfig.languages.initWithDefault);
   }
   if (!newConfig.storage) {
-    console.log("storage is required", newConfig.storage);
-    throw new Error(
-      "i18n-keyless: storage is required. You can use react-native-mmkv, @react-native-async-storage/async-storage, or window.localStorage, or any storage that has a getItem, setItem, removeItem, or get, set, and remove method"
-    );
+    if (typeof window === "undefined") {
+      // Server-side (SSR): no DOM storage exists. Default to an in-memory adapter so
+      // the server can init and cache translations for the process lifetime, instead
+      // of throwing. See docs/SSR.md.
+      newConfig.storage = createMemoryStorage();
+    } else {
+      console.log("storage is required", newConfig.storage);
+      throw new Error(
+        "i18n-keyless: storage is required. You can use react-native-mmkv, @react-native-async-storage/async-storage, or window.localStorage, or any storage that has a getItem, setItem, removeItem, or get, set, and remove method"
+      );
+    }
   }
   if (!newConfig.getAllTranslations || !newConfig.handleTranslate) {
     if (!newConfig.API_KEY) {
@@ -221,7 +237,11 @@ export async function init(newConfig: I18nConfig) {
   newConfig.onInit?.(currentLanguage);
   // initialize the language to fetch all the translations
   useI18nKeyless.getState().setLanguage(currentLanguage);
-  useI18nKeyless.getState().sendTranslationsUsage();
+  // Read-only on the server: don't POST usage stats on boot (crawler-triggered renders
+  // and serverless per-request inits would otherwise pollute/spam the prune signal).
+  if (!isServerEnv() && !newConfig.ssr) {
+    useI18nKeyless.getState().sendTranslationsUsage();
+  }
 }
 
 export function useCurrentLanguage(): Lang | null {
@@ -235,7 +255,10 @@ export function getSupportedLanguages(): I18nConfig["languages"]["supported"] {
 
 export function getTranslation(key: string, options?: TranslationOptions): string {
   const store = useI18nKeyless.getState();
-  store.setTranslationUsage(key, options?.context);
+  // Read-only on the server: don't record usage (a render may be a crawler hit).
+  if (!isServerEnv() && !store.config.ssr) {
+    store.setTranslationUsage(key, options?.context);
+  }
   return getTranslationCore(key, store, options);
 }
 

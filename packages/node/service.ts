@@ -6,8 +6,8 @@ import {
   I18nKeylessAllTranslationsResponse,
   api,
 } from "i18n-keyless-core";
-import { I18nKeylessNodeConfig, I18nKeylessNodeStore } from "types";
-import packageJson from "./package.json";
+import { I18nKeylessNodeConfig, I18nKeylessNodeStore } from "./types.ts";
+import packageJson from "./package.json" with { type: "json" };
 import { I18nKeylessTranslationsUsageRequestBody, SendTranslationsUsageFunction } from "i18n-keyless-core/types";
 
 const store: I18nKeylessNodeStore = {

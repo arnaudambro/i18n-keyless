@@ -1,4 +1,4 @@
-export { AVAILABLE_LANGS } from "./types";
+export { AVAILABLE_LANGS } from "./types.ts";
 export type {
   Lang,
   PrimaryLang,
@@ -17,11 +17,11 @@ export type {
   I18nKeylessAllTranslationsResponse,
   FetchTranslationParams,
   TranslationOptions
-} from "./types";
+} from "./types.ts";
 export {
   getTranslationCore,
   getAllTranslationsFromLanguage,
   sendTranslationsUsageToI18nKeyless,
   queue
-} from "./service";
-export { api } from "./api";
+} from "./service.ts";
+export { api } from "./api.ts";

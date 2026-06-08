@@ -62,6 +62,17 @@ Text goes through this pipeline:
 - `react/utils.ts` — Storage adapter (supports localStorage, AsyncStorage, MMKV, etc.)
 - `node/service.ts` — Node-specific init and `awaitForTranslation` with Proxy-based error enforcement
 
+### SSR / Server Rendering
+
+See `docs/SSR.md` for the full reference. Key points: the translate-on-miss design is
+SSR-safe; usage POSTs fire once per `init`, so SSR is *less* traffic than SPA on a
+long-lived server (no "spam"). SSR support is **implemented**: (1) `dist` emits explicit
+`.js` import extensions (valid native Node ESM), (2) `init` defaults to an in-memory
+storage (`createMemoryStorage`) on the server, (3) usage analytics are suppressed on the
+server / under `ssr: true`, (4) `<I18nKeylessProvider lang translations>` +
+`getServerTranslations(lang)` render per-request non-primary HTML. `<T>` reads provider
+context first and falls back to the store, so SPA mode is unchanged (non-breaking).
+
 ### Translation Key Format
 
 Keys with context are stored as `"key__context"` in the translations map. The `context` option disambiguates translations (e.g., "8 heures" → time vs duration).

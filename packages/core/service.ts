@@ -9,10 +9,10 @@ import type {
   GetAllTranslationsFunction,
   TranslationsUsage,
   SendTranslationsUsageFunction,
-} from "./types";
-import MyPQueue from "./my-pqueue";
-import packageJson from "./package.json";
-import { api } from "./api";
+} from "./types.ts";
+import MyPQueue from "./my-pqueue.ts";
+import packageJson from "./package.json" with { type: "json" };
+import { api } from "./api.ts";
 
 export const queue = new MyPQueue({ concurrency: 30 });
 

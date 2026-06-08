@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act } from "@testing-library/react";
 import packageJson from "../package.json";
 import { mockStore, mockStorage } from "./__mocks__/store";
-import { useI18nKeyless, init } from "../store";
+import { useI18nKeyless, init, getTranslation } from "../store";
 import { getTranslationCore, queue } from "i18n-keyless-core";
 // These vi.mock calls must be at the top level, outside of any function or block
 vi.mock("zustand", () => ({
@@ -23,6 +23,7 @@ vi.mock("../store", async () => {
     getAllTranslationsFromLanguage: vi.fn(),
     clearI18nKeylessStorage: vi.fn(),
     init: actual.init,
+    getTranslation: actual.getTranslation,
   };
 });
 
@@ -401,6 +402,84 @@ describe("i18n-keyless store", () => {
       });
 
       expect(useI18nKeyless.getState().translations).toEqual({});
+    });
+  });
+
+  describe("SSR / server-side behavior", () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it("defaults to in-memory storage on the server when no storage is provided", async () => {
+      vi.stubGlobal("window", undefined);
+      await init({
+        languages: { primary: "en", supported: ["en", "fr"] },
+        API_KEY: "test-api-key",
+      });
+      const storage = useI18nKeyless.getState().config.storage;
+      expect(storage).toBeDefined();
+      expect(typeof storage!.getItem).toBe("function");
+      expect(typeof storage!.setItem).toBe("function");
+    });
+
+    it("still throws when no storage is provided on the client", async () => {
+      // window is defined under happy-dom → client behavior
+      await expect(
+        init({ languages: { primary: "en", supported: ["en", "fr"] }, API_KEY: "test-api-key" })
+      ).rejects.toThrow("i18n-keyless: storage is required");
+    });
+
+    it("does not send usage stats on init when running on the server", async () => {
+      vi.stubGlobal("window", undefined);
+      const store = useI18nKeyless.getState();
+      store.sendTranslationsUsage = vi.fn();
+      await init({
+        languages: { primary: "en", supported: ["en", "fr"] },
+        API_KEY: "test-api-key",
+      });
+      expect(store.sendTranslationsUsage).not.toHaveBeenCalled();
+    });
+
+    it("sends usage stats on init on the client", async () => {
+      const store = useI18nKeyless.getState();
+      store.sendTranslationsUsage = vi.fn();
+      await init({
+        languages: { primary: "en", supported: ["en", "fr"] },
+        storage: mockStorage,
+        API_KEY: "test-api-key",
+      });
+      expect(store.sendTranslationsUsage).toHaveBeenCalled();
+    });
+
+    it("does not record usage in getTranslation when the ssr flag is set", () => {
+      const store = useI18nKeyless.getState();
+      store.setTranslationUsage = vi.fn();
+      useI18nKeyless.setState({
+        currentLanguage: "fr",
+        config: {
+          API_KEY: "test-api-key",
+          ssr: true,
+          languages: { primary: "en", supported: ["en", "fr"] },
+          storage: mockStorage,
+        },
+      });
+      getTranslation("Hello");
+      expect(store.setTranslationUsage).not.toHaveBeenCalled();
+    });
+
+    it("records usage in getTranslation on the client without the ssr flag", () => {
+      const store = useI18nKeyless.getState();
+      store.setTranslationUsage = vi.fn();
+      useI18nKeyless.setState({
+        currentLanguage: "fr",
+        config: {
+          API_KEY: "test-api-key",
+          languages: { primary: "en", supported: ["en", "fr"] },
+          storage: mockStorage,
+        },
+      });
+      getTranslation("Hello");
+      expect(store.setTranslationUsage).toHaveBeenCalledWith("Hello", undefined);
     });
   });
 

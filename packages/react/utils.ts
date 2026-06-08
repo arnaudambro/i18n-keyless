@@ -1,4 +1,4 @@
-import type { I18nConfig } from "./types";
+import type { I18nConfig } from "./types.ts";
 
 /**
  * The keys used to store i18n-keyless data in storage
@@ -100,6 +100,34 @@ export async function clearI18nKeylessStorage(storage: I18nConfig["storage"]) {
   for (const key of Object.keys(storeKeys)) {
     deleteItem(key, storage);
   }
+}
+
+/**
+ * Creates an in-memory storage adapter backed by a Map.
+ *
+ * Used as the default storage on the server (when `typeof window === "undefined"`
+ * and no `storage` is provided to `init`). It satisfies the storage interface and
+ * keeps translations cached for the lifetime of the process, so a long-lived server
+ * fetches each language at most once per boot. It does NOT persist across restarts —
+ * which is the correct, expected behavior server-side.
+ *
+ * On the browser, a missing `storage` remains a loud error (a real misconfiguration),
+ * so this is intentionally not used as a client default.
+ */
+export function createMemoryStorage(): NonNullable<I18nConfig["storage"]> {
+  const map = new Map<string, string>();
+  return {
+    getItem: (key: string) => map.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      map.set(key, value);
+    },
+    removeItem: (key: string) => {
+      map.delete(key);
+    },
+    clear: () => {
+      map.clear();
+    },
+  };
 }
 
 /**

@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
-import { runWithI18nKeyless, getRequestScope } from "../request-scope";
+import {
+  runWithI18nKeyless,
+  getRequestScope,
+  recordUsedKey,
+  getUsedTranslationsSnapshot,
+} from "../request-scope";
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
@@ -53,5 +58,63 @@ describe("runWithI18nKeyless (AsyncLocalStorage request scoping)", () => {
       }),
     ]);
     expect(results).toEqual(["en", "es", "de"]);
+  });
+});
+
+describe("getUsedTranslationsSnapshot (per-page subset)", () => {
+  beforeAll(() => {
+    vi.stubGlobal("window", undefined);
+  });
+  afterAll(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("narrows the snapshot to used keys ∩ available, keeping the full set in scope", async () => {
+    const result = await runWithI18nKeyless(
+      { lang: "en", translations: { A: "a", B: "b", C: "c", D: "d" } },
+      () => {
+        recordUsedKey("A");
+        recordUsedKey("C");
+        recordUsedKey("Z"); // used but not available → excluded
+        return {
+          // full set still available for resolution mid-render
+          full: getRequestScope(),
+          subset: getUsedTranslationsSnapshot(),
+        };
+      }
+    );
+    expect(result.full).toEqual({ lang: "en", translations: { A: "a", B: "b", C: "c", D: "d" } });
+    expect(result.subset).toEqual({ lang: "en", translations: { A: "a", C: "c" } });
+  });
+
+  it("getRequestScope returns the full translations and never leaks the `used` set", async () => {
+    const scope = await runWithI18nKeyless({ lang: "en", translations: { A: "a" } }, () => {
+      recordUsedKey("A");
+      return getRequestScope();
+    });
+    expect(scope).toEqual({ lang: "en", translations: { A: "a" } });
+    expect(scope).not.toHaveProperty("used");
+  });
+
+  it("isolates used-key snapshots between concurrent renders", async () => {
+    const [s1, s2] = await Promise.all([
+      runWithI18nKeyless({ lang: "en", translations: { A: "a", B: "b" } }, async () => {
+        recordUsedKey("A");
+        await tick();
+        return getUsedTranslationsSnapshot();
+      }),
+      runWithI18nKeyless({ lang: "es", translations: { A: "aa", C: "cc" } }, async () => {
+        recordUsedKey("C");
+        await tick();
+        return getUsedTranslationsSnapshot();
+      }),
+    ]);
+    expect(s1).toEqual({ lang: "en", translations: { A: "a" } });
+    expect(s2).toEqual({ lang: "es", translations: { C: "cc" } });
+  });
+
+  it("recordUsedKey and getUsedTranslationsSnapshot are no-ops outside a scope", () => {
+    recordUsedKey("anything"); // must not throw
+    expect(getUsedTranslationsSnapshot()).toBeUndefined();
   });
 });

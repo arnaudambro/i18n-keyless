@@ -6,6 +6,30 @@ All notable changes to i18n-keyless are documented here. The three packages
 This project follows [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
 
+## [2.3.0] — 2026-06-09
+
+### Added — per-page SSR translation snapshot
+
+- **`getUsedTranslationsSnapshot()`** (`i18n-keyless-react`) → `{ lang, translations } |
+  undefined` — like `getRequestScope()` but `translations` contains only the keys the
+  current render actually used (∩ the keys available). Serialize THIS instead of
+  `getRequestScope()` to embed a per-page subset into the SSR HTML rather than the full
+  language set — important for large translation sets. The full set stays in scope for
+  resolution during render; only the serialized payload is narrowed.
+  - `getTranslation` and `<I18nKeylessText>` record each key they touch into a per-request
+    `Set` held in the AsyncLocalStorage scope — a plain `Set.add`, no store write / no
+    setState (no render-time update warning), isolated between concurrent requests.
+
+### Notes
+
+- Additive and non-breaking: `getServerTranslations`, `getRequestScope`,
+  `hydrateFromServer`, `runWithI18nKeyless` keep their signatures. SPA mode unchanged.
+- **Client navigation invariant:** keep calling `init()` — the per-page subset seeds the
+  first paint via `hydrateFromServer`, and `init()`'s background full fetch then fills the
+  store with the complete set for client-side navigation. Use the full
+  `getRequestScope()` snapshot for small sets, `getUsedTranslationsSnapshot()` for large
+  ones. `node:async_hooks` stays server-only.
+
 ## [2.2.0] — 2026-06-09
 
 Two SSR correctness fixes surfaced by a TanStack Start (React 19, streaming) app that

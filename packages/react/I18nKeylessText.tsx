@@ -2,7 +2,7 @@ import React, { useEffect, useMemo } from "react";
 import { type TranslationOptions } from "i18n-keyless-core";
 import { useI18nKeyless, getTranslation } from "./store.ts";
 import { useI18nKeylessContext } from "./I18nKeylessProvider.tsx";
-import { getRequestScope } from "./request-scope.ts";
+import { getRequestScope, recordUsedKey } from "./request-scope.ts";
 
 export interface I18nKeylessTextProps {
   /**
@@ -74,10 +74,12 @@ export const I18nKeylessText: React.FC<I18nKeylessTextProps> = ({
     getTranslation(sourceText, { context, debug, forceTemporary });
   }, [sourceText, currentLanguage, context, debug, forceTemporary]);
 
+  const storageKey = context ? `${sourceText}__${context}` : sourceText;
+  // Record the key for the per-page SSR snapshot (no-op off-server; pure Set.add, no
+  // setState, so no render-time update warning). See docs/SSR.md.
+  recordUsedKey(storageKey);
   const translatedText =
-    currentLanguage === config!.languages.primary
-      ? sourceText
-      : translations[context ? `${sourceText}__${context}` : sourceText] || sourceText;
+    currentLanguage === config!.languages.primary ? sourceText : translations[storageKey] || sourceText;
   const finalText = useMemo(() => {
     if (!replace) {
       return translatedText;

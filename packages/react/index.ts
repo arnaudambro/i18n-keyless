@@ -12,7 +12,7 @@ export { clearI18nKeylessStorage, validateLanguage, createMemoryStorage } from "
 export { I18nKeylessProvider, useI18nKeylessContext } from "./I18nKeylessProvider.tsx";
 export type { I18nKeylessProviderProps } from "./I18nKeylessProvider.tsx";
 export { getServerTranslations, clearServerTranslationsCache } from "./server.ts";
-export { runWithI18nKeyless, getRequestScope } from "./request-scope.ts";
+export { runWithI18nKeyless, getRequestScope, getUsedTranslationsSnapshot } from "./request-scope.ts";
 export type { I18nRequestScope } from "./request-scope.ts";
 export { clearI18nKeylessStorageAndStore } from "./store.ts";
 export type { I18nKeylessTextProps } from "./I18nKeylessText.tsx";

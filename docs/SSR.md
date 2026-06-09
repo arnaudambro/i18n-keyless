@@ -116,6 +116,11 @@ Three new exports from `i18n-keyless-react`:
   **client**, before the first render, so `getTranslation` returns the right language on
   the very first render (no mismatch / blink). Call it before `hydrateRoot`. `init()`'s
   async `hydrate()` then treats the snapshot as authoritative and won't overwrite it.
+- **`getUsedTranslationsSnapshot()`** → `{ lang, translations } | undefined` — like
+  `getRequestScope()` but the `translations` contain **only the keys this render actually
+  used** (∩ the keys available). Serialize THIS instead of `getRequestScope()` when the
+  language set is large, to keep the inline HTML small. The full set is still used for
+  resolution during render.
 
 ### `getTranslation` under SSR (why and how)
 
@@ -184,6 +189,33 @@ hydrateRoot(document, <App />);
 `hydrateFromServer` runs before any component renders, so it never writes to the store
 during render (no React warning). On a cold cache, `init()`'s async `hydrate()` keeps the
 seed instead of resetting to the primary language.
+
+### Full snapshot vs per-page snapshot (large translation sets)
+
+The snapshot above embeds the **full** language set. For a small/medium set (tens of KB)
+that's the simplest choice — keep it. For a **large** set (thousands of keys), embedding
+all of it in every page's HTML is wasteful. Embed only the keys the page rendered:
+
+```diff
+- const snapshot = JSON.stringify(getRequestScope());          // full language set
++ const snapshot = JSON.stringify(getUsedTranslationsSnapshot()); // only keys this page used
+```
+
+That one-line swap at the serialization site is the whole change. During the render,
+`getTranslation`/`<T>` record each key they touch into a per-request `Set` (a plain
+`Set.add` — no store write), and `getUsedTranslationsSnapshot()` returns just those keys
+(∩ available). The full set is still in scope, so any key resolves correctly mid-render.
+
+**Client navigation invariant:** keep calling `init()` on the client (you already do). The
+per-page subset only seeds the **first paint**; `init()` then fetches the **full** language
+set in the background and caches it to storage, so subsequent client-side navigation has
+every key. So: `hydrateFromServer(subset)` = instant correct first paint;
+`init()`'s background fetch = full set for browsing. (Until that fetch lands, a key not in
+the subset resolves via translate-on-miss; on a warm cache it's already there.)
+
+Decision rule: small set → `getRequestScope()` (full). Large set →
+`getUsedTranslationsSnapshot()` (subset) + the background full fetch. Measure first:
+`JSON.stringify(getRequestScope().translations).length`.
 
 > **Usage analytics never block render.** `getTranslation` records usage on a microtask,
 > never synchronously during render, so it can't trigger React's "Cannot update a

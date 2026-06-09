@@ -12,7 +12,7 @@ import {
 import { type I18nConfig, type TranslationStore } from "./types.ts";
 import { create } from "zustand";
 import { storeKeys, setItem, getItem, clearI18nKeylessStorage, validateLanguage, createMemoryStorage } from "./utils.ts";
-import { getRequestScope } from "./request-scope.ts";
+import { getRequestScope, recordUsedKey } from "./request-scope.ts";
 
 /**
  * True when running without a DOM (server-side rendering). On the server the lib is
@@ -305,6 +305,9 @@ export function getTranslation(key: string, options?: TranslationOptions): strin
   if (!isServerEnv() && !base.config.ssr) {
     queueMicrotask(() => base.setTranslationUsage(key, options?.context));
   }
+  // Record the key for the per-page SSR snapshot (no-op off-server). Pure Set.add — no
+  // store write. Use the storage key (with context) so it matches the translations map.
+  recordUsedKey(options?.context ? `${key}__${options.context}` : key);
   // SSR: if a per-request scope is active (set by runWithI18nKeyless), translate against
   // that request's language/translations instead of the process-global store — so
   // getTranslation, like <T>, renders the right language without leaking across

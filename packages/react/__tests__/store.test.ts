@@ -3,7 +3,7 @@ import { act } from "@testing-library/react";
 import packageJson from "../package.json";
 import { mockStore, mockStorage } from "./__mocks__/store";
 import { useI18nKeyless, init, getTranslation, hydrateFromServer } from "../store";
-import { runWithI18nKeyless } from "../request-scope";
+import { runWithI18nKeyless, getUsedTranslationsSnapshot } from "../request-scope";
 import { getTranslationCore, queue } from "i18n-keyless-core";
 // These vi.mock calls must be at the top level, outside of any function or block
 vi.mock("zustand", () => ({
@@ -509,6 +509,31 @@ describe("i18n-keyless store", () => {
       expect(result).toBe("Hola");
       // Outside the scope, the store wins again (primary → source text).
       expect(getTranslation("Hello")).toBe("Hello");
+    });
+
+    it("getTranslation resolves any key from the full scope; the snapshot narrows to used keys", async () => {
+      vi.stubGlobal("window", undefined);
+      useI18nKeyless.setState({
+        currentLanguage: "en",
+        translations: {},
+        config: {
+          API_KEY: "test-api-key",
+          languages: { primary: "fr", supported: ["fr", "en"] },
+          storage: mockStorage,
+        },
+      });
+      const out = await runWithI18nKeyless(
+        { lang: "en", translations: { Accueil: "Home", Profil: "Profile", Param: "Settings" } },
+        () => {
+          const a = getTranslation("Accueil");
+          const b = getTranslation("Profil"); // a key not seeded in the store — resolves from the full scope
+          return { a, b, snapshot: getUsedTranslationsSnapshot() };
+        }
+      );
+      expect(out.a).toBe("Home");
+      expect(out.b).toBe("Profile");
+      // Only the rendered keys are serialized; "Param" (never used) is excluded.
+      expect(out.snapshot).toEqual({ lang: "en", translations: { Accueil: "Home", Profil: "Profile" } });
     });
   });
 

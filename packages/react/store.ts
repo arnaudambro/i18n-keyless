@@ -23,6 +23,15 @@ function isServerEnv(): boolean {
   return typeof window === "undefined";
 }
 
+/**
+ * True once a server snapshot has been applied synchronously on the client (via
+ * `hydrateFromServer`). When set, the async `hydrate()` treats the snapshot as
+ * authoritative for the current request and does not overwrite the seeded language /
+ * translations from storage (which may hold a different, stale language). Never set in
+ * SPA mode, so SPA hydration is unchanged. See docs/SSR.md.
+ */
+let serverSnapshotApplied = false;
+
 queue.on("empty", () => {
   // when each word is translated, fetch the translations for the current language
   const store = useI18nKeyless.getState();
@@ -134,6 +143,29 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
   },
 }));
 
+/**
+ * Synchronously seeds the store from a server snapshot, BEFORE React's first client
+ * render, so the imperative `getTranslation(key)` returns the correct language on the
+ * very first render — no hydration mismatch, no blink. Call it in your client entry,
+ * before `hydrateRoot`, with the `{ lang, translations }` the server serialized into the
+ * HTML (the server can read it from `getRequestScope()`).
+ *
+ * The component path (`<I18nKeylessText>`) is covered by `<I18nKeylessProvider>`; the
+ * function path needs this synchronous store seed because a plain function cannot read
+ * React context. Server-only async `hydrate()` will not overwrite this seed. See docs/SSR.md.
+ */
+export function hydrateFromServer(snapshot?: { lang?: Lang; translations?: Translations }): void {
+  if (!snapshot?.lang) {
+    return;
+  }
+  serverSnapshotApplied = true;
+  const current = useI18nKeyless.getState();
+  useI18nKeyless.setState({
+    currentLanguage: snapshot.lang,
+    translations: { ...current.translations, ...(snapshot.translations ?? {}) },
+  });
+}
+
 async function hydrate() {
   const config = useI18nKeyless.getState().config;
   if (!config.API_KEY) {
@@ -144,12 +176,18 @@ async function hydrate() {
   if (!storage) {
     throw new Error(`i18n-keyless: storage is not initialized hydrating`);
   }
-  const translations = await getItem(storeKeys.translations, storage, JSON.parse);
-  if (translations) {
-    if (debug) console.log("i18n-keyless: _hydrate", translations);
-    useI18nKeyless.setState({ translations: translations as Translations });
-  } else {
-    if (debug) console.log("i18n-keyless: _hydrate: no translations");
+  // When a server snapshot was applied, it is authoritative for the current request's
+  // language: skip loading translations / currentLanguage from storage (storage holds a
+  // single, possibly different/stale language and would clobber or mix the seed). Usage,
+  // uniqueId and lastRefresh are language-independent and still hydrate normally.
+  if (!serverSnapshotApplied) {
+    const translations = await getItem(storeKeys.translations, storage, JSON.parse);
+    if (translations) {
+      if (debug) console.log("i18n-keyless: _hydrate", translations);
+      useI18nKeyless.setState({ translations: translations as Translations });
+    } else {
+      if (debug) console.log("i18n-keyless: _hydrate: no translations");
+    }
   }
   const translationsUsage = await getItem(storeKeys.translationsUsage, storage, JSON.parse);
   if (translationsUsage) {
@@ -160,7 +198,10 @@ async function hydrate() {
   }
   const currentLanguage = await getItem(storeKeys.currentLanguage, storage);
   const skipCurrentLanguageHydration = config.languages.skipCurrentLanguageHydration;
-  if (skipCurrentLanguageHydration) {
+  if (serverSnapshotApplied) {
+    // keep the synchronously-seeded language; do not override it from storage
+    if (debug) console.log("i18n-keyless: _hydrate: keeping server-seeded language");
+  } else if (skipCurrentLanguageHydration) {
     if (debug) console.log("i18n-keyless: _hydrate: skip current language hydration");
     useI18nKeyless.setState({ currentLanguage: config?.languages.initWithDefault });
   } else if (currentLanguage) {
@@ -257,8 +298,12 @@ export function getSupportedLanguages(): I18nConfig["languages"]["supported"] {
 export function getTranslation(key: string, options?: TranslationOptions): string {
   const base = useI18nKeyless.getState();
   // Read-only on the server: don't record usage (a render may be a crawler hit).
+  // On the client, DEFER the usage write: getTranslation is called during component
+  // render, and setTranslationUsage writes to the store synchronously, which makes React
+  // log "Cannot update a component while rendering a different component". Usage analytics
+  // never needs to affect the current render, so flush it on a microtask (after render).
   if (!isServerEnv() && !base.config.ssr) {
-    base.setTranslationUsage(key, options?.context);
+    queueMicrotask(() => base.setTranslationUsage(key, options?.context));
   }
   // SSR: if a per-request scope is active (set by runWithI18nKeyless), translate against
   // that request's language/translations instead of the process-global store — so

@@ -6,6 +6,41 @@ All notable changes to i18n-keyless are documented here. The three packages
 This project follows [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
 
+## [2.2.0] — 2026-06-09
+
+Two SSR correctness fixes surfaced by a TanStack Start (React 19, streaming) app that
+calls the imperative `getTranslation(key)` pervasively in render.
+
+### Added
+
+- **`hydrateFromServer({ lang, translations })`** (`i18n-keyless-react`) — synchronously
+  seeds the store from a server snapshot **before React's first client render**, so the
+  imperative `getTranslation(key)` returns the correct language on the very first render
+  (no hydration mismatch, no blink). Call it in the client entry, before `hydrateRoot`,
+  with the `{ lang, translations }` the server serialized into the HTML (read on the
+  server from `getRequestScope()`). The component path (`<I18nKeylessText>`) is covered by
+  `<I18nKeylessProvider>`; the function path needs this because a plain function can't read
+  React context.
+
+### Fixed
+
+- **Hydration mismatch / blink with `getTranslation` (Bug 1).** On a cold cache the client
+  store had the right `currentLanguage` but an empty translations map at first render, so
+  `getTranslation` fell back to the primary language and React re-rendered after the async
+  fetch. Fixed by `hydrateFromServer` (above); `init()`'s async `hydrate()` now treats an
+  applied server snapshot as authoritative and no longer overwrites the seeded
+  language/translations from storage.
+- **`getTranslation` triggered a store write during render (Bug 2).** Usage recording
+  (`setTranslationUsage`) ran synchronously during the caller's render, making React 19
+  log "Cannot update a component while rendering a different component". Usage recording is
+  now deferred to a microtask (it never needs to affect the current render). Server
+  read-only behavior is unchanged.
+
+### Notes
+
+- No breaking changes; SPA mode unchanged (`hydrateFromServer` is opt-in; the snapshot
+  flag is never set in SPA). `node:async_hooks` still stays out of browser bundles.
+
 ## [2.1.0] — 2026-06-09
 
 ### Added — SSR for the imperative `getTranslation`

@@ -108,9 +108,14 @@ Three new exports from `i18n-keyless-react`:
   on mount for flash-free hydration.
 - **`runWithI18nKeyless(scope, fn)`** → `Promise<R>` — runs `fn` with a per-request scope
   active so the **imperative `getTranslation(...)`** (and `<T>`) resolve in `scope.lang`
-  for the duration of the render. `getServerTranslations`/`<I18nKeylessProvider>` only
-  cover `<T>`; this covers code that renders text via `getTranslation` without rewriting
-  call sites. `getRequestScope()` and type `I18nRequestScope` are exported alongside it.
+  for the duration of the **server** render. `getServerTranslations`/`<I18nKeylessProvider>`
+  only cover `<T>`; this covers code that renders text via `getTranslation` without
+  rewriting call sites. `getRequestScope()` and type `I18nRequestScope` are exported
+  alongside it.
+- **`hydrateFromServer({ lang, translations })`** — synchronously seeds the store on the
+  **client**, before the first render, so `getTranslation` returns the right language on
+  the very first render (no mismatch / blink). Call it before `hydrateRoot`. `init()`'s
+  async `hydrate()` then treats the snapshot as authoritative and won't overwrite it.
 
 ### `getTranslation` under SSR (why and how)
 
@@ -136,10 +141,57 @@ no resolution error and no `node:async_hooks` in the output. Requires Node ≥ 2
 a runtime with `AsyncLocalStorage` (most edge runtimes; Cloudflare needs a flag — where
 it's unavailable, scoping degrades to a no-op and you fall back to the Provider for `<T>`).
 
+### Function `getTranslation` vs component `<I18nKeylessText>` in SSR
+
+Both must resolve in the request's language, but they read it from different places, so
+they need different wiring:
+
+- **`<I18nKeylessText>` / `<T>`** is a component and reads the language from React context
+  — `<I18nKeylessProvider>` covers it on both server and client (and the Provider seeds
+  the store on mount).
+- **`getTranslation(key)`** is a plain function and cannot read React context. On the
+  **server** it reads the request scope set by `runWithI18nKeyless` (AsyncLocalStorage).
+  On the **client** it reads the store, so the store must be seeded **synchronously before
+  the first render** with `hydrateFromServer` — otherwise the first render falls back to
+  the primary language (cold cache) and you get a hydration mismatch + blink.
+
+### Serialization contract & synchronous client hydration
+
+The server emits `{ lang, translations }` into the HTML; the client seeds the store from
+it at module-load time, before `hydrateRoot`. Framework-agnostic:
+
+```tsx
+// SERVER — inside the scoped render, read the active scope and embed it
+const html = await runWithI18nKeyless({ lang, translations }, () => {
+  const body = renderToString(
+    <I18nKeylessProvider lang={lang} translations={translations}>
+      <App />
+    </I18nKeylessProvider>
+  );
+  const snapshot = JSON.stringify(getRequestScope()); // { lang, translations }
+  return `${body}<script id="i18n-keyless" type="application/json">${snapshot}</script>`;
+});
+
+// CLIENT entry — seed synchronously BEFORE the first render
+import { hydrateFromServer, init } from "i18n-keyless-react";
+
+const el = document.getElementById("i18n-keyless");
+if (el) hydrateFromServer(JSON.parse(el.textContent)); // sync: getTranslation is correct on render 1
+init({ languages: { primary: "fr", supported: ["fr", "en"] }, API_KEY, storage: window.localStorage });
+hydrateRoot(document, <App />);
+```
+
+`hydrateFromServer` runs before any component renders, so it never writes to the store
+during render (no React warning). On a cold cache, `init()`'s async `hydrate()` keeps the
+seed instead of resetting to the primary language.
+
+> **Usage analytics never block render.** `getTranslation` records usage on a microtask,
+> never synchronously during render, so it can't trigger React's "Cannot update a
+> component while rendering" warning. The server stays read-only (records nothing).
+
 The app owns routing, `?lang=` / `Accept-Language` detection, calling
-`getServerTranslations` in its loader, serializing the map into the HTML, and passing
-it back to the provider on the client. The library owns the context read path in `<T>`
-and the store seeding.
+`getServerTranslations` in its loader, serializing the map into the HTML, and seeding the
+client. The library owns the read paths in `<T>` / `getTranslation` and the store seeding.
 
 In provider mode the language is the `lang` prop (drive it from the URL).
 `setCurrentLanguage` is for non-provider SPA mode.

@@ -1,6 +1,7 @@
 export { I18nKeylessText, I18nKeylessText as T } from "./I18nKeylessText.tsx";
 export {
   init,
+  hydrateFromServer,
   setCurrentLanguage,
   useCurrentLanguage,
   getTranslation,

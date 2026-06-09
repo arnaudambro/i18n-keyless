@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act } from "@testing-library/react";
 import packageJson from "../package.json";
 import { mockStore, mockStorage } from "./__mocks__/store";
-import { useI18nKeyless, init, getTranslation } from "../store";
+import { useI18nKeyless, init, getTranslation, hydrateFromServer } from "../store";
 import { runWithI18nKeyless } from "../request-scope";
 import { getTranslationCore, queue } from "i18n-keyless-core";
 // These vi.mock calls must be at the top level, outside of any function or block
@@ -25,6 +25,7 @@ vi.mock("../store", async () => {
     clearI18nKeylessStorage: vi.fn(),
     init: actual.init,
     getTranslation: actual.getTranslation,
+    hydrateFromServer: actual.hydrateFromServer,
   };
 });
 
@@ -468,7 +469,7 @@ describe("i18n-keyless store", () => {
       expect(store.setTranslationUsage).not.toHaveBeenCalled();
     });
 
-    it("records usage in getTranslation on the client without the ssr flag", () => {
+    it("records usage in getTranslation on the client — but DEFERRED, never synchronously during render", async () => {
       const store = useI18nKeyless.getState();
       store.setTranslationUsage = vi.fn();
       useI18nKeyless.setState({
@@ -480,6 +481,11 @@ describe("i18n-keyless store", () => {
         },
       });
       getTranslation("Hello");
+      // Bug 2: no synchronous store write during the caller's render (would make React
+      // log "Cannot update a component while rendering").
+      expect(store.setTranslationUsage).not.toHaveBeenCalled();
+      // …but it is still recorded, on a microtask, after render.
+      await Promise.resolve();
       expect(store.setTranslationUsage).toHaveBeenCalledWith("Hello", undefined);
     });
 
@@ -525,6 +531,50 @@ describe("i18n-keyless store", () => {
       useI18nKeyless.getState().setLanguage("pt"); // pt is not supported
       const store = useI18nKeyless.getState();
       expect(store.currentLanguage).toBe("es");
+    });
+  });
+
+  // Kept last: hydrateFromServer flips a module flag that changes how hydrate() behaves
+  // for the rest of this module's lifetime, so it must not run before other tests.
+  describe("SSR snapshot hydration (hydrateFromServer)", () => {
+    it("seeds currentLanguage and translations synchronously", () => {
+      hydrateFromServer({ lang: "es", translations: { Hello: "Hola" } });
+      expect(useI18nKeyless.getState().currentLanguage).toBe("es");
+      expect(useI18nKeyless.getState().translations).toMatchObject({ Hello: "Hola" });
+    });
+
+    it("makes getTranslation return the seeded language on the first synchronous call", () => {
+      useI18nKeyless.setState({
+        translations: {},
+        config: {
+          API_KEY: "test-api-key",
+          languages: { primary: "en", supported: ["en", "es"] },
+          storage: mockStorage,
+        },
+      });
+      hydrateFromServer({ lang: "es", translations: { Hello: "Hola" } });
+      // Bug 1: first render must already be in the seeded language (no blink / mismatch).
+      expect(getTranslation("Hello")).toBe("Hola");
+    });
+
+    it("is a no-op when given no/invalid snapshot", () => {
+      useI18nKeyless.setState({ currentLanguage: "fr" });
+      hydrateFromServer(undefined);
+      hydrateFromServer({ translations: { Hello: "Hola" } }); // no lang
+      expect(useI18nKeyless.getState().currentLanguage).toBe("fr");
+    });
+
+    it("init's async hydrate does NOT clobber the seed on a cold cache", async () => {
+      mockStorage.getItem.mockResolvedValue(null); // cold cache: storage empty
+      hydrateFromServer({ lang: "es", translations: { Hello: "Hola" } });
+      await init({
+        languages: { primary: "en", supported: ["en", "es"] },
+        API_KEY: "test-api-key",
+        storage: mockStorage,
+      });
+      // Seed survives: language stays "es" (not reset to primary), translations preserved.
+      expect(useI18nKeyless.getState().currentLanguage).toBe("es");
+      expect(useI18nKeyless.getState().translations).toMatchObject({ Hello: "Hola" });
     });
   });
 });

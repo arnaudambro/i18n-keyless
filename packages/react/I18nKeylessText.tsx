@@ -2,6 +2,7 @@ import React, { useEffect, useMemo } from "react";
 import { type TranslationOptions } from "i18n-keyless-core";
 import { useI18nKeyless, getTranslation } from "./store.ts";
 import { useI18nKeylessContext } from "./I18nKeylessProvider.tsx";
+import { getRequestScope } from "./request-scope.ts";
 
 export interface I18nKeylessTextProps {
   /**
@@ -53,12 +54,13 @@ export const I18nKeylessText: React.FC<I18nKeylessTextProps> = ({
   const storeCurrentLanguage = useI18nKeyless((store) => store.currentLanguage);
   const config = useI18nKeyless((store) => store.config);
 
-  // In SSR/provider mode, the language and translations come from the per-request
-  // context (so concurrent requests don't share state). Otherwise (SPA mode) they come
-  // from the global store. See docs/SSR.md.
-  const providerContext = useI18nKeylessContext();
-  const translations = providerContext?.translations ?? storeTranslations;
-  const currentLanguage = providerContext?.lang ?? storeCurrentLanguage;
+  // In SSR mode, language and translations come from the per-request scope so concurrent
+  // requests don't share state: the React-context provider first, then the
+  // AsyncLocalStorage request scope (set by runWithI18nKeyless). Otherwise (SPA mode)
+  // both are absent and we use the global store. See docs/SSR.md.
+  const requestScope = useI18nKeylessContext() ?? getRequestScope();
+  const translations = requestScope?.translations ?? storeTranslations;
+  const currentLanguage = requestScope?.lang ?? storeCurrentLanguage;
 
   // Trim the source text immediately
   const rawText = Array.isArray(children) ? children.join("") : String(children ?? "");

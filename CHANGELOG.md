@@ -6,6 +6,31 @@ All notable changes to i18n-keyless are documented here. The three packages
 This project follows [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
 
+## [2.1.0] — 2026-06-09
+
+### Added — SSR for the imperative `getTranslation`
+
+- **`runWithI18nKeyless(scope, fn)`** (`i18n-keyless-react`) — runs a server render with
+  a per-request scope active so every **`getTranslation(...)`** call *and*
+  `<I18nKeylessText>` rendered within it resolves in `scope.lang` using
+  `scope.translations`, across `await`s and streaming, with full isolation between
+  concurrent requests (via `AsyncLocalStorage`). This makes the imperative
+  `getTranslation` SSR-correct **without rewriting call sites** — wrap the render once.
+  Complements v2.0's `<I18nKeylessProvider>` (which only covers `<T>`).
+- **`getRequestScope()`** and type **`I18nRequestScope`** (`i18n-keyless-react`) —
+  exported alongside, to read the active request scope.
+
+### Notes
+
+- **No breaking changes; SPA-safe.** `runWithI18nKeyless` is server-only and a no-op in
+  the browser. `AsyncLocalStorage` is loaded via a guarded dynamic import, so
+  `node:async_hooks` never enters browser/React Native bundles (verified with an
+  esbuild `--platform=browser` build). Existing `getTranslation`/`<T>` behavior is
+  unchanged when no scope/provider is present.
+- Requires `AsyncLocalStorage` (Node ≥ 20.10 and most edge runtimes; Cloudflare Workers
+  needs a flag — where unavailable, scoping degrades to a no-op and `<I18nKeylessProvider>`
+  still covers `<T>`).
+
 ## [2.0.0] — 2026-06-08
 
 ### Headline — Native SSR support

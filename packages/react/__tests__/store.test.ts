@@ -3,6 +3,7 @@ import { act } from "@testing-library/react";
 import packageJson from "../package.json";
 import { mockStore, mockStorage } from "./__mocks__/store";
 import { useI18nKeyless, init, getTranslation } from "../store";
+import { runWithI18nKeyless } from "../request-scope";
 import { getTranslationCore, queue } from "i18n-keyless-core";
 // These vi.mock calls must be at the top level, outside of any function or block
 vi.mock("zustand", () => ({
@@ -480,6 +481,28 @@ describe("i18n-keyless store", () => {
       });
       getTranslation("Hello");
       expect(store.setTranslationUsage).toHaveBeenCalledWith("Hello", undefined);
+    });
+
+    it("getTranslation honors the per-request scope under runWithI18nKeyless (SSR)", async () => {
+      vi.stubGlobal("window", undefined);
+      // Store is on the primary language with no translations…
+      useI18nKeyless.setState({
+        currentLanguage: "en",
+        translations: {},
+        config: {
+          API_KEY: "test-api-key",
+          languages: { primary: "en", supported: ["en", "fr", "es"] },
+          storage: mockStorage,
+        },
+      });
+      // …but the request scope says Spanish with its own translations.
+      const result = await runWithI18nKeyless(
+        { lang: "es", translations: { Hello: "Hola" } },
+        () => getTranslation("Hello")
+      );
+      expect(result).toBe("Hola");
+      // Outside the scope, the store wins again (primary → source text).
+      expect(getTranslation("Hello")).toBe("Hello");
     });
   });
 

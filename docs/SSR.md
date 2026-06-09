@@ -106,6 +106,35 @@ Three new exports from `i18n-keyless-react`:
   reads `lang`/`translations` from it first and falls back to the global store when no
   provider is present (so SPA mode is unchanged). On the client it also seeds the store
   on mount for flash-free hydration.
+- **`runWithI18nKeyless(scope, fn)`** → `Promise<R>` — runs `fn` with a per-request scope
+  active so the **imperative `getTranslation(...)`** (and `<T>`) resolve in `scope.lang`
+  for the duration of the render. `getServerTranslations`/`<I18nKeylessProvider>` only
+  cover `<T>`; this covers code that renders text via `getTranslation` without rewriting
+  call sites. `getRequestScope()` and type `I18nRequestScope` are exported alongside it.
+
+### `getTranslation` under SSR (why and how)
+
+`<T>` is a component, so the Provider reaches it via React context. `getTranslation(key)`
+is a plain function — it reads the global store and can't see React context, so on the
+server it would render the primary language. `runWithI18nKeyless` fixes this with
+`AsyncLocalStorage`: it sets a per-request scope that `getTranslation` reads, isolated
+across concurrent requests and preserved across `await`s/streaming. Wrap the server
+render once:
+
+```tsx
+const html = await runWithI18nKeyless({ lang, translations }, () =>
+  renderToString(<App />) // every getTranslation(...) AND <T> inside renders in `lang`
+);
+```
+
+**SPA-safety:** `AsyncLocalStorage` is loaded via a guarded dynamic import
+(`typeof window === "undefined"` + variable specifier + `@vite-ignore`/`webpackIgnore`),
+so `node:async_hooks` never enters browser bundles and the browser path is a no-op —
+`getRequestScope()` returns `undefined` and everything falls back to the store exactly as
+before. Verified: an esbuild `--platform=browser` bundle of the SPA exports builds with
+no resolution error and no `node:async_hooks` in the output. Requires Node ≥ 20.10 /
+a runtime with `AsyncLocalStorage` (most edge runtimes; Cloudflare needs a flag — where
+it's unavailable, scoping degrades to a no-op and you fall back to the Provider for `<T>`).
 
 The app owns routing, `?lang=` / `Accept-Language` detection, calling
 `getServerTranslations` in its loader, serializing the map into the HTML, and passing

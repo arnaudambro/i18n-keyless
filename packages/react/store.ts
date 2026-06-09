@@ -12,6 +12,7 @@ import {
 import { type I18nConfig, type TranslationStore } from "./types.ts";
 import { create } from "zustand";
 import { storeKeys, setItem, getItem, clearI18nKeylessStorage, validateLanguage, createMemoryStorage } from "./utils.ts";
+import { getRequestScope } from "./request-scope.ts";
 
 /**
  * True when running without a DOM (server-side rendering). On the server the lib is
@@ -254,11 +255,17 @@ export function getSupportedLanguages(): I18nConfig["languages"]["supported"] {
 }
 
 export function getTranslation(key: string, options?: TranslationOptions): string {
-  const store = useI18nKeyless.getState();
+  const base = useI18nKeyless.getState();
   // Read-only on the server: don't record usage (a render may be a crawler hit).
-  if (!isServerEnv() && !store.config.ssr) {
-    store.setTranslationUsage(key, options?.context);
+  if (!isServerEnv() && !base.config.ssr) {
+    base.setTranslationUsage(key, options?.context);
   }
+  // SSR: if a per-request scope is active (set by runWithI18nKeyless), translate against
+  // that request's language/translations instead of the process-global store — so
+  // getTranslation, like <T>, renders the right language without leaking across
+  // concurrent requests. No scope (SPA / outside a scoped render) → use the store as-is.
+  const scope = getRequestScope();
+  const store = scope ? { ...base, currentLanguage: scope.lang, translations: scope.translations } : base;
   return getTranslationCore(key, store, options);
 }
 

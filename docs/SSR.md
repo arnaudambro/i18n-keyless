@@ -82,6 +82,7 @@ fix for a problem that exists on a normal server.
 | 3 | `init` POSTed usage; `<T>` recorded usage server-side. | **Done.** On the server (`typeof window === "undefined"`) or with `ssr: true`, usage is neither recorded nor sent. Translate-on-miss is unaffected. |
 | 4 | Module-singleton store → state shared across requests. | **Done.** `<I18nKeylessProvider>` supplies per-request `lang`/`translations`; `<T>` reads context first and falls back to the store. `getServerTranslations(lang)` fetches with a per-process cache. |
 | 5 | Undocumented hydration semantics. | **Done.** This file, plus the provider seeds the store on client mount for flash-free hydration. |
+| 6 | Under Vite SSR (TanStack Start) the `AsyncLocalStorage` scope was duplicated across the server-entry and SSR-render module graphs/realms → `?lang=en` rendered the primary language with a hydration mismatch. | **Done (2.3.2).** The ALS instance lives on one `globalThis` slot keyed by a plain string (not `Symbol.for()`, whose registry is per-realm), so every module copy in the process shares one ALS. See *One ALS per process* below. |
 
 ## SEO consequence (why Issue 4 eventually matters)
 
@@ -146,6 +147,16 @@ no resolution error and no `node:async_hooks` in the output. Requires Node ≥ 2
 a runtime with `AsyncLocalStorage` (most edge runtimes; Cloudflare needs a flag — where
 it's unavailable, scoping degrades to a no-op and you fall back to the Provider for `<T>`).
 
+**One ALS per process (≥ 2.3.2).** Vite-based SSR — notably **TanStack Start** — builds the
+server entry and the SSR render as separate module graphs, often in separate V8 realms that
+share one `globalThis` object. The ALS instance is therefore stored on a single `globalThis`
+slot keyed by a plain **string** — *not* `Symbol.for()`, whose registry is per-realm and would
+hand each realm a different symbol, so the write side (`runWithI18nKeyless`, in the server
+entry) and the read side (`getTranslation`/`getRequestScope`, during render) would silently
+miss each other and you'd get primary-language HTML + a hydration mismatch. If you do SSR with
+TanStack Start / Vite, require i18n-keyless **≥ 2.3.2**. Other setups (Remix, a hand-rolled
+`renderToString`, Node) use one module graph and were unaffected.
+
 ### Function `getTranslation` vs component `<I18nKeylessText>` in SSR
 
 Both must resolve in the request's language, but they read it from different places, so
@@ -160,10 +171,72 @@ they need different wiring:
   the first render** with `hydrateFromServer` — otherwise the first render falls back to
   the primary language (cold cache) and you get a hydration mismatch + blink.
 
+### Per-framework wiring
+
+Which mechanism you need depends on whether your framework renders the **component tree
+inside or outside** the `runWithI18nKeyless` scope:
+
+| Framework | Component tree renders… | `<T>` (component path) | `getTranslation` (function path) |
+|---|---|---|---|
+| **Remix / React Router 7** | **inside** the ALS (`entry.server` calls `renderToPipeableStream` directly inside `runWithI18nKeyless`) | ALS *or* Provider | ALS — works anywhere in the tree |
+| **TanStack Start** | **outside** the ALS (only `head()` + `loader`s run inside it) | **Provider** (fed via the root loader) | ALS — **only in loaders / `head()`**, never a component body |
+| **Next.js App Router / Astro islands** | no render hook to wrap | **Provider** | not scoped — renders primary on the server, resolves after `hydrateFromServer` on the client |
+
+Rules of thumb:
+
+- If you can wrap the actual render call (`renderToString`/`renderToPipeableStream`) in
+  `runWithI18nKeyless`, the whole tree is in scope → both paths work from the ALS (Remix).
+- If the framework renders the tree outside your reach, use `<I18nKeylessProvider>` for `<T>`,
+  and keep imperative `getTranslation` calls in a place that *is* in scope (a loader/`head()`)
+  or accept primary-on-server for that call (Next/Astro).
+
+**TanStack Start (the one that needs both mechanisms):**
+
+1. Wrap the **whole** server handler — not just `defaultStreamHandler` — because
+   `createStartHandler` resolves `head()`/loaders *around* the render callback:
+   ```ts
+   const baseHandler = createStartHandler(defaultStreamHandler);
+   const fetch = (async (request, ...rest) => {
+     const lang = langFromRequest(request);
+     const translations = await getServerTranslations(lang);
+     return runWithI18nKeyless({ lang, translations }, () => baseHandler(request, ...rest));
+   }) as typeof baseHandler;
+   ```
+2. Feed the component path from the **root loader** (TanStack serializes it into the HTML and
+   replays it on the client — no manual `<script>`, no hydration mismatch), then drive the
+   provider from that data:
+   ```tsx
+   loader: async ({ deps }) => {
+     const lang = normalizeLang(deps.lang);
+     const translations = typeof window === "undefined"
+       ? await getServerTranslations(lang)        // server
+       : useI18nKeyless.getState().translations;  // client navigation
+     return { lang, translations };
+   },
+   // …wrap the body in <I18nKeylessProvider lang={data.lang} translations={data.translations}>.
+   ```
+3. Put imperative `getTranslation()` calls in route **loaders** (in scope), not component bodies.
+
+Requires i18n-keyless **≥ 2.3.2** (see *One ALS per process* above). Gotchas:
+
+- **`?lang=` is the single source of truth.** The switcher only navigates the URL — don't add an
+  effect syncing `currentLanguage → URL` (it creates an infinite navigation loop).
+- **Don't reactively subscribe to `translations` in a provider wrapper** — the Provider seeds the
+  store in an effect with a fresh `translations` ref each run, so re-feeding it as the prop
+  re-renders forever. Read it from loader data; subscribe to `currentLanguage`/context only.
+- **`getUsedTranslationsSnapshot()` doesn't work here** — component bodies render outside the ALS,
+  so `recordUsedKey` never sees them and the subset misses body keys → mismatch. Serialize the
+  **full** map via the loader.
+
+Full runnable apps for each framework live in [`examples/`](../examples); the `tanstack-start`
+one mirrors the recipe above.
+
 ### Serialization contract & synchronous client hydration
 
 The server emits `{ lang, translations }` into the HTML; the client seeds the store from
-it at module-load time, before `hydrateRoot`. Framework-agnostic:
+it at module-load time, before `hydrateRoot`. This is the **framework-agnostic** pattern for
+when *you* own the render and the HTML (e.g. a hand-rolled `renderToString`, Remix
+`entry.server`):
 
 ```tsx
 // SERVER — inside the scoped render, read the active scope and embed it
@@ -189,6 +262,11 @@ hydrateRoot(document, <App />);
 `hydrateFromServer` runs before any component renders, so it never writes to the store
 during render (no React warning). On a cold cache, `init()`'s async `hydrate()` keeps the
 seed instead of resetting to the primary language.
+
+> Frameworks that serialize loader/route data for you — **TanStack Start** loaders, **Next.js**
+> RSC payload, **Astro** island props — don't need this manual `<script>`/`hydrateFromServer`
+> dance: pass `{ lang, translations }` through that channel and drive `<I18nKeylessProvider>`
+> from it (it seeds the store on mount). The manual snapshot here is for when you own the HTML.
 
 ### Full snapshot vs per-page snapshot (large translation sets)
 
@@ -216,6 +294,12 @@ the subset resolves via translate-on-miss; on a warm cache it's already there.)
 Decision rule: small set → `getRequestScope()` (full). Large set →
 `getUsedTranslationsSnapshot()` (subset) + the background full fetch. Measure first:
 `JSON.stringify(getRequestScope().translations).length`.
+
+**Requires the body to render *inside* the ALS.** The per-page subset relies on `recordUsedKey`
+firing during render, so it only works where the component tree renders inside the scope (Remix,
+a hand-rolled `renderToString`). It does **not** work under TanStack Start, whose component tree
+renders outside the ALS — serialize the full map via the loader there (see *Per-framework
+wiring*). Code-split/lazy routes have the same limitation.
 
 > **Usage analytics never block render.** `getTranslation` records usage on a microtask,
 > never synchronously during render, so it can't trigger React's "Cannot update a

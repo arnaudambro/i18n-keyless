@@ -29,16 +29,25 @@ interface InternalScope extends I18nRequestScope {
 // A single AsyncLocalStorage instance, created lazily on the server only. Each
 // `run()` creates an isolated store, so the instance is correctly a process singleton.
 //
-// CRITICAL: the instance is stored on `globalThis` under a `Symbol.for(...)` key, NOT in a
-// module-level variable. Bundlers that build separate server-entry and SSR-render
-// environments (e.g. TanStack Start / Vite SSR) instantiate this package more than once in
-// the same process. With a module-local `als`, `runWithI18nKeyless` (called from the server
-// entry) would set `als` on copy A, while `getRequestScope`/`recordUsedKey` (called during
-// the React render) would read copy B's `als` — `undefined` — and SSR would silently fall
-// back to the primary language with a hydration mismatch. Routing every read and write
-// through the shared `globalThis` slot guarantees all module copies use ONE ALS.
-const ALS_KEY = Symbol.for("i18n-keyless.als");
-const ALS_INIT_KEY = Symbol.for("i18n-keyless.alsInit");
+// CRITICAL — two layered problems, one solution:
+//
+//  1. A module-local `als` is duplicated when a bundler instantiates this package more than
+//     once (e.g. TanStack Start / Vite SSR build a separate server-entry and SSR-render
+//     environment). `runWithI18nKeyless` (server entry) would set `als` on copy A while
+//     `getRequestScope`/`recordUsedKey` (React render) read copy B's `als` — `undefined` —
+//     so SSR silently falls back to the primary language with a hydration mismatch.
+//
+//  2. Storing the instance on `globalThis` fixes (1) ONLY if the key is realm-independent.
+//     `Symbol.for()`'s registry is PER-REALM: TanStack Start / Vite SSR run the server entry
+//     and the React render in two different V8 realms that SHARE the same `globalThis` object
+//     but each resolve `Symbol.for("x")` to a DIFFERENT symbol — so the write-side and
+//     read-side miss each other even through one globalThis. (Confirmed empirically: same
+//     globalThis on both sides, yet getAls() returned the ALS on the server entry and
+//     `undefined` in the render.) A plain STRING key is realm-independent and bridges them.
+//
+// So: route every read and write through one `globalThis` slot keyed by a plain string.
+const ALS_KEY = "__i18n_keyless_als__";
+const ALS_INIT_KEY = "__i18n_keyless_alsInit__";
 
 type AlsRegistry = typeof globalThis & {
   [ALS_KEY]?: AsyncLocalStorageLike<InternalScope>;

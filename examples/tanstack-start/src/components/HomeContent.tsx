@@ -1,8 +1,13 @@
-import { I18nKeylessText, useCurrentLanguage } from "i18n-keyless-react";
+import { I18nKeylessText, useI18nKeylessContext, useCurrentLanguage } from "i18n-keyless-react";
 
-// Page A — component path (<I18nKeylessText>) + the `replace` option.
+// Page A — COMPONENT path (<I18nKeylessText>) + the `replace` option.
 export function HomeContent() {
-  const currentLanguage = useCurrentLanguage();
+  // Read the active language from the provider (correct on both server and client) and fall
+  // back to the store for SPA mode. Reading useCurrentLanguage() alone would show the global
+  // store's language on the server (the primary), not the request's → hydration mismatch.
+  const contextLang = useI18nKeylessContext()?.lang;
+  const storeLang = useCurrentLanguage();
+  const currentLanguage = contextLang ?? storeLang;
   return (
     <section className="card">
       <p className="lang-line">

@@ -1,0 +1,19 @@
+{
+  "name": "i18n-keyless-example-node",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node --experimental-strip-types src/server.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "i18n-keyless-core": "file:../../packages/core",
+    "i18n-keyless-node": "file:../../packages/node"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.5",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}

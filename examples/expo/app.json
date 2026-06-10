@@ -1,0 +1,9 @@
+{
+  "expo": {
+    "name": "i18n-keyless-expo",
+    "slug": "i18n-keyless-expo",
+    "scheme": "i18nkeyless",
+    "newArchEnabled": true,
+    "plugins": ["expo-router"]
+  }
+}

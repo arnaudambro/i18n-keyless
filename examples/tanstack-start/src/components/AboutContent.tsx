@@ -1,20 +1,18 @@
-import { I18nKeylessText, getTranslation, useCurrentLanguage } from "i18n-keyless-react";
+import { I18nKeylessText } from "i18n-keyless-react";
 
-// Page B — DIFFERENT strings than Home (so the per-page SSR snapshot serializes a
-// different key subset), the imperative getTranslation() function, and the `context` option.
-export function AboutContent() {
-  useCurrentLanguage(); // re-render (and re-run getTranslation) on language change
+export interface AboutContentProps {
+  intro: string;
+  note: string;
+  asTime: string;
+  asDuration: string;
+}
 
-  const intro = getTranslation(
-    "Ce texte est rendu avec la fonction getTranslation() au lieu du composant <T>."
-  );
-  const note = getTranslation(
-    "Cette page utilise des chaînes différentes de la page d'accueil — en SSR, chaque page ne sérialise que ses propres clés."
-  );
-  // `context` disambiguates "8 heures" → "8 AM" (a time) vs "8 hours" (a duration).
-  const asTime = getTranslation("8 heures", { context: "heure" });
-  const asDuration = getTranslation("8 heures", { context: "durée" });
-
+// Page B — mixes BOTH paths:
+//  • the <h2> uses the COMPONENT path (<I18nKeylessText>, resolved by <I18nKeylessProvider>)
+//  • intro / note / asTime / asDuration come from the FUNCTION path: the imperative
+//    getTranslation() runs in this route's loader (see routes/about.tsx) and is passed in as
+//    props. This also demonstrates the `context` option ("8 heures" → time vs duration).
+export function AboutContent({ intro, note, asTime, asDuration }: AboutContentProps) {
   return (
     <section className="card">
       <h2>

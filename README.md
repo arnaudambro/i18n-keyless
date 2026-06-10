@@ -50,6 +50,24 @@ No translations are stored in the app initially.
 
 At each opening of the app, the newest translations are fetched from the storage and the object is updated.
 
+## 🧩 **Examples**
+
+Runnable example apps for every major framework live in [`examples/`](./examples) — each a
+two-page app showing `init`, the `<I18nKeylessText>` (`<T>`) component, the
+`getTranslation()` function, `context`, `replace`, and a language switcher. The SSR ones
+also show `getServerTranslations` + `runWithI18nKeyless` + `getUsedTranslationsSnapshot` +
+`hydrateFromServer`.
+
+| Example | Mode | | Example | Mode |
+|---|---|---|---|---|
+| [vite-react](./examples/vite-react) | SPA | | [astro](./examples/astro) | SSR (islands) |
+| [tanstack-start](./examples/tanstack-start) | SSR | | [react-native](./examples/react-native) | native |
+| [remix-rr7](./examples/remix-rr7) | SSR | | [expo](./examples/expo) | native |
+| [nextjs](./examples/nextjs) | SSR | | [node](./examples/node) | server |
+
+See [`examples/README.md`](./examples/README.md) to run them (real service via an API key, or
+offline against the bundled mock backend). Primary language is `fr` throughout.
+
 ## 🔧 **Installation**
 
 ### **React Installation**

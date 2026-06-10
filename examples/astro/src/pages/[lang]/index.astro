@@ -1,0 +1,21 @@
+---
+import { getServerTranslations } from "i18n-keyless-react";
+import { initI18nServer, normalizeLang } from "../../i18n";
+import App from "../../components/App";
+import "../../styles.css";
+
+const lang = normalizeLang(Astro.params.lang);
+await initI18nServer();
+const translations = await getServerTranslations(lang);
+---
+
+<html lang={lang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>i18n-keyless · Astro</title>
+  </head>
+  <body>
+    <App client:load lang={lang} translations={translations} page="home" />
+  </body>
+</html>

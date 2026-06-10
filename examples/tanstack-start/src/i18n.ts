@@ -32,8 +32,13 @@ export function initI18nClient() {
   return init({ ...baseConfig(), storage: window.localStorage });
 }
 
+// Normalizes any candidate (`?lang=` value, loader dep, etc.) to a supported language,
+// falling back to the primary. Single source of truth for "which language is this request?".
+export function normalizeLang(value?: string | null): Lang {
+  return (SUPPORTED_LANGUAGES as readonly string[]).includes(value ?? "") ? (value as Lang) : PRIMARY;
+}
+
 // The request language comes from `?lang=` (drives the server render). Defaults to primary.
 export function langFromRequest(request: Request): Lang {
-  const value = new URL(request.url).searchParams.get("lang");
-  return (SUPPORTED_LANGUAGES as readonly string[]).includes(value ?? "") ? (value as Lang) : PRIMARY;
+  return normalizeLang(new URL(request.url).searchParams.get("lang"));
 }

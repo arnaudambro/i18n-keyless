@@ -27,18 +27,38 @@ interface InternalScope extends I18nRequestScope {
 }
 
 // A single AsyncLocalStorage instance, created lazily on the server only. Each
-// `run()` creates an isolated store, so the instance is correctly a module singleton.
-let als: AsyncLocalStorageLike<InternalScope> | undefined;
-let alsInit: Promise<void> | undefined;
+// `run()` creates an isolated store, so the instance is correctly a process singleton.
+//
+// CRITICAL: the instance is stored on `globalThis` under a `Symbol.for(...)` key, NOT in a
+// module-level variable. Bundlers that build separate server-entry and SSR-render
+// environments (e.g. TanStack Start / Vite SSR) instantiate this package more than once in
+// the same process. With a module-local `als`, `runWithI18nKeyless` (called from the server
+// entry) would set `als` on copy A, while `getRequestScope`/`recordUsedKey` (called during
+// the React render) would read copy B's `als` — `undefined` — and SSR would silently fall
+// back to the primary language with a hydration mismatch. Routing every read and write
+// through the shared `globalThis` slot guarantees all module copies use ONE ALS.
+const ALS_KEY = Symbol.for("i18n-keyless.als");
+const ALS_INIT_KEY = Symbol.for("i18n-keyless.alsInit");
+
+type AlsRegistry = typeof globalThis & {
+  [ALS_KEY]?: AsyncLocalStorageLike<InternalScope>;
+  [ALS_INIT_KEY]?: Promise<void>;
+};
+
+const registry = globalThis as AlsRegistry;
+
+function getAls(): AsyncLocalStorageLike<InternalScope> | undefined {
+  return registry[ALS_KEY];
+}
 
 async function ensureALS(): Promise<void> {
   // Browser: no request scoping (single user → the store is correct). Also avoids
   // pulling a Node builtin into client bundles.
-  if (als || typeof window !== "undefined") {
+  if (registry[ALS_KEY] || typeof window !== "undefined") {
     return;
   }
-  if (!alsInit) {
-    alsInit = (async () => {
+  if (!registry[ALS_INIT_KEY]) {
+    registry[ALS_INIT_KEY] = (async () => {
       try {
         // Variable specifier + ignore hints keep bundlers from trying to resolve a Node
         // builtin into the browser graph. tsc keeps these comments (removeComments=false).
@@ -46,14 +66,14 @@ async function ensureALS(): Promise<void> {
         const mod = (await import(/* @vite-ignore */ /* webpackIgnore: true */ specifier)) as {
           AsyncLocalStorage: new () => AsyncLocalStorageLike<InternalScope>;
         };
-        als = new mod.AsyncLocalStorage();
+        registry[ALS_KEY] = new mod.AsyncLocalStorage();
       } catch {
         // AsyncLocalStorage unavailable (e.g. some edge runtimes). Scoping degrades to a
         // no-op and getTranslation/<T> fall back to the global store. See docs/SSR.md.
       }
     })();
   }
-  await alsInit;
+  await registry[ALS_INIT_KEY];
 }
 
 /**
@@ -74,6 +94,7 @@ async function ensureALS(): Promise<void> {
  */
 export async function runWithI18nKeyless<R>(scope: I18nRequestScope, fn: () => R): Promise<R> {
   await ensureALS();
+  const als = getAls();
   if (!als) {
     return fn();
   }
@@ -88,7 +109,7 @@ export async function runWithI18nKeyless<R>(scope: I18nRequestScope, fn: () => R
  * exported for advanced/server use.
  */
 export function getRequestScope(): I18nRequestScope | undefined {
-  const s = als?.getStore();
+  const s = getAls()?.getStore();
   return s ? { lang: s.lang, translations: s.translations } : undefined;
 }
 
@@ -99,7 +120,7 @@ export function getRequestScope(): I18nRequestScope | undefined {
  * `<I18nKeylessText>`.
  */
 export function recordUsedKey(key: string): void {
-  als?.getStore()?.used.add(key);
+  getAls()?.getStore()?.used.add(key);
 }
 
 /**
@@ -113,7 +134,7 @@ export function recordUsedKey(key: string): void {
  * client-side navigation has every key. Returns `undefined` outside a scope. See docs/SSR.md.
  */
 export function getUsedTranslationsSnapshot(): I18nRequestScope | undefined {
-  const s = als?.getStore();
+  const s = getAls()?.getStore();
   if (!s) {
     return undefined;
   }

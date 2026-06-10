@@ -9,23 +9,26 @@ i18n-keyless is a translation library that eliminates manual key management. Dev
 ## Commands
 
 ```bash
-# Build
-npm run build              # Build core + react (core must build first)
-npm run build:core         # Build core only
-npm run build:react        # Build react only
-npm run clean              # Remove all dist folders
+# Build — there are no `build` npm scripts; build each package with tsc directly.
+# core must build before react. Clean dist first, otherwise tsc errors with TS5055
+# ("would overwrite input file") because stale dist .d.ts files get picked up as input.
+(cd packages/core  && rm -rf dist && npx tsc --project tsconfig.json)   # core first
+(cd packages/react && rm -rf dist && npx tsc --project tsconfig.json)   # then react
 
-# Test (only react package has tests)
+# Test (only the react package has real tests)
 npm run test               # Single run
 npm run test:watch         # Watch mode
 npm run test:coverage      # With V8 coverage
-
-# Per-package (from root)
-npm run test --workspace=i18n-keyless-react
-npm run build:lib --workspace=i18n-keyless-core
 ```
 
-Build uses `tsc` directly (no bundler). Output goes to `dist/` in each package.
+Build uses `tsc` directly (no bundler). Output goes to `dist/` in each package. The
+`tsc` invocation lives in each package's `prepublishOnly` script — there is no standalone
+`build` script.
+
+NOTE: the root `.npmrc` sets `workspaces=true`, so a bare `npm run <script>` from the repo
+root runs that script in **every** workspace (and fails on any workspace missing it). That
+is why `npm run test` works (it fans out; core/node just echo) but there is no usable root
+`npm run build`. To target one package use `cd packages/<pkg>` as shown above.
 
 ## Package Structure
 

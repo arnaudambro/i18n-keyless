@@ -1,0 +1,9 @@
+{
+  "name": "i18n-keyless-mock-server",
+  "private": true,
+  "type": "module",
+  "description": "Offline mock i18n-keyless backend for the example apps (zero dependencies)",
+  "scripts": {
+    "start": "node server.mjs"
+  }
+}

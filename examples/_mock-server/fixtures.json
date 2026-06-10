@@ -1,0 +1,32 @@
+{
+  "_comment": "Canned translations for the OPTIONAL offline mode of the example apps. Primary language is `fr` (source strings are written in French); keys are the exact French source strings (with a `__context` suffix for context-disambiguated ones). The real i18n-keyless service produces these with AI — this mock only serves a fixed set so the demo can run without an API key.",
+  "fr": {},
+  "en": {
+    "Langue : {{current_lang}}": "Language: {{current_lang}}",
+    "Changer de langue": "Switch language",
+    "Voici une phrase disponible dans toutes vos langues, vous pouvez la modifier si vous le souhaitez.": "Here is a phrase available in all your languages, you can change it if you want.",
+    "Attention, vous traduisez en 15 langues, cela prend plus de temps que 2 ou 5, qui sont des cas d'usage plus courants.": "Beware you are translating in 15 languages, it takes more time than only 2 or 5, which are more common use cases.",
+    "Attention aussi : les traductions n'ont lieu qu'une seule fois, comme une recherche Google : elles sont ensuite gardées en cache pour un chargement instantané.": "Beware too that translations only happen once, like a Google search: they are all kept in cache afterwards for instant load.",
+    "Accueil": "Home",
+    "À propos": "About",
+    "À propos de cette démo": "About this demo",
+    "Ce texte est rendu avec la fonction getTranslation() au lieu du composant <T>.": "This text is rendered with the getTranslation() function instead of the <T> component.",
+    "Cette page utilise des chaînes différentes de la page d'accueil — en SSR, chaque page ne sérialise que ses propres clés.": "This page uses different strings than the home page — under SSR, each page serializes only its own keys.",
+    "8 heures__heure": "8 AM",
+    "8 heures__durée": "8 hours"
+  },
+  "es": {
+    "Langue : {{current_lang}}": "Idioma: {{current_lang}}",
+    "Changer de langue": "Cambiar de idioma",
+    "Voici une phrase disponible dans toutes vos langues, vous pouvez la modifier si vous le souhaitez.": "Aquí tienes una frase disponible en todos tus idiomas, puedes cambiarla si quieres.",
+    "Attention, vous traduisez en 15 langues, cela prend plus de temps que 2 ou 5, qui sont des cas d'usage plus courants.": "Ten en cuenta que estás traduciendo a 15 idiomas, lleva más tiempo que solo 2 o 5, que son los casos más habituales.",
+    "Attention aussi : les traductions n'ont lieu qu'une seule fois, comme une recherche Google : elles sont ensuite gardées en cache pour un chargement instantané.": "Ten en cuenta también que las traducciones solo ocurren una vez, como una búsqueda de Google: después se guardan en caché para una carga instantánea.",
+    "Accueil": "Inicio",
+    "À propos": "Acerca de",
+    "À propos de cette démo": "Acerca de esta demo",
+    "Ce texte est rendu avec la fonction getTranslation() au lieu du composant <T>.": "Este texto se renderiza con la función getTranslation() en lugar del componente <T>.",
+    "Cette page utilise des chaînes différentes de la page d'accueil — en SSR, chaque page ne sérialise que ses propres clés.": "Esta página usa cadenas distintas a las de la página de inicio — en SSR, cada página serializa solo sus propias claves.",
+    "8 heures__heure": "las 8 de la mañana",
+    "8 heures__durée": "8 horas"
+  }
+}

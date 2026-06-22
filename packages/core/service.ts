@@ -10,11 +10,45 @@ import type {
   TranslationsUsage,
   SendTranslationsUsageFunction,
 } from "./types.ts";
+import { DEFAULT_NAMESPACE } from "./types.ts";
 import MyPQueue from "./my-pqueue.ts";
 import packageJson from "./package.json" with { type: "json" };
 import { api } from "./api.ts";
 
 export const queue = new MyPQueue({ concurrency: 30 });
+
+/**
+ * Resolves the effective namespace for a translation call: an explicit per-call
+ * `namespace` wins, then the config-level `defaultNamespace`, then `DEFAULT_NAMESPACE`.
+ */
+export function resolveNamespace(
+  options: TranslationOptions | undefined,
+  config: FetchTranslationParams["config"]
+): string {
+  return options?.namespace || config.defaultNamespace || DEFAULT_NAMESPACE;
+}
+
+/**
+ * Scratchpad of namespaces that had at least one missing key queued for translation since
+ * the last bulk fetch (mapped to whether that namespace is `unpersisted`). The queue's
+ * "empty" handler (in the react store / node service) reads this to know which namespaces
+ * to bulk-fetch — so we only re-download the namespaces that were actually rendered, never
+ * the whole project — and whether to persist the result.
+ */
+const namespacesToFetchAfterTranslationFinished = new Map<string, boolean>();
+
+/**
+ * Returns the namespaces queued since the last call (with their `unpersisted` flag) and
+ * clears the map.
+ */
+export function getNamespacesToFetchAfterTranslationFinished(): Array<{ namespace: string; unpersisted: boolean }> {
+  const namespaces = Array.from(namespacesToFetchAfterTranslationFinished, ([namespace, unpersisted]) => ({
+    namespace,
+    unpersisted,
+  }));
+  namespacesToFetchAfterTranslationFinished.clear();
+  return namespaces;
+}
 
 /**
  * Gets a translation for the specified key from the store
@@ -78,6 +112,7 @@ export function translateKey(key: string, store: FetchTranslationParams, options
   }
   const context = options?.context;
   const debug = options?.debug;
+  const namespace = resolveNamespace(options, config);
   // if (key.length > 280) {
   //   console.error("i18n-keyless: Key length exceeds 280 characters limit:", key);
   //   return;
@@ -86,7 +121,7 @@ export function translateKey(key: string, store: FetchTranslationParams, options
     return;
   }
   if (debug) {
-    console.log("translateKey", key, context, debug);
+    console.log("translateKey", key, context, namespace, debug);
   }
   const forceTemporaryLang = options?.forceTemporary?.[currentLanguage];
   const translation = context ? translations[`${key}__${context}`] : translations[key];
@@ -96,13 +131,19 @@ export function translateKey(key: string, store: FetchTranslationParams, options
     }
     return;
   }
+  // Remember this namespace (and whether it's unpersisted) so the queue's "empty" handler
+  // bulk-fetches it (and only it) and persists the result accordingly.
+  namespacesToFetchAfterTranslationFinished.set(namespace, !!options?.unpersistedNamespace);
+  // Dedup/guard per namespace so the same source text can be queued independently under
+  // different namespaces.
+  const queueId = `${namespace}:${key}`;
   queue.add(
     async () => {
       try {
-        if (translating[key]) {
+        if (translating[queueId]) {
           return;
         } else {
-          translating[key] = true;
+          translating[queueId] = true;
         }
         if (config.handleTranslate) {
           await config.handleTranslate?.(key);
@@ -110,6 +151,9 @@ export function translateKey(key: string, store: FetchTranslationParams, options
           const body: I18nKeylessRequestBody = {
             key,
             context,
+            // Omit the default namespace so the wire format is unchanged for projects that
+            // don't use namespaces (the backend treats "no namespace" as the default).
+            namespace: namespace === DEFAULT_NAMESPACE ? undefined : namespace,
             forceTemporary: options?.forceTemporary,
             languages: config.languages.supported,
             primaryLanguage: config.languages.primary,
@@ -139,14 +183,14 @@ export function translateKey(key: string, store: FetchTranslationParams, options
             console.warn("i18n-keyless: ", response.message);
           }
         }
-        translating[key] = false;
+        translating[queueId] = false;
         return;
       } catch (error) {
         console.error("i18n-keyless: Error translating key:", error);
-        translating[key] = false;
+        translating[queueId] = false;
       }
     },
-    { priority: 1, id: key }
+    { priority: 1, id: queueId }
   );
 }
 
@@ -158,7 +202,8 @@ export function translateKey(key: string, store: FetchTranslationParams, options
  */
 export async function getAllTranslationsFromLanguage(
   targetLanguage: Lang,
-  store: FetchTranslationParams
+  store: FetchTranslationParams,
+  namespace?: string
 ): Promise<I18nKeylessResponse | void> {
   const config = store.config;
   const lastRefresh = store.lastRefresh;
@@ -171,6 +216,10 @@ export async function getAllTranslationsFromLanguage(
   //   return;
   // }
 
+  // Omit the default namespace from the query so existing (non-namespaced) installs keep
+  // hitting the exact same URL.
+  const namespaceQuery =
+    namespace && namespace !== DEFAULT_NAMESPACE ? `&namespace=${encodeURIComponent(namespace)}` : "";
   try {
     const response = config.getAllTranslations
       ? await config.getAllTranslations()
@@ -178,7 +227,7 @@ export async function getAllTranslationsFromLanguage(
           .fetchTranslationsForOneLanguage(
             `${
               config.API_URL || "https://api.i18n-keyless.com"
-            }/translate/${targetLanguage}?last_refresh=${lastRefresh}`,
+            }/translate/${targetLanguage}?last_refresh=${lastRefresh}${namespaceQuery}`,
             {
               method: "GET",
               headers: {

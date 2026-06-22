@@ -13,6 +13,7 @@ Welcome to **i18n-keyless**! 🚀 This package provides a seamless way to handle
 - [Usage](#-usage)
   - [React](#-react-usage-i18n-keyless-react)
   - [Node](#-node-usage-i18n-keyless-node)
+- [Namespaces](#️-namespaces)
 - [Setup](#️-setup-with-i18n-keyless-service)
 - [Custom Component Example](#️-custom-component-example)
 - [What pains does it solve?](#-what-pains-does-it-solve)
@@ -369,6 +370,58 @@ if (response?.ok) {
 
 ---
 
+## 🗂️ **Namespaces**
+
+By default, all of a project's translations live in one bucket. On large projects that can
+overflow browser storage (`Setting the value of 'i18n-keyless-translations' exceeded the
+quota`) and means every client downloads everything.
+
+A **namespace** splits translations into independent slices: each namespace is fetched and
+persisted on its own, so a client only downloads and stores the parts it actually renders.
+
+```javascript
+// React — per call (component or function)
+<I18nKeylessText namespace="checkout">Pay now</I18nKeylessText>
+getTranslation("Pay now", { namespace: "checkout" });
+
+// Node
+await awaitForTranslation("Pay now", "fr", { namespace: "checkout" });
+```
+
+Set a default namespace once in `init` (a per-call `namespace` always overrides it):
+
+```javascript
+init({
+  API_KEY: "<YOUR_API_KEY>",
+  storage: myStorage,
+  defaultNamespace: "app-ui",
+  languages: { primary: "en", supported: ["en", "fr", "es"] },
+});
+```
+
+### Memory-only namespaces (`unpersistedNamespace`)
+
+For high-cardinality, transient namespaces — e.g. **one namespace per discussion** in a
+chat/community — add `unpersistedNamespace`. Those translations stay in memory only: never
+written to storage, never reloaded at boot, never refetched on language change. So opening
+hundreds of discussions adds zero storage weight and zero boot cost.
+
+```javascript
+<I18nKeylessText namespace={`discussion-${id}`} unpersistedNamespace>
+  {message}
+</I18nKeylessText>
+```
+
+> `unpersistedNamespace` is a client-storage concern only; it has no effect in
+> `i18n-keyless-node` (the node store is in-memory regardless).
+
+Namespaces are backward compatible: the default namespace reuses the existing storage keys,
+so apps that don't use namespaces are unchanged. Self-hosted backends only need to handle an
+optional `namespace` on the translate routes — see
+[Using your own API](#using-your-own-api).
+
+---
+
 ## ⚙️ **Setup Options**
 
 While the Quick Start uses the [i18n-keyless service](https://i18n-keyless.com) via `API_KEY`, you have other options:
@@ -390,6 +443,9 @@ If you prefer to host your own translation backend, you can configure `i18n-keyl
 To use your own API, you need to provide the `API_URL` in the init configuration. Your API must implement the following routes:
 
 -   `GET /translate/:lang`: This route should return all translations for a given language.
+    If a `?namespace=<ns>` query param is present (see [Namespaces](#️-namespaces)), return
+    **only** that namespace's translations; when absent, return the default bucket (for
+    non-namespaced projects that's everything — unchanged behaviour).
     **Response format to GET /translate/en:**
 
     ```json
@@ -417,6 +473,11 @@ To use your own API, you need to provide the `API_URL` in the init configuration
         "primaryLanguage": "fr"
     }
     ```
+
+    The body may also include an optional `"namespace"` (see
+    [Namespaces](#️-namespaces)) — store the key under it; absent ⇒ default bucket. It is
+    omitted from the request when the namespace is the default, so non-namespaced apps send
+    the exact body above.
 
     **Response format:**
 

@@ -1,4 +1,5 @@
 import type { I18nConfig } from "./types.ts";
+import { DEFAULT_NAMESPACE } from "i18n-keyless-core";
 
 /**
  * The keys used to store i18n-keyless data in storage
@@ -9,7 +10,27 @@ export const storeKeys = {
   translations: "i18n-keyless-translations" as const,
   currentLanguage: "i18n-keyless-current-language" as const,
   translationsUsage: "i18n-keyless-translations-usage" as const,
+  // index (JSON array) of namespaces we have persisted, so hydrate() knows which
+  // per-namespace translation keys to load (storage adapters have no key enumeration).
+  namespaces: "i18n-keyless-namespaces" as const,
 };
+
+/**
+ * Storage key holding the translations slice for a given namespace.
+ * The default namespace reuses the legacy `i18n-keyless-translations` key so existing
+ * installs hydrate with no migration; other namespaces get a `__<namespace>` suffix.
+ */
+export function translationsKeyFor(namespace: string): string {
+  return namespace === DEFAULT_NAMESPACE ? storeKeys.translations : `${storeKeys.translations}__${namespace}`;
+}
+
+/**
+ * Storage key holding the last-refresh (delta) cursor for a given namespace.
+ * The default namespace reuses the legacy `i18n-keyless-last-refresh` key.
+ */
+export function lastRefreshKeyFor(namespace: string): string {
+  return namespace === DEFAULT_NAMESPACE ? storeKeys.lastRefresh : `${storeKeys.lastRefresh}__${namespace}`;
+}
 
 /**
  * Retrieves an item from storage using various storage API patterns
@@ -93,11 +114,22 @@ export async function deleteItem(key: string, storage: I18nConfig["storage"]) {
 }
 
 /**
- * Clears all i18n-keyless data from storage
+ * Clears all i18n-keyless data from storage, including every per-namespace
+ * translations / last-refresh key (looked up from the namespaces index).
  * @param storage - The storage implementation to clear
  */
 export async function clearI18nKeylessStorage(storage: I18nConfig["storage"]) {
-  for (const key of Object.keys(storeKeys)) {
+  // Per-namespace keys first: read the index, then delete each namespace's slice.
+  const namespaces = (await getItem(storeKeys.namespaces, storage, JSON.parse)) as unknown as string[] | null;
+  if (Array.isArray(namespaces)) {
+    for (const namespace of namespaces) {
+      deleteItem(translationsKeyFor(namespace), storage);
+      deleteItem(lastRefreshKeyFor(namespace), storage);
+    }
+  }
+  // Then the fixed keys (this also covers the default namespace, whose translations /
+  // last-refresh keys are the legacy values in storeKeys).
+  for (const key of Object.values(storeKeys)) {
     deleteItem(key, storage);
   }
 }

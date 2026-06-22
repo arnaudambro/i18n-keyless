@@ -4,7 +4,12 @@ import packageJson from "../package.json";
 import { mockStore, mockStorage } from "./__mocks__/store";
 import { useI18nKeyless, init, getTranslation, hydrateFromServer } from "../store";
 import { runWithI18nKeyless, getUsedTranslationsSnapshot } from "../request-scope";
-import { getTranslationCore, queue } from "i18n-keyless-core";
+import {
+  getTranslationCore,
+  getAllTranslationsFromLanguage,
+  getNamespacesToFetchAfterTranslationFinished,
+  queue,
+} from "i18n-keyless-core";
 // These vi.mock calls must be at the top level, outside of any function or block
 vi.mock("zustand", () => ({
   create: () => ({
@@ -404,6 +409,135 @@ describe("i18n-keyless store", () => {
       });
 
       expect(useI18nKeyless.getState().translations).toEqual({});
+    });
+  });
+
+  describe("namespaces", () => {
+    beforeEach(async () => {
+      await init({
+        languages: { primary: "en", supported: ["en", "fr", "es"] },
+        storage: mockStorage,
+        API_KEY: "test-api-key",
+      });
+    });
+
+    it("includes a non-default namespace in the POST /translate body", () => {
+      useI18nKeyless.setState({ currentLanguage: "fr", translations: {} });
+      const store = useI18nKeyless.getState();
+      global.fetch = vi.fn().mockResolvedValue({
+        json: () => Promise.resolve({ ok: true, data: { translations: {} } }),
+      });
+
+      getTranslationCore("Pay now", store, { namespace: "checkout" });
+
+      expect(fetch).toHaveBeenCalledWith(
+        "https://api.i18n-keyless.com/translate",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            key: "Pay now",
+            namespace: "checkout",
+            languages: ["en", "fr", "es"],
+            primaryLanguage: "en",
+          }),
+        })
+      );
+    });
+
+    it("omits the default namespace from the POST body (unchanged wire format)", () => {
+      useI18nKeyless.setState({ currentLanguage: "fr", translations: {} });
+      const store = useI18nKeyless.getState();
+      global.fetch = vi.fn().mockResolvedValue({
+        json: () => Promise.resolve({ ok: true, data: { translations: {} } }),
+      });
+
+      getTranslationCore("Default key", store);
+
+      const body = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1].body as string;
+      expect(body).not.toContain("namespace");
+    });
+
+    it("appends &namespace= to the bulk fetch URL for a non-default namespace", async () => {
+      const store = useI18nKeyless.getState();
+      global.fetch = vi.fn().mockResolvedValue({
+        json: () => Promise.resolve({ ok: true, data: { translations: {} } }),
+      });
+
+      await getAllTranslationsFromLanguage("fr", { ...store, lastRefresh: null }, "checkout");
+
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining("/translate/fr?last_refresh=null&namespace=checkout"),
+        expect.anything()
+      );
+    });
+
+    it("omits the namespace from the bulk fetch URL for the default namespace", async () => {
+      const store = useI18nKeyless.getState();
+      global.fetch = vi.fn().mockResolvedValue({
+        json: () => Promise.resolve({ ok: true, data: { translations: {} } }),
+      });
+
+      await getAllTranslationsFromLanguage("fr", { ...store, lastRefresh: null }, "default");
+
+      const url = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(url).not.toContain("namespace");
+    });
+
+    it("hydrates and merges translations from multiple namespace storage keys", async () => {
+      mockStorage.getItem.mockImplementation((key: string) => {
+        if (key === "i18n-keyless-namespaces") return JSON.stringify(["default", "checkout"]);
+        if (key === "i18n-keyless-translations") return JSON.stringify({ Hello: "Bonjour" });
+        if (key === "i18n-keyless-translations__checkout") return JSON.stringify({ Pay: "Payer" });
+        if (key === "i18n-keyless-current-language") return "fr";
+        return Promise.resolve(null);
+      });
+
+      await init({
+        languages: { primary: "en", supported: ["en", "fr"] },
+        storage: mockStorage,
+        API_KEY: "test-api-key",
+      });
+
+      const state = useI18nKeyless.getState();
+      expect(state.translations).toEqual({ Hello: "Bonjour", Pay: "Payer" });
+      expect(state.translationsByNamespace).toEqual({
+        default: { Hello: "Bonjour" },
+        checkout: { Pay: "Payer" },
+      });
+      expect(state.namespaces).toEqual(["default", "checkout"]);
+    });
+
+    it("carries the unpersistedNamespace flag from the call through to the fetch list", () => {
+      getNamespacesToFetchAfterTranslationFinished(); // drain anything queued by earlier tests
+      useI18nKeyless.setState({ currentLanguage: "fr", translations: {} });
+      const store = useI18nKeyless.getState();
+      global.fetch = vi.fn().mockResolvedValue({
+        json: () => Promise.resolve({ ok: true, data: { translations: {} } }),
+      });
+
+      getTranslationCore("Open thread", store, { namespace: "discussion-1", unpersistedNamespace: true });
+
+      // Read synchronously, before the queue empties and the store's handler consumes it.
+      const toFetch = getNamespacesToFetchAfterTranslationFinished();
+      expect(toFetch).toContainEqual({ namespace: "discussion-1", unpersisted: true });
+    });
+
+    it("hydrates a pre-namespace install (legacy key, no index) as the default namespace", async () => {
+      mockStorage.getItem.mockImplementation((key: string) => {
+        if (key === "i18n-keyless-translations") return JSON.stringify({ Hello: "Bonjour" });
+        return Promise.resolve(null); // no namespaces index → backward-compat path
+      });
+
+      await init({
+        languages: { primary: "en", supported: ["en", "fr"] },
+        storage: mockStorage,
+        API_KEY: "test-api-key",
+      });
+
+      const state = useI18nKeyless.getState();
+      expect(state.translations).toEqual({ Hello: "Bonjour" });
+      expect(state.namespaces).toEqual(["default"]);
+      expect(state.translationsByNamespace).toEqual({ default: { Hello: "Bonjour" } });
     });
   });
 

@@ -1,4 +1,4 @@
-export { AVAILABLE_LANGS } from "./types.ts";
+export { AVAILABLE_LANGS, DEFAULT_NAMESPACE } from "./types.ts";
 export type {
   Lang,
   PrimaryLang,
@@ -22,6 +22,8 @@ export {
   getTranslationCore,
   getAllTranslationsFromLanguage,
   sendTranslationsUsageToI18nKeyless,
+  getNamespacesToFetchAfterTranslationFinished,
+  resolveNamespace,
   queue
 } from "./service.ts";
 export { api } from "./api.ts";

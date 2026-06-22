@@ -6,6 +6,57 @@ All notable changes to i18n-keyless are documented here. The three packages
 This project follows [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
 
+## [2.4.0] — 2026-06-22
+
+### Added — translation namespaces
+
+Split a project's translations into **namespaces** so a client fetches and persists only
+the slice it renders, instead of the whole project. This fixes the browser storage quota
+error (`Setting the value of 'i18n-keyless-translations' exceeded the quota`) and reduces
+download size.
+
+- **`namespace` option** on every translation call:
+  - `<I18nKeylessText namespace="checkout">…</I18nKeylessText>` (`i18n-keyless-react`)
+  - `getTranslation(key, { namespace })` (`i18n-keyless-react`)
+  - `awaitForTranslation(key, lang, { namespace })` (`i18n-keyless-node`)
+- **`defaultNamespace`** config option (all packages) — applied when a call doesn't pass
+  its own `namespace`; per-call always overrides.
+- **Per-namespace storage & fetch** (`i18n-keyless-react`): each namespace persists under
+  its own key (`i18n-keyless-translations__<ns>`) with its own delta cursor
+  (`i18n-keyless-last-refresh__<ns>`); a `i18n-keyless-namespaces` index lets `hydrate()`
+  reload them. Only the namespaces actually rendered are bulk-fetched (each on queue-empty
+  and on language change).
+- **`unpersistedNamespace: true`** flag (option + `<I18nKeylessText>` prop) — keeps a
+  high-cardinality/transient namespace (e.g. one per discussion) **in memory only**: never
+  written to storage, never in the persisted index, never reloaded at boot or refetched on
+  language switch. No effect in `i18n-keyless-node` (in-memory regardless).
+
+### Backend / wire contract (for self-hosted `API_URL`)
+
+Additive and backward compatible — the **default** namespace is omitted from the wire, so
+non-namespaced projects send byte-identical requests.
+
+- `POST /translate` body gains an optional `namespace` (omitted when default).
+- `GET /translate/:lang` (react) and `GET /translate/` (node) gain an optional
+  `&namespace=<ns>` query param (omitted when default). A namespaced GET should return
+  **only** that namespace's translations; no `namespace` ⇒ the default bucket.
+
+### Fixed
+
+- **`clearI18nKeylessStorage` now actually clears.** It iterated `Object.keys(storeKeys)`
+  (property names) instead of `Object.values` (the real storage keys), so it deleted
+  nothing. It now removes every fixed key **and** each per-namespace translations /
+  last-refresh key (read from the namespaces index).
+
+### Notes
+
+- **No breaking changes.** The default namespace reuses the legacy
+  `i18n-keyless-translations` / `i18n-keyless-last-refresh` keys, so existing installs
+  hydrate with no migration. Lookups remain a flat, merged in-memory map (display is
+  namespace-agnostic); namespace only affects what is fetched and how it is persisted.
+- Reassigning **existing** translations to a namespace is a backend operation (re-tag the
+  key server-side); the client picks up the new layout via the namespaced GET.
+
 ## [2.3.0] — 2026-06-09
 
 ### Added — per-page SSR translation snapshot

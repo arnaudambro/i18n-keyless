@@ -42,6 +42,16 @@ export interface I18nConfig {
    */
   languages: LanguagesConfig;
   /**
+   * The default namespace applied to every translation that doesn't pass its own
+   * `namespace` (per call or via the `<I18nKeylessText namespace>` prop).
+   *
+   * Translations are fetched and persisted per namespace, so splitting a large project
+   * into namespaces keeps each storage item small (avoids the localStorage quota error)
+   * and only downloads the namespaces actually rendered. Defaults to "default", which
+   * reuses the legacy `i18n-keyless-translations` storage key (no migration needed).
+   */
+  defaultNamespace?: string;
+  /**
    * if true, everytime a primary key is not found
    * there will be a call to POST /translate -- with a body of { key: string }
    * which should handle adding the key to the translations and, if needed,
@@ -142,9 +152,31 @@ export interface TranslationStoreState {
    */
   lastRefresh: LastRefresh;
   /**
-   * the translations fetched from i18n-keyless' API
+   * the translations fetched from i18n-keyless' API.
+   * This is the flat, merged-across-namespaces map used for all lookups (a given source
+   * text translates the same regardless of namespace).
    */
   translations: Translations;
+  /**
+   * the translations split by namespace. Source of truth for persistence: each namespace
+   * is saved under its own storage key so no single item grows past the storage quota.
+   */
+  translationsByNamespace: Record<string, Translations>;
+  /**
+   * the namespaces we know about (mirrors the persisted namespaces index), so hydrate()
+   * knows which per-namespace storage keys to load.
+   */
+  namespaces: string[];
+  /**
+   * the subset of `namespaces` flagged `unpersistedNamespace`: kept in memory only, never
+   * written to storage, never in the persisted index, never reloaded at boot.
+   */
+  unpersistedNamespaces: string[];
+  /**
+   * the last-refresh (delta) cursor per namespace, so each namespace only fetches what
+   * changed since its own last fetch.
+   */
+  lastRefreshByNamespace: Record<string, LastRefresh>;
   /**
    * save the date in format YYYY-MM-DD when a key is used
    * this information is sent to i18n-keyless' API on lib initialization
@@ -170,6 +202,18 @@ export type TranslationOptions = {
    */
   context?: string;
   /**
+   * The namespace this translation belongs to. Translations are fetched and persisted per
+   * namespace. Defaults to `defaultNamespace` from the config, or "default".
+   */
+  namespace?: string;
+  /**
+   * When true, this namespace's translations live in memory only: never written to storage,
+   * never added to the persisted namespaces index, never reloaded at boot or refetched on
+   * language change from storage. Use it for high-cardinality, transient namespaces (e.g.
+   * one namespace per discussion). Defaults to false (persisted).
+   */
+  unpersistedNamespace?: boolean;
+  /**
    * Could be helpful if something weird happens with this particular key.
    */
   debug?: boolean;
@@ -182,7 +226,7 @@ export type TranslationOptions = {
 };
 
 interface TranslationStoreActions {
-  setTranslations: (translations: I18nKeylessResponse | void) => void;
+  setTranslations: (response: I18nKeylessResponse | void, namespace: string, unpersisted?: boolean) => void;
   setLanguage: (lang: Lang) => void;
   sendTranslationsUsage: () => Promise<void>;
   setTranslationUsage: (key: string, context?: string) => Promise<void>;

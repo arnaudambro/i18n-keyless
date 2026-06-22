@@ -3,15 +3,27 @@ import {
   type I18nKeylessResponse,
   type Translations,
   type TranslationOptions,
+  type LastRefresh,
   queue,
   getAllTranslationsFromLanguage,
   getTranslationCore,
+  getNamespacesToFetchAfterTranslationFinished,
+  DEFAULT_NAMESPACE,
   TranslationsUsage,
   sendTranslationsUsageToI18nKeyless,
 } from "i18n-keyless-core";
 import { type I18nConfig, type TranslationStore } from "./types.ts";
 import { create } from "zustand";
-import { storeKeys, setItem, getItem, clearI18nKeylessStorage, validateLanguage, createMemoryStorage } from "./utils.ts";
+import {
+  storeKeys,
+  setItem,
+  getItem,
+  clearI18nKeylessStorage,
+  validateLanguage,
+  createMemoryStorage,
+  translationsKeyFor,
+  lastRefreshKeyFor,
+} from "./utils.ts";
 import { getRequestScope, recordUsedKey } from "./request-scope.ts";
 
 /**
@@ -33,10 +45,18 @@ function isServerEnv(): boolean {
 let serverSnapshotApplied = false;
 
 queue.on("empty", () => {
-  // when each word is translated, fetch the translations for the current language
+  // When a batch of missing words finishes translating, bulk-fetch the current language —
+  // but only for the namespaces that had a miss this round (getNamespacesToFetchAfterTranslationFinished), each
+  // with its own delta cursor, so we never re-download the whole project.
   const store = useI18nKeyless.getState();
   if (store.config) {
-    getAllTranslationsFromLanguage(store.currentLanguage, store).then(store.setTranslations);
+    for (const { namespace, unpersisted } of getNamespacesToFetchAfterTranslationFinished()) {
+      getAllTranslationsFromLanguage(
+        store.currentLanguage,
+        { ...store, lastRefresh: store.lastRefreshByNamespace[namespace] ?? null },
+        namespace
+      ).then((response) => store.setTranslations(response, namespace, unpersisted));
+    }
   }
 });
 
@@ -44,6 +64,10 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
   uniqueId: null,
   lastRefresh: null,
   translations: {},
+  translationsByNamespace: {},
+  namespaces: [],
+  unpersistedNamespaces: [],
+  lastRefreshByNamespace: {},
   translationsUsage: {},
   currentLanguage: "fr",
   config: {
@@ -54,7 +78,7 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
     },
     storage: undefined,
   },
-  setTranslations: (response: I18nKeylessResponse | void) => {
+  setTranslations: (response: I18nKeylessResponse | void, namespace: string, unpersisted = false) => {
     if (!response?.ok) {
       return;
     }
@@ -62,22 +86,67 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
     if (!config.API_KEY) {
       throw new Error(`i18n-keyless: config is not initialized setting translations`);
     }
-    const newTranslations = response.data.translations;
-    const nextTranslations = { ...get().translations, ...newTranslations };
-    set({ translations: nextTranslations });
     const storage = config.storage;
     if (!storage) {
       throw new Error(`i18n-keyless: storage is not initialized setting translations`);
     }
-    setItem(storeKeys.translations, JSON.stringify(nextTranslations), storage);
+    const newTranslations = response.data.translations;
+
+    // 1. flat, merged map used for lookups
+    const nextTranslations = { ...get().translations, ...newTranslations };
+    // 2. per-namespace slice — persisted under this namespace's own storage key
+    const prevByNamespace = get().translationsByNamespace;
+    const nextNamespaceSlice = { ...(prevByNamespace[namespace] ?? {}), ...newTranslations };
+    // 3. known-namespaces index
+    const prevNamespaces = get().namespaces;
+    const isNewNamespace = !prevNamespaces.includes(namespace);
+    const nextNamespaces = isNewNamespace ? [...prevNamespaces, namespace] : prevNamespaces;
+    // 4. remember which namespaces are unpersisted (so setLanguage knows not to persist
+    //    their refetches, and so the persisted index can exclude them)
+    const prevUnpersisted = get().unpersistedNamespaces;
+    const nextUnpersisted =
+      unpersisted && !prevUnpersisted.includes(namespace) ? [...prevUnpersisted, namespace] : prevUnpersisted;
+
+    set({
+      translations: nextTranslations,
+      translationsByNamespace: { ...prevByNamespace, [namespace]: nextNamespaceSlice },
+      namespaces: nextNamespaces,
+      unpersistedNamespaces: nextUnpersisted,
+    });
+
+    // Unpersisted namespaces live in memory only: never touch storage, never enter the
+    // persisted index, never store a delta cursor.
+    if (unpersisted) {
+      if (response.data.uniqueId) {
+        set({ uniqueId: response.data.uniqueId });
+        setItem(storeKeys.uniqueId, response.data.uniqueId, storage);
+      }
+      if (response.data.lastRefresh) {
+        set({
+          lastRefresh: response.data.lastRefresh,
+          lastRefreshByNamespace: { ...get().lastRefreshByNamespace, [namespace]: response.data.lastRefresh },
+        });
+      }
+      return;
+    }
+
+    setItem(translationsKeyFor(namespace), JSON.stringify(nextNamespaceSlice), storage);
+    if (isNewNamespace) {
+      // Persist only the persisted namespaces in the index.
+      const persistedNamespaces = nextNamespaces.filter((ns) => !nextUnpersisted.includes(ns));
+      setItem(storeKeys.namespaces, JSON.stringify(persistedNamespaces), storage);
+    }
     if (response.data.uniqueId) {
       set({ uniqueId: response.data.uniqueId });
       setItem(storeKeys.uniqueId, response.data.uniqueId, storage);
     }
 
     if (response.data.lastRefresh) {
-      set({ lastRefresh: response.data.lastRefresh });
-      setItem(storeKeys.lastRefresh, response.data.lastRefresh, storage);
+      set({
+        lastRefresh: response.data.lastRefresh,
+        lastRefreshByNamespace: { ...get().lastRefreshByNamespace, [namespace]: response.data.lastRefresh },
+      });
+      setItem(lastRefreshKeyFor(namespace), response.data.lastRefresh, storage);
     }
   },
   sendTranslationsUsage: async () => {
@@ -130,15 +199,31 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
     }
 
     set({ currentLanguage: validatedLang });
-    set({ lastRefresh: null });
+    // The language changed, so every namespace's delta cursor is stale: reset them all and
+    // refetch the full set for each known namespace. The flat lookup map still holds the
+    // previous language's values (truthy), so components won't re-queue on their own.
+    const knownNamespaces = store.namespaces.length ? store.namespaces : [DEFAULT_NAMESPACE];
+    const isUnpersisted = (namespace: string) => store.unpersistedNamespaces.includes(namespace);
+    set({ lastRefresh: null, lastRefreshByNamespace: {} });
     if (store.config.storage) {
       setItem(storeKeys.currentLanguage, validatedLang!, store.config.storage);
-      setItem(storeKeys.lastRefresh, "", store.config.storage);
+      for (const namespace of knownNamespaces) {
+        // Unpersisted namespaces have no stored cursor to clear.
+        if (!isUnpersisted(namespace)) {
+          setItem(lastRefreshKeyFor(namespace), "", store.config.storage);
+        }
+      }
     }
 
     // Only fetch translations if the new language is not the primary language
     if (lang !== store.config.languages.primary) {
-      await getAllTranslationsFromLanguage(lang, { ...store, lastRefresh: null }).then(store.setTranslations);
+      await Promise.all(
+        knownNamespaces.map((namespace) =>
+          getAllTranslationsFromLanguage(lang, { ...store, lastRefresh: null }, namespace).then((response) =>
+            store.setTranslations(response, namespace, isUnpersisted(namespace))
+          )
+        )
+      );
     }
   },
 }));
@@ -181,10 +266,38 @@ async function hydrate() {
   // single, possibly different/stale language and would clobber or mix the seed). Usage,
   // uniqueId and lastRefresh are language-independent and still hydrate normally.
   if (!serverSnapshotApplied) {
-    const translations = await getItem(storeKeys.translations, storage, JSON.parse);
-    if (translations) {
-      if (debug) console.log("i18n-keyless: _hydrate", translations);
-      useI18nKeyless.setState({ translations: translations as Translations });
+    // Load the namespaces index. Backward compat: if there's no index (pre-namespace
+    // install) we still read the legacy `i18n-keyless-translations` key, treated as the
+    // default namespace.
+    const storedNamespaces = (await getItem(storeKeys.namespaces, storage, JSON.parse)) as unknown as
+      | string[]
+      | null;
+    const namespacesToLoad =
+      Array.isArray(storedNamespaces) && storedNamespaces.length ? storedNamespaces : [DEFAULT_NAMESPACE];
+
+    const translationsByNamespace: Record<string, Translations> = {};
+    const lastRefreshByNamespace: Record<string, LastRefresh> = {};
+    let mergedTranslations: Translations = {};
+    for (const namespace of namespacesToLoad) {
+      const nsTranslations = (await getItem(translationsKeyFor(namespace), storage, JSON.parse)) as Translations | null;
+      if (nsTranslations) {
+        translationsByNamespace[namespace] = nsTranslations;
+        mergedTranslations = { ...mergedTranslations, ...nsTranslations };
+      }
+      const nsLastRefresh = (await getItem(lastRefreshKeyFor(namespace), storage)) as string | null;
+      if (nsLastRefresh) {
+        lastRefreshByNamespace[namespace] = nsLastRefresh;
+      }
+    }
+    const loadedNamespaces = Object.keys(translationsByNamespace);
+    if (loadedNamespaces.length) {
+      if (debug) console.log("i18n-keyless: _hydrate", mergedTranslations);
+      useI18nKeyless.setState({
+        translations: mergedTranslations,
+        translationsByNamespace,
+        namespaces: loadedNamespaces,
+        lastRefreshByNamespace,
+      });
     } else {
       if (debug) console.log("i18n-keyless: _hydrate: no translations");
     }
@@ -325,6 +438,10 @@ export function setCurrentLanguage(lang: I18nConfig["languages"]["supported"][nu
 export async function clearI18nKeylessStorageAndStore() {
   useI18nKeyless.setState({
     translations: {},
+    translationsByNamespace: {},
+    namespaces: [],
+    unpersistedNamespaces: [],
+    lastRefreshByNamespace: {},
     currentLanguage: "fr",
     config: undefined,
   });

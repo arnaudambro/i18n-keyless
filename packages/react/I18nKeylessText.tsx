@@ -23,6 +23,17 @@ export interface I18nKeylessTextProps {
    */
   context?: TranslationOptions["context"];
   /**
+   * The namespace this translation belongs to. Translations are fetched and persisted per
+   * namespace, so splitting a large app into namespaces keeps each storage item small
+   * (avoids the localStorage quota error). Defaults to `defaultNamespace` from config.
+   */
+  namespace?: TranslationOptions["namespace"];
+  /**
+   * When true, this namespace's translations live in memory only (never persisted, never
+   * reloaded at boot). Use for high-cardinality, transient namespaces (e.g. one per discussion).
+   */
+  unpersistedNamespace?: TranslationOptions["unpersistedNamespace"];
+  /**
    * If true, some helpful logs will be displayed in the console.
    */
   debug?: TranslationOptions["debug"];
@@ -47,6 +58,8 @@ export const I18nKeylessText: React.FC<I18nKeylessTextProps> = ({
   children,
   replace,
   context,
+  namespace,
+  unpersistedNamespace,
   debug = false,
   forceTemporary
 }) => {
@@ -71,8 +84,8 @@ export const I18nKeylessText: React.FC<I18nKeylessTextProps> = ({
   }, [rawText]);
 
   useEffect(() => {
-    getTranslation(sourceText, { context, debug, forceTemporary });
-  }, [sourceText, currentLanguage, context, debug, forceTemporary]);
+    getTranslation(sourceText, { context, namespace, unpersistedNamespace, debug, forceTemporary });
+  }, [sourceText, currentLanguage, context, namespace, unpersistedNamespace, debug, forceTemporary]);
 
   const storageKey = context ? `${sourceText}__${context}` : sourceText;
   // Record the key for the per-page SSR snapshot (no-op off-server; pure Set.add, no

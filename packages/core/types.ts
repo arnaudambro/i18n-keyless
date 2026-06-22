@@ -25,6 +25,13 @@ export const AVAILABLE_LANGS = [
 export type Lang = (typeof AVAILABLE_LANGS)[number];
 
 /**
+ * The namespace used when none is provided (per call or via `defaultNamespace` in config).
+ * The default namespace reuses the legacy storage keys (`i18n-keyless-translations` and
+ * `i18n-keyless-last-refresh`) so existing installs keep working without any migration.
+ */
+export const DEFAULT_NAMESPACE = "default";
+
+/**
  * The translations for a key
  * { "un text": "a text" }
  */
@@ -85,6 +92,23 @@ export type TranslationOptions = {
    */
   context?: string;
   /**
+   * The namespace this translation belongs to.
+   * Translations are fetched and persisted per namespace, so splitting a large project
+   * into several namespaces keeps each storage item small (avoids the localStorage quota
+   * error) and lets the app download only the namespaces it actually renders.
+   * Defaults to `defaultNamespace` from the config, or "default" if neither is set.
+   */
+  namespace?: string;
+  /**
+   * When true, this namespace's translations live in memory only: they are never written
+   * to storage, never added to the persisted namespaces index, and never reloaded at boot
+   * or refetched on language change from storage. Use it for high-cardinality, transient
+   * namespaces (e.g. one namespace per discussion) so they add zero storage weight and zero
+   * boot / language-switch cost. Defaults to false (persisted).
+   * Only affects the client (i18n-keyless-react); the node lib is in-memory regardless.
+   */
+  unpersistedNamespace?: boolean;
+  /**
    * Could be helpful if something weird happens with this particular key.
    */
   debug?: boolean;
@@ -106,6 +130,7 @@ export type TranslationOptions = {
 export interface I18nKeylessRequestBody {
   key: string;
   context?: string;
+  namespace?: string;
   forceTemporary?: TranslationOptions["forceTemporary"];
   languages: LanguagesConfig["supported"];
   primaryLanguage: LanguagesConfig["primary"];
@@ -146,6 +171,7 @@ export type FetchTranslationParams = {
     API_KEY: string;
     API_URL?: string;
     languages: LanguagesConfig;
+    defaultNamespace?: string;
     addMissingTranslations?: boolean;
     debug?: boolean;
     handleTranslate?: HandleTranslateFunction;

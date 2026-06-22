@@ -43,6 +43,12 @@ export interface I18nKeylessNodeConfig {
      */
     supported: Lang[];
   };
+  /**
+   * The default namespace applied to every translation that doesn't pass its own
+   * `namespace`. Translations are fetched per namespace, so the backend only returns the
+   * namespace actually requested. Defaults to "default".
+   */
+  defaultNamespace?: string;
   addMissingTranslations?: true;
   /**
    * called right after the store is initialized, maybe to hide screensplash. or init specific default langauge for dayjs, or whatever
@@ -112,6 +118,15 @@ export type TranslationOptions = {
    */
   context?: string;
   /**
+   * The namespace this translation belongs to. Defaults to `defaultNamespace` from config.
+   */
+  namespace?: string;
+  /**
+   * No effect in node (the node store is in-memory only); accepted for API symmetry with the
+   * client. On i18n-keyless-react it keeps the namespace's translations out of storage.
+   */
+  unpersistedNamespace?: boolean;
+  /**
    * Could be helpful if something weird happens with this particular key.
    */
   debug?: boolean;
@@ -126,6 +141,7 @@ export type TranslationOptions = {
 export interface I18nKeylessRequestBody {
   key: string;
   context?: string;
+  namespace?: string;
   forceTemporary?: TranslationOptions["forceTemporary"];
   languages: I18nKeylessNodeConfig["languages"]["supported"];
   primaryLanguage: I18nKeylessNodeConfig["languages"]["primary"];

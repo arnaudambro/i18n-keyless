@@ -3,8 +3,10 @@ import {
   type TranslationOptions,
   type I18nKeylessRequestBody,
   queue,
+  getNamespacesToFetchAfterTranslationFinished,
+  DEFAULT_NAMESPACE,
   I18nKeylessAllTranslationsResponse,
-  api,
+  api
 } from "i18n-keyless-core";
 import { I18nKeylessNodeConfig, I18nKeylessNodeStore } from "./types.ts";
 import packageJson from "./package.json" with { type: "json" };
@@ -29,7 +31,7 @@ const store: I18nKeylessNodeStore = {
     cz: {},
     ru: {},
     ko: {},
-    ar: {},
+    ar: {}
   },
   translationsUsage: {},
   uniqueId: "",
@@ -38,9 +40,9 @@ const store: I18nKeylessNodeStore = {
     API_KEY: "",
     languages: {
       primary: "fr",
-      supported: ["fr"],
-    },
-  },
+      supported: ["fr"]
+    }
+  }
 };
 
 /**
@@ -48,7 +50,9 @@ const store: I18nKeylessNodeStore = {
  * @param store - The translation store
  * @returns Promise resolving to the translation response or void if failed
  */
-export async function getAllTranslationsForAllLanguages(): Promise<I18nKeylessAllTranslationsResponse | void> {
+export async function getAllTranslationsForAllLanguages(
+  namespace?: string
+): Promise<I18nKeylessAllTranslationsResponse | void> {
   const config = store.config;
   const lastRefresh = store.lastRefresh;
   const uniqueId = store.uniqueId;
@@ -60,20 +64,24 @@ export async function getAllTranslationsForAllLanguages(): Promise<I18nKeylessAl
   //   return;
   // }
 
+  // Omit the default namespace from the query so existing (non-namespaced) installs keep
+  // hitting the exact same URL.
+  const namespaceQuery =
+    namespace && namespace !== DEFAULT_NAMESPACE ? `&namespace=${encodeURIComponent(namespace)}` : "";
   try {
     const response = config.getAllTranslationsForAllLanguages
       ? await config.getAllTranslationsForAllLanguages()
       : await api
           .fetchAllTranslationsForAllLanguages(
-            `${config.API_URL || "https://api.i18n-keyless.com"}/translate/?last_refresh=${lastRefresh}`,
+            `${config.API_URL || "https://api.i18n-keyless.com"}/translate/?last_refresh=${lastRefresh}${namespaceQuery}`,
             {
               method: "GET",
               headers: {
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${config.API_KEY}`,
                 Version: packageJson.version,
-                unique_id: uniqueId || "",
-              },
+                unique_id: uniqueId || ""
+              }
             }
           )
           .then((res) => res as I18nKeylessAllTranslationsResponse);
@@ -125,12 +133,12 @@ export async function sendTranslationsUsageToI18nKeyless(): Promise<{ ok: boolea
               headers: {
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${config.API_KEY}`,
-                Version: packageJson.version,
+                Version: packageJson.version
               },
               body: JSON.stringify({
                 primaryLanguage: config.languages.primary,
-                translationsUsage,
-              } satisfies I18nKeylessTranslationsUsageRequestBody),
+                translationsUsage
+              } satisfies I18nKeylessTranslationsUsageRequestBody)
             }
           )
           .then((res) => res as ReturnType<NonNullable<SendTranslationsUsageFunction>>);
@@ -146,12 +154,19 @@ export async function sendTranslationsUsageToI18nKeyless(): Promise<{ ok: boolea
 }
 
 queue.on("empty", () => {
-  // when each word is translated, fetch the translations for the current language
-  getAllTranslationsForAllLanguages().then((res) => {
-    if (res?.ok) {
-      store.translations = res.data.translations;
-    }
-  });
+  // When a batch of missing words finishes, refetch — but only the namespaces that had a
+  // miss this round, and merge per language so other namespaces aren't clobbered.
+  // `unpersistedNamespace` is a client-storage concern; the node store is in-memory only, so
+  // it has no effect here — we just need the namespace string.
+  for (const { namespace } of getNamespacesToFetchAfterTranslationFinished()) {
+    getAllTranslationsForAllLanguages(namespace).then((res) => {
+      if (res?.ok) {
+        for (const lang of Object.keys(res.data.translations) as Lang[]) {
+          store.translations[lang] = { ...store.translations[lang], ...res.data.translations[lang] };
+        }
+      }
+    });
+  }
 });
 
 export async function init(newConfig: I18nKeylessNodeConfig): Promise<I18nKeylessNodeConfig> {
@@ -198,6 +213,7 @@ async function awaitForTranslationFn(
   const translations = store.translations;
   const uniqueId = store.uniqueId;
   const context = options?.context;
+  const namespace = options?.namespace || config.defaultNamespace || DEFAULT_NAMESPACE;
   const debug = options?.debug;
   const replace = options?.replace;
 
@@ -257,6 +273,9 @@ async function awaitForTranslationFn(
       // Replace all occurrences in a single pass
       return translation.replace(regex, (matched) => replace[matched] || matched);
     }
+    if (debug) {
+      console.log(`i18n-keyless: Translation not found in store for key: "${translationKey}"`);
+    }
 
     // Use custom handler if provided
     if (config.handleTranslate) {
@@ -289,9 +308,11 @@ async function awaitForTranslationFn(
     const body: I18nKeylessRequestBody = {
       key,
       context,
+      // Omit the default namespace so the wire format is unchanged for non-namespaced use.
+      namespace: namespace === DEFAULT_NAMESPACE ? undefined : namespace,
       forceTemporary: options?.forceTemporary,
       languages: config.languages.supported,
-      primaryLanguage: config.languages.primary,
+      primaryLanguage: config.languages.primary
     };
     const apiUrl = config.API_URL || "https://api.i18n-keyless.com";
     const url = `${apiUrl}/translate`;
@@ -310,9 +331,9 @@ async function awaitForTranslationFn(
           "Content-Type": "application/json",
           Authorization: `Bearer ${config.API_KEY}`,
           unique_id: uniqueId || "",
-          Version: packageJson.version,
+          Version: packageJson.version
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify(body)
       })
       .then((res) => res as ApiResponse);
 
@@ -403,7 +424,7 @@ export const awaitForTranslation = new Proxy(
 
       // Return the original promise to the caller
       return promise;
-    },
+    }
   }
 );
 

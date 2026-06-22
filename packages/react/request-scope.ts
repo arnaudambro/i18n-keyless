@@ -69,12 +69,19 @@ async function ensureALS(): Promise<void> {
   if (!registry[ALS_INIT_KEY]) {
     registry[ALS_INIT_KEY] = (async () => {
       try {
-        // Variable specifier + ignore hints keep bundlers from trying to resolve a Node
-        // builtin into the browser graph. tsc keeps these comments (removeComments=false).
-        const specifier = "node:async_hooks";
-        const mod = (await import(/* @vite-ignore */ /* webpackIgnore: true */ specifier)) as {
+        // Load Node's AsyncLocalStorage WITHOUT (a) letting a bundler (Metro/webpack/Vite)
+        // resolve a Node builtin into a client graph, or (b) letting tsc's
+        // `rewriteRelativeImportExtensions` wrap the call in a `__rewriteRelativeImportExtension(...)`
+        // helper — which Metro refuses to parse ("Invalid call ... import(__rewrite…)").
+        // Routing `import()` through the Function constructor makes the call opaque to every
+        // bundler and to tsc's emit (it's just a string). This branch only runs on the server
+        // (guarded by the `typeof window` check above) and is wrapped in try/catch, so React
+        // Native / the browser degrade to a no-op exactly as before.
+        // eslint-disable-next-line no-new-func
+        const importNode = new Function("return import('node:async_hooks')") as () => Promise<{
           AsyncLocalStorage: new () => AsyncLocalStorageLike<InternalScope>;
-        };
+        }>;
+        const mod = await importNode();
         registry[ALS_KEY] = new mod.AsyncLocalStorage();
       } catch {
         // AsyncLocalStorage unavailable (e.g. some edge runtimes). Scoping degrades to a

@@ -6,6 +6,22 @@ All notable changes to i18n-keyless are documented here. The three packages
 This project follows [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
 
+## [2.4.2] — 2026-06-22
+
+### Fixed — Metro/React Native bundling of `request-scope`
+
+- **`i18n-keyless-react` failed to bundle under Metro (Expo / React Native)** with
+  `Invalid call ... import(__rewriteRelativeImportExtension(... "node:async_hooks"))`. The
+  tsconfig's `rewriteRelativeImportExtensions` wraps every variable-specifier dynamic
+  `import()` in a `__rewriteRelativeImportExtension(...)` runtime helper, and Metro refuses
+  to parse a function call inside `import()`. The server-only AsyncLocalStorage load in
+  `request-scope.ts` now goes through the `Function` constructor
+  (`new Function("return import('node:async_hooks')")`), which is opaque to both tsc's
+  emit and every bundler's static resolver — so no helper is emitted and no Node builtin is
+  pulled into a client graph. The branch is still server-only and try/caught, so the
+  browser / React Native degrade to a no-op exactly as before (verified the load works in
+  Node; SSR scoping unchanged).
+
 ## [2.4.1] — 2026-06-22
 
 ### Changed — usage analytics are now namespace-aware

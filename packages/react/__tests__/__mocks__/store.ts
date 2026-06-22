@@ -17,7 +17,7 @@ export const store: TranslationStore = {
   namespaces: [],
   unpersistedNamespaces: [],
   lastRefreshByNamespace: {},
-  translationsUsage: {},
+  translationsUsageByNamespace: {},
   uniqueId: null,
   lastRefresh: null,
   setTranslations: vi.fn(),

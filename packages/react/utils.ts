@@ -9,6 +9,7 @@ export const storeKeys = {
   lastRefresh: "i18n-keyless-last-refresh" as const,
   translations: "i18n-keyless-translations" as const,
   currentLanguage: "i18n-keyless-current-language" as const,
+  // usage keyed by namespace: { "<namespace>": { "key__context": "YYYY-MM-DD" } }
   translationsUsage: "i18n-keyless-translations-usage" as const,
   // index (JSON array) of namespaces we have persisted, so hydrate() knows which
   // per-namespace translation keys to load (storage adapters have no key enumeration).

@@ -101,9 +101,10 @@ export interface I18nKeylessNodeStore {
    */
   translations: Record<Lang, Translations>;
   /**
-   * the translations usage
+   * the translations usage keyed by namespace: `{ "<namespace>": { "key__context": date } }`,
+   * default under "default"
    */
-  translationsUsage: TranslationsUsage;
+  translationsUsageByNamespace: Record<string, TranslationsUsage>;
   /**
    * i18n-keyless' config
    */

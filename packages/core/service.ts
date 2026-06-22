@@ -262,12 +262,12 @@ export async function getAllTranslationsFromLanguage(
  *
  * It's called on lib initialization
  * and everytime the language is set
- * @param translationsUsage - The translations usage to send to the API
+ * @param translationsUsageByNamespace - Usage keyed by namespace (default under "default")
  * @param store - The translation store
  * @returns Promise resolving to the translation response or void if failed
  */
 export async function sendTranslationsUsageToI18nKeyless(
-  translationsUsage: TranslationsUsage,
+  translationsUsageByNamespace: Record<string, TranslationsUsage>,
   store: FetchTranslationParams
 ): Promise<{ ok: boolean; message: string } | void> {
   const config = store.config;
@@ -275,12 +275,17 @@ export async function sendTranslationsUsageToI18nKeyless(
     console.error("i18n-keyless: No config found");
     return;
   }
-  if (Object.keys(translationsUsage).length === 0) {
+  if (Object.keys(translationsUsageByNamespace).length === 0) {
     return;
   }
+  const requestBody: I18nKeylessTranslationsUsageRequestBody = {
+    primaryLanguage: config.languages.primary,
+    translationsUsageByNamespace,
+  };
   try {
     const response = config.sendTranslationsUsage
-      ? await config.sendTranslationsUsage(translationsUsage)
+      ? // custom handlers keep their flat signature: hand them the default-namespace bucket
+        await config.sendTranslationsUsage(translationsUsageByNamespace.default ?? {})
       : await api
           .postLastUsedTranslations(
             `${config.API_URL || "https://api.i18n-keyless.com"}/translate/last-used-translations`,
@@ -291,10 +296,7 @@ export async function sendTranslationsUsageToI18nKeyless(
                 Authorization: `Bearer ${config.API_KEY}`,
                 Version: packageJson.version,
               },
-              body: JSON.stringify({
-                primaryLanguage: config.languages.primary,
-                translationsUsage,
-              } satisfies I18nKeylessTranslationsUsageRequestBody),
+              body: JSON.stringify(requestBody),
             }
           )
           .then((res) => res as ReturnType<NonNullable<SendTranslationsUsageFunction>>);

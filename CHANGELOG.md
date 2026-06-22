@@ -6,6 +6,31 @@ All notable changes to i18n-keyless are documented here. The three packages
 This project follows [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
 
+## [2.4.1] — 2026-06-22
+
+### Changed — usage analytics are now namespace-aware
+
+Following 2.4.0's namespaces, the usage endpoint (`POST /translate/last-used-translations`)
+now reports **which namespace** each key was used under, so the backend can mark `last_used`
+on the exact `(key, context, namespace)` row instead of every copy of the string.
+
+- The request body's flat `translationsUsage` is replaced by a single
+  **`translationsUsageByNamespace`** map: `{ "<namespace>": { "key__context": "YYYY-MM-DD" } }`,
+  with the default namespace under the key `"default"`.
+- **`unpersistedNamespace` namespaces are excluded** from usage reporting (they'd flood the
+  prune signal; reclaim them by their own lifecycle, or use the per-namespace `GET` as a
+  namespace-level liveness signal).
+- Internally the react/node stores keep a single usage map keyed by namespace; the react
+  store persists it under the same `i18n-keyless-translations-usage` key and discards any
+  pre-2.4.1 flat blob on hydrate (usage is ephemeral).
+
+### Backend note
+
+Clients on versions **< 2.4.1 still send the old flat `translationsUsage`** (no namespace) —
+treat that as the `"default"` namespace. New clients send only `translationsUsageByNamespace`.
+Custom `sendTranslationsUsage` handlers keep their existing signature and receive the
+default-namespace bucket.
+
 ## [2.4.0] — 2026-06-22
 
 ### Added — translation namespaces

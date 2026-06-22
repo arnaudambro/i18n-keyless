@@ -8,6 +8,7 @@ import {
   getTranslationCore,
   getAllTranslationsFromLanguage,
   getNamespacesToFetchAfterTranslationFinished,
+  sendTranslationsUsageToI18nKeyless,
   queue,
 } from "i18n-keyless-core";
 // These vi.mock calls must be at the top level, outside of any function or block
@@ -507,6 +508,23 @@ describe("i18n-keyless store", () => {
       expect(state.namespaces).toEqual(["default", "checkout"]);
     });
 
+    it("sends usage as a single map keyed by namespace, default under 'default'", async () => {
+      const store = useI18nKeyless.getState();
+      global.fetch = vi.fn().mockResolvedValue({ json: () => Promise.resolve({ ok: true }) });
+
+      await sendTranslationsUsageToI18nKeyless(
+        { default: { Hello: "2026-06-22" }, checkout: { Pay: "2026-06-22" } },
+        store
+      );
+      const body = JSON.parse((fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1].body as string);
+      // no legacy flat field anymore
+      expect(body.translationsUsage).toBeUndefined();
+      expect(body.translationsUsageByNamespace).toEqual({
+        default: { Hello: "2026-06-22" },
+        checkout: { Pay: "2026-06-22" },
+      });
+    });
+
     it("carries the unpersistedNamespace flag from the call through to the fetch list", () => {
       getNamespacesToFetchAfterTranslationFinished(); // drain anything queued by earlier tests
       useI18nKeyless.setState({ currentLanguage: "fr", translations: {} });
@@ -620,7 +638,7 @@ describe("i18n-keyless store", () => {
       expect(store.setTranslationUsage).not.toHaveBeenCalled();
       // …but it is still recorded, on a microtask, after render.
       await Promise.resolve();
-      expect(store.setTranslationUsage).toHaveBeenCalledWith("Hello", undefined);
+      expect(store.setTranslationUsage).toHaveBeenCalledWith("Hello", undefined, undefined, undefined);
     });
 
     it("getTranslation honors the per-request scope under runWithI18nKeyless (SSR)", async () => {

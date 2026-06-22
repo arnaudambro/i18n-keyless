@@ -33,7 +33,7 @@ const store: I18nKeylessNodeStore = {
     ko: {},
     ar: {}
   },
-  translationsUsage: {},
+  translationsUsageByNamespace: {},
   uniqueId: "",
   lastRefresh: "",
   config: {
@@ -118,13 +118,17 @@ export async function sendTranslationsUsageToI18nKeyless(): Promise<{ ok: boolea
     console.error("i18n-keyless: No config found");
     return;
   }
-  const translationsUsage = store.translationsUsage;
-  if (Object.keys(translationsUsage).length === 0) {
+  const translationsUsageByNamespace = store.translationsUsageByNamespace;
+  if (Object.keys(translationsUsageByNamespace).length === 0) {
     return;
   }
+  const requestBody: I18nKeylessTranslationsUsageRequestBody = {
+    primaryLanguage: config.languages.primary,
+    translationsUsageByNamespace
+  };
   try {
     const response = config.sendTranslationsUsage
-      ? await config.sendTranslationsUsage(translationsUsage)
+      ? await config.sendTranslationsUsage(translationsUsageByNamespace.default ?? {})
       : await api
           .postLastUsedTranslations(
             `${config.API_URL || "https://api.i18n-keyless.com"}/translate/last-used-translations`,
@@ -135,10 +139,7 @@ export async function sendTranslationsUsageToI18nKeyless(): Promise<{ ok: boolea
                 Authorization: `Bearer ${config.API_KEY}`,
                 Version: packageJson.version
               },
-              body: JSON.stringify({
-                primaryLanguage: config.languages.primary,
-                translationsUsage
-              } satisfies I18nKeylessTranslationsUsageRequestBody)
+              body: JSON.stringify(requestBody)
             }
           )
           .then((res) => res as ReturnType<NonNullable<SendTranslationsUsageFunction>>);
@@ -234,14 +235,20 @@ async function awaitForTranslationFn(
     const forceTemporaryLang = options?.forceTemporary?.[currentLanguage];
     const translationKey = context ? `${key}__${context}` : key;
 
-    const lastUsedAt = store.translationsUsage[translationKey];
+    // Usage is keyed by namespace (default under "default"). Transient (unpersisted)
+    // namespaces don't report usage at all (no bucket → never recorded/sent).
+    const usageBucket = options?.unpersistedNamespace
+      ? null
+      : (store.translationsUsageByNamespace[namespace] ??= {});
+    const lastUsedAt = usageBucket?.[translationKey];
     const newLastUsedAt = new Date().toISOString().split("T")[0];
+    const usageChanged = !!usageBucket && lastUsedAt !== newLastUsedAt;
     if (debug) {
       console.log("i18n-keyless: lastUsedAt", lastUsedAt);
       console.log("i18n-keyless: newLastUsedAt", newLastUsedAt);
     }
-    if (lastUsedAt !== newLastUsedAt) {
-      store.translationsUsage[translationKey] = newLastUsedAt;
+    if (usageChanged && usageBucket) {
+      usageBucket[translationKey] = newLastUsedAt;
     }
 
     // Safe navigation for potentially undefined language store
@@ -255,7 +262,7 @@ async function awaitForTranslationFn(
       if (debug) {
         console.log(`i18n-keyless: Translation found in store for key: "${translationKey}"`);
       }
-      if (lastUsedAt !== newLastUsedAt) {
+      if (usageChanged) {
         sendTranslationsUsageToI18nKeyless();
       }
       if (!replace) {

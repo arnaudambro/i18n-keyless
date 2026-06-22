@@ -138,7 +138,15 @@ export interface I18nKeylessRequestBody {
 
 export interface I18nKeylessTranslationsUsageRequestBody {
   primaryLanguage: LanguagesConfig["primary"];
-  translationsUsage: TranslationsUsage;
+  /**
+   * Usage keyed by namespace: `{ "<namespace>": { "key__context": "YYYY-MM-DD" } }`. The
+   * default namespace is included under the key "default". The backend marks `last_used` on
+   * the exact `(key, context, namespace)` row.
+   *
+   * (Clients < 2.4.0 instead send a flat `translationsUsage` with no namespace; the backend
+   * treats that as the "default" namespace.) `unpersistedNamespace` namespaces are excluded.
+   */
+  translationsUsageByNamespace: Record<string, TranslationsUsage>;
 }
 
 export interface I18nKeylessResponse {

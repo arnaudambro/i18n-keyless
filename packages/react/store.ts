@@ -68,7 +68,7 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
   namespaces: [],
   unpersistedNamespaces: [],
   lastRefreshByNamespace: {},
-  translationsUsage: {},
+  translationsUsageByNamespace: {},
   currentLanguage: "fr",
   config: {
     API_KEY: "",
@@ -155,34 +155,42 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
       throw new Error(`i18n-keyless: config is not initialized sending translations usage`);
     }
     const storage = store.config.storage;
-    const translationsUsage = store.translationsUsage;
-    if (Object.keys(translationsUsage).length === 0) {
+    const translationsUsageByNamespace = store.translationsUsageByNamespace;
+    if (Object.keys(translationsUsageByNamespace).length === 0) {
       return;
     }
-    const response = await sendTranslationsUsageToI18nKeyless(translationsUsage, store);
+    const response = await sendTranslationsUsageToI18nKeyless(translationsUsageByNamespace, store);
     if (response?.ok) {
-      set({ translationsUsage: {} });
+      set({ translationsUsageByNamespace: {} });
       if (storage) {
         setItem(storeKeys.translationsUsage, "", storage);
       }
     }
   },
-  setTranslationUsage: async (key: string, context?: string) => {
+  setTranslationUsage: async (key: string, context?: string, namespace?: string, unpersistedNamespace?: boolean) => {
     const store = get();
     if (!store.config) {
       throw new Error(`i18n-keyless: config is not initialized setting translation usage translation`);
     }
-    const storage = store.config.storage;
-    const translationsUsage = store.translationsUsage;
-    const lastUpdatedAt = new Date().toISOString().split("T")[0];
-    if (context) {
-      translationsUsage[`${key}__${context}`] = lastUpdatedAt;
-    } else {
-      translationsUsage[key] = lastUpdatedAt;
+    // Transient (unpersisted) namespaces don't report usage: they'd flood the prune signal
+    // and are reclaimed by their own lifecycle, not by usage-based pruning.
+    if (unpersistedNamespace) {
+      return;
     }
-    set({ translationsUsage });
+    const storage = store.config.storage;
+    const resolvedNamespace = namespace || store.config.defaultNamespace || DEFAULT_NAMESPACE;
+    const usageKey = context ? `${key}__${context}` : key;
+    const lastUpdatedAt = new Date().toISOString().split("T")[0];
+
+    // Single usage map keyed by namespace; the default namespace lives under "default".
+    const translationsUsageByNamespace = store.translationsUsageByNamespace;
+    translationsUsageByNamespace[resolvedNamespace] = {
+      ...(translationsUsageByNamespace[resolvedNamespace] ?? {}),
+      [usageKey]: lastUpdatedAt,
+    };
+    set({ translationsUsageByNamespace });
     if (storage) {
-      setItem(storeKeys.translationsUsage, JSON.stringify(translationsUsage), storage);
+      setItem(storeKeys.translationsUsage, JSON.stringify(translationsUsageByNamespace), storage);
     }
   },
   setLanguage: async (lang: I18nConfig["languages"]["supported"][number]) => {
@@ -302,12 +310,23 @@ async function hydrate() {
       if (debug) console.log("i18n-keyless: _hydrate: no translations");
     }
   }
-  const translationsUsage = await getItem(storeKeys.translationsUsage, storage, JSON.parse);
-  if (translationsUsage) {
-    if (debug) console.log("i18n-keyless: _hydrate: translations usage", translationsUsage);
-    useI18nKeyless.setState({ translationsUsage: translationsUsage as TranslationsUsage });
-  } else {
-    if (debug) console.log("i18n-keyless: _hydrate: no translations usage");
+  const storedUsage = await getItem(storeKeys.translationsUsage, storage, JSON.parse);
+  if (storedUsage && typeof storedUsage === "object") {
+    // Usage is now keyed by namespace (values are maps). A pre-2.4.0 persisted flat usage
+    // map has string date values — discard it rather than send a malformed body (usage is
+    // ephemeral and re-collected immediately).
+    const values = Object.values(storedUsage as Record<string, unknown>);
+    const isNamespaced = values.length === 0 || typeof values[0] === "object";
+    if (isNamespaced) {
+      if (debug) console.log("i18n-keyless: _hydrate: translations usage", storedUsage);
+      useI18nKeyless.setState({
+        translationsUsageByNamespace: storedUsage as unknown as Record<string, TranslationsUsage>,
+      });
+    } else if (debug) {
+      console.log("i18n-keyless: _hydrate: discarding legacy flat usage");
+    }
+  } else if (debug) {
+    console.log("i18n-keyless: _hydrate: no translations usage");
   }
   const currentLanguage = await getItem(storeKeys.currentLanguage, storage);
   const skipCurrentLanguageHydration = config.languages.skipCurrentLanguageHydration;
@@ -416,7 +435,9 @@ export function getTranslation(key: string, options?: TranslationOptions): strin
   // log "Cannot update a component while rendering a different component". Usage analytics
   // never needs to affect the current render, so flush it on a microtask (after render).
   if (!isServerEnv() && !base.config.ssr) {
-    queueMicrotask(() => base.setTranslationUsage(key, options?.context));
+    queueMicrotask(() =>
+      base.setTranslationUsage(key, options?.context, options?.namespace, options?.unpersistedNamespace)
+    );
   }
   // Record the key for the per-page SSR snapshot (no-op off-server). Pure Set.add — no
   // store write. Use the storage key (with context) so it matches the translations map.
@@ -442,6 +463,7 @@ export async function clearI18nKeylessStorageAndStore() {
     namespaces: [],
     unpersistedNamespaces: [],
     lastRefreshByNamespace: {},
+    translationsUsageByNamespace: {},
     currentLanguage: "fr",
     config: undefined,
   });

@@ -183,7 +183,12 @@ export interface TranslationStoreState {
    * it's used to clean up the translations database
    * and to avoid paying for translations that are not used anymore
    */
-  translationsUsage: TranslationsUsage;
+  /**
+   * usage keyed by namespace: `{ "<namespace>": { "key__context": "YYYY-MM-DD" } }`, default
+   * under "default". Sent so the backend can mark `last_used` on the exact per-namespace row.
+   * `unpersistedNamespace` namespaces are excluded.
+   */
+  translationsUsageByNamespace: Record<string, TranslationsUsage>;
   /**
    * the current language of the user
    */
@@ -229,7 +234,12 @@ interface TranslationStoreActions {
   setTranslations: (response: I18nKeylessResponse | void, namespace: string, unpersisted?: boolean) => void;
   setLanguage: (lang: Lang) => void;
   sendTranslationsUsage: () => Promise<void>;
-  setTranslationUsage: (key: string, context?: string) => Promise<void>;
+  setTranslationUsage: (
+    key: string,
+    context?: string,
+    namespace?: string,
+    unpersistedNamespace?: boolean
+  ) => Promise<void>;
 }
 
 export type TranslationStore = TranslationStoreState & TranslationStoreActions;

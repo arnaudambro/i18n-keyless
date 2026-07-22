@@ -19,7 +19,8 @@ export const AVAILABLE_LANGS = [
   "cz",
   "ru",
   "ko",
-  "ar"
+  "ar",
+  "el"
 ] as const;
 
 export type Lang = (typeof AVAILABLE_LANGS)[number];
@@ -63,7 +64,7 @@ export type LanguagesConfig = {
   /**
    * the languages supported for the user.
    * For now we support:
-   * fr, nl, it, de, es, pl, pt, ro, hu, sv, tr, ja, cn, cz, ru, ko, ar
+   * fr, nl, it, de, es, pl, pt, ro, hu, sv, tr, ja, cn, cz, ru, ko, ar, el
    *
    * If you need more, please reach out to @ambroselli_io on X/Twitter or by mail at arnaud.ambroselli.io@gmail.com
    */

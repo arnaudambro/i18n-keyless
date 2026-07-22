@@ -31,7 +31,8 @@ const store: I18nKeylessNodeStore = {
     cz: {},
     ru: {},
     ko: {},
-    ar: {}
+    ar: {},
+    el: {}
   },
   translationsUsageByNamespace: {},
   uniqueId: "",

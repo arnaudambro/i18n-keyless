@@ -96,4 +96,4 @@ Tests use Vitest with happy-dom environment and `@testing-library/react`. Zustan
 
 ## Type System
 
-`Lang` is a union of 18 language codes. `PrimaryLang` is restricted to `"fr" | "en"`. The `replace` option in `TranslationOptions` does regex-safe string replacement on translated text.
+`Lang` is a union of 19 language codes. `PrimaryLang` is restricted to `"fr" | "en"`. The `replace` option in `TranslationOptions` does regex-safe string replacement on translated text.

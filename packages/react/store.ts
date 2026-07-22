@@ -11,6 +11,8 @@ import {
   DEFAULT_NAMESPACE,
   TranslationsUsage,
   sendTranslationsUsageToI18nKeyless,
+  resolveNamespace,
+  resolveOriginLanguage,
 } from "i18n-keyless-core";
 import { type I18nConfig, type TranslationStore } from "./types.ts";
 import { create } from "zustand";
@@ -69,6 +71,7 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
   unpersistedNamespaces: [],
   lastRefreshByNamespace: {},
   translationsUsageByNamespace: {},
+  originNamespaces: [],
   currentLanguage: "fr",
   config: {
     API_KEY: "",
@@ -147,6 +150,26 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
         lastRefreshByNamespace: { ...get().lastRefreshByNamespace, [namespace]: response.data.lastRefresh },
       });
       setItem(lastRefreshKeyFor(namespace), response.data.lastRefresh, storage);
+    }
+  },
+  registerOriginNamespace: (namespace: string, unpersisted = false) => {
+    const prev = get().originNamespaces;
+    if (prev.includes(namespace)) {
+      return;
+    }
+    const next = [...prev, namespace];
+    set({ originNamespaces: next });
+    // Unpersisted namespaces are session-only everywhere: don't persist their flag either.
+    if (!unpersisted) {
+      const storage = get().config.storage;
+      if (storage) {
+        const unpersistedNamespaces = get().unpersistedNamespaces;
+        setItem(
+          storeKeys.originNamespaces,
+          JSON.stringify(next.filter((ns) => !unpersistedNamespaces.includes(ns))),
+          storage
+        );
+      }
     }
   },
   sendTranslationsUsage: async () => {
@@ -232,6 +255,17 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
           )
         )
       );
+    } else if (store.originNamespaces.length) {
+      // The primary language needs fetched data too for namespaces containing origin-language
+      // (UGC) keys: their primary version is an AI translation, not the key itself, and the
+      // flat lookup map still holds the previous language's values for them.
+      await Promise.all(
+        store.originNamespaces.map((namespace) =>
+          getAllTranslationsFromLanguage(lang, { ...store, lastRefresh: null }, namespace).then((response) =>
+            store.setTranslations(response, namespace, isUnpersisted(namespace))
+          )
+        )
+      );
     }
   },
 }));
@@ -309,6 +343,15 @@ async function hydrate() {
     } else {
       if (debug) console.log("i18n-keyless: _hydrate: no translations");
     }
+  }
+  // Namespaces with origin-language (UGC) keys — language-independent, so loaded even when
+  // a server snapshot was applied.
+  const storedOriginNamespaces = (await getItem(storeKeys.originNamespaces, storage, JSON.parse)) as unknown as
+    | string[]
+    | null;
+  if (Array.isArray(storedOriginNamespaces) && storedOriginNamespaces.length) {
+    if (debug) console.log("i18n-keyless: _hydrate: origin namespaces", storedOriginNamespaces);
+    useI18nKeyless.setState({ originNamespaces: storedOriginNamespaces });
   }
   const storedUsage = await getItem(storeKeys.translationsUsage, storage, JSON.parse);
   if (storedUsage && typeof storedUsage === "object") {
@@ -435,9 +478,14 @@ export function getTranslation(key: string, options?: TranslationOptions): strin
   // log "Cannot update a component while rendering a different component". Usage analytics
   // never needs to affect the current render, so flush it on a microtask (after render).
   if (!isServerEnv() && !base.config.ssr) {
-    queueMicrotask(() =>
-      base.setTranslationUsage(key, options?.context, options?.namespace, options?.unpersistedNamespace)
-    );
+    queueMicrotask(() => {
+      base.setTranslationUsage(key, options?.context, options?.namespace, options?.unpersistedNamespace);
+      // Remember namespaces that hold UGC keys so switching (or booting) to the primary
+      // language still fetches them (deferred for the same render-safety reason as usage).
+      if (resolveOriginLanguage(options, base.config)) {
+        base.registerOriginNamespace(resolveNamespace(options, base.config), !!options?.unpersistedNamespace);
+      }
+    });
   }
   // Record the key for the per-page SSR snapshot (no-op off-server). Pure Set.add — no
   // store write. Use the storage key (with context) so it matches the translations map.
@@ -464,6 +512,7 @@ export async function clearI18nKeylessStorageAndStore() {
     unpersistedNamespaces: [],
     lastRefreshByNamespace: {},
     translationsUsageByNamespace: {},
+    originNamespaces: [],
     currentLanguage: "fr",
     config: undefined,
   });

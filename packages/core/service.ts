@@ -29,6 +29,21 @@ export function resolveNamespace(
 }
 
 /**
+ * Resolves the effective origin language of a key (UGC flow): the per-call `originLanguage`
+ * when it exists and differs from the primary language, undefined otherwise (regular flow).
+ */
+export function resolveOriginLanguage(
+  options: TranslationOptions | undefined,
+  config: Pick<FetchTranslationParams["config"], "languages">
+): Lang | undefined {
+  const originLanguage = options?.originLanguage;
+  if (!originLanguage || originLanguage === config.languages.primary) {
+    return undefined;
+  }
+  return originLanguage;
+}
+
+/**
  * Scratchpad of namespaces that had at least one missing key queued for translation since
  * the last bulk fetch (mapped to whether that namespace is `unpersisted`). The queue's
  * "empty" handler (in the react store / node service) reads this to know which namespaces
@@ -65,8 +80,13 @@ export function getTranslationCore(key: string, store: FetchTranslationParams, o
   if (!config.API_KEY) {
     throw new Error("i18n-keyless: config is not initialized");
   }
+  // The language the key is already written in: the primary language, except for UGC
+  // (originLanguage). When the current language is that one, the key renders as-is —
+  // notably, a UGC key DOES need a lookup/translation when the current language is the
+  // primary one (its primary version is an AI translation, not the key itself).
+  const sourceLanguage = resolveOriginLanguage(options, config) ?? config.languages.primary;
   let translation = key;
-  if (currentLanguage === config.languages.primary) {
+  if (currentLanguage === sourceLanguage) {
     translation = key;
   } else {
     if (options?.forceTemporary?.[currentLanguage]) {
@@ -157,6 +177,7 @@ export function translateKey(key: string, store: FetchTranslationParams, options
             forceTemporary: options?.forceTemporary,
             languages: config.languages.supported,
             primaryLanguage: config.languages.primary,
+            originLanguage: resolveOriginLanguage(options, config),
           };
           const apiUrl = config.API_URL || "https://api.i18n-keyless.com";
           const url = `${apiUrl}/translate`;

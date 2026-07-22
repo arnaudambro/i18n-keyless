@@ -125,6 +125,14 @@ export type TranslationOptions = {
    * RegEx is `key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))` so you can use use your own syntax.
    */
   replace?: Record<string, string>;
+  /**
+   * The language the text is written in when it differs from the primary language —
+   * i.e. user generated content (UGC). The backend translates it into the primary language,
+   * keeps the raw text for viewers in that language, and AI-translates all the others.
+   * When the current language IS the origin language, the text is rendered as-is (no API call).
+   * Omitted or equal to the primary language means the regular flow.
+   */
+  originLanguage?: Lang;
 };
 
 export interface I18nKeylessRequestBody {
@@ -134,6 +142,13 @@ export interface I18nKeylessRequestBody {
   forceTemporary?: TranslationOptions["forceTemporary"];
   languages: LanguagesConfig["supported"];
   primaryLanguage: LanguagesConfig["primary"];
+  /**
+   * Language the `key` text is written in when it differs from the primary language (UGC flow).
+   * The backend translates `key` into the primary language, keys the row by that primary text,
+   * stores the raw `key` in the origin-language cell, and AI-translates all other languages.
+   * Omitted or equal to `primaryLanguage` means the regular flow.
+   */
+  originLanguage?: Lang;
 }
 
 export interface I18nKeylessTranslationsUsageRequestBody {

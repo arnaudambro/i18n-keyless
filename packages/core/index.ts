@@ -24,6 +24,7 @@ export {
   sendTranslationsUsageToI18nKeyless,
   getNamespacesToFetchAfterTranslationFinished,
   resolveNamespace,
+  resolveOriginLanguage,
   queue
 } from "./service.ts";
 export { api } from "./api.ts";

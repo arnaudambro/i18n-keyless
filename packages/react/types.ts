@@ -190,6 +190,14 @@ export interface TranslationStoreState {
    */
   translationsUsageByNamespace: Record<string, TranslationsUsage>;
   /**
+   * namespaces that ever looked up an origin-language (UGC) key. Unlike regular keys, UGC
+   * keys need fetched data even when the current language is the primary one (their primary
+   * version is an AI translation, not the key itself), so these namespaces are refetched
+   * when switching to the primary language. Persisted (minus unpersisted namespaces) so a
+   * boot in the primary language stays correct.
+   */
+  originNamespaces: string[];
+  /**
    * the current language of the user
    */
   currentLanguage: Lang;
@@ -228,10 +236,19 @@ export type TranslationOptions = {
    * You can leave it there forever, or remove it once your translation is saved.
    */
   forceTemporary?: Partial<Record<Lang, string>>;
+  /**
+   * The language the text is written in when it differs from the primary language —
+   * i.e. user generated content (UGC). The backend translates it into the primary language,
+   * keeps the raw text for viewers in that language, and AI-translates all the others.
+   * When the current language IS the origin language, the text is rendered as-is (no API call).
+   * Omitted or equal to the primary language means the regular flow.
+   */
+  originLanguage?: Lang;
 };
 
 interface TranslationStoreActions {
   setTranslations: (response: I18nKeylessResponse | void, namespace: string, unpersisted?: boolean) => void;
+  registerOriginNamespace: (namespace: string, unpersisted?: boolean) => void;
   setLanguage: (lang: Lang) => void;
   sendTranslationsUsage: () => Promise<void>;
   setTranslationUsage: (

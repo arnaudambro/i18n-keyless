@@ -319,7 +319,15 @@ async function awaitForTranslationFn(
       namespace: namespace === DEFAULT_NAMESPACE ? undefined : namespace,
       forceTemporary: options?.forceTemporary,
       languages: config.languages.supported,
-      primaryLanguage: config.languages.primary
+      primaryLanguage: config.languages.primary,
+      // UGC flow: `key` is written in originLanguage; the backend keys the row by its
+      // primary-language AI translation and keeps the raw key for originLanguage viewers.
+      // The bulk-fetch dictionaries also index UGC rows by the raw key, so store lookups
+      // above keep working for every language (identity for originLanguage itself).
+      originLanguage:
+        options?.originLanguage && options.originLanguage !== config.languages.primary
+          ? options.originLanguage
+          : undefined
     };
     const apiUrl = config.API_URL || "https://api.i18n-keyless.com";
     const url = `${apiUrl}/translate`;

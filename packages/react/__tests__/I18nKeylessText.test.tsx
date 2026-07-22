@@ -184,6 +184,50 @@ describe("I18nKeylessText", () => {
     expect(screen.getByText("John is 30 years old")).toBeInTheDocument();
   });
 
+  it("renders UGC as-is when the current language is its origin language", () => {
+    mockStore.setState({
+      currentLanguage: "es",
+      translations: {}, // no lookup needed: the text is already in the viewer's language
+    });
+
+    render(<I18nKeylessText originLanguage="es">Hola mundo</I18nKeylessText>);
+    expect(screen.getByText("Hola mundo")).toBeInTheDocument();
+  });
+
+  it("looks up the UGC translation even when the current language is the primary language", () => {
+    mockStore.setState({
+      currentLanguage: "en", // primary
+      translations: {
+        "Hola mundo": "Hello world",
+      },
+    });
+
+    render(<I18nKeylessText originLanguage="es">Hola mundo</I18nKeylessText>);
+    expect(screen.getByText("Hello world")).toBeInTheDocument();
+  });
+
+  it("renders the UGC translation for a third language", () => {
+    mockStore.setState({
+      currentLanguage: "fr",
+      translations: {
+        "Hola mundo": "Bonjour le monde",
+      },
+    });
+
+    render(<I18nKeylessText originLanguage="es">Hola mundo</I18nKeylessText>);
+    expect(screen.getByText("Bonjour le monde")).toBeInTheDocument();
+  });
+
+  it("treats originLanguage equal to the primary language as the regular flow", () => {
+    mockStore.setState({
+      currentLanguage: "en", // primary
+      translations: {},
+    });
+
+    render(<I18nKeylessText originLanguage="en">Hello World</I18nKeylessText>);
+    expect(screen.getByText("Hello World")).toBeInTheDocument();
+  });
+
   it("preserves special characters in replacements", () => {
     render(
       <I18nKeylessText

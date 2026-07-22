@@ -43,6 +43,13 @@ export interface I18nKeylessTextProps {
    * You can leave it there forever, or remove it once your translation is saved.
    */
   forceTemporary?: TranslationOptions["forceTemporary"];
+  /**
+   * The language the text is written in when it differs from the primary language —
+   * i.e. user generated content (UGC). The backend translates it into the primary language,
+   * keeps the raw text for viewers in that language, and AI-translates all the others.
+   * When the current language IS the origin language, the text is rendered as-is (no API call).
+   */
+  originLanguage?: TranslationOptions["originLanguage"];
 }
 
 const warnAboutWhitespace = (text: string) => {
@@ -61,7 +68,8 @@ export const I18nKeylessText: React.FC<I18nKeylessTextProps> = ({
   namespace,
   unpersistedNamespace,
   debug = false,
-  forceTemporary
+  forceTemporary,
+  originLanguage
 }) => {
   const storeTranslations = useI18nKeyless((store) => store.translations);
   const storeCurrentLanguage = useI18nKeyless((store) => store.currentLanguage);
@@ -84,15 +92,19 @@ export const I18nKeylessText: React.FC<I18nKeylessTextProps> = ({
   }, [rawText]);
 
   useEffect(() => {
-    getTranslation(sourceText, { context, namespace, unpersistedNamespace, debug, forceTemporary });
-  }, [sourceText, currentLanguage, context, namespace, unpersistedNamespace, debug, forceTemporary]);
+    getTranslation(sourceText, { context, namespace, unpersistedNamespace, debug, forceTemporary, originLanguage });
+  }, [sourceText, currentLanguage, context, namespace, unpersistedNamespace, debug, forceTemporary, originLanguage]);
 
   const storageKey = context ? `${sourceText}__${context}` : sourceText;
   // Record the key for the per-page SSR snapshot (no-op off-server; pure Set.add, no
   // setState, so no render-time update warning). See docs/SSR.md.
   recordUsedKey(storageKey);
-  const translatedText =
-    currentLanguage === config!.languages.primary ? sourceText : translations[storageKey] || sourceText;
+  // The text renders as-is when the current language is the one it's written in: the
+  // primary language, except for UGC (originLanguage) — a UGC key looks up the map even
+  // when the current language is the primary one.
+  const sourceLanguage =
+    originLanguage && originLanguage !== config!.languages.primary ? originLanguage : config!.languages.primary;
+  const translatedText = currentLanguage === sourceLanguage ? sourceText : translations[storageKey] || sourceText;
   const finalText = useMemo(() => {
     if (!replace) {
       return translatedText;
@@ -119,7 +131,8 @@ export const I18nKeylessText: React.FC<I18nKeylessTextProps> = ({
       finalText,
       replace,
       context,
-      forceTemporary
+      forceTemporary,
+      originLanguage
     });
   }
   return <React.Fragment key={currentLanguage}>{finalText}</React.Fragment>;

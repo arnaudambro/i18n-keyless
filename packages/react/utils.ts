@@ -14,6 +14,9 @@ export const storeKeys = {
   // index (JSON array) of namespaces we have persisted, so hydrate() knows which
   // per-namespace translation keys to load (storage adapters have no key enumeration).
   namespaces: "i18n-keyless-namespaces" as const,
+  // index (JSON array) of namespaces that contain origin-language (UGC) keys — those need
+  // a refetch even when switching to the primary language.
+  originNamespaces: "i18n-keyless-origin-namespaces" as const,
 };
 
 /**

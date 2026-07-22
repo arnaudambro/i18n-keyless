@@ -110,8 +110,10 @@ export function getTranslationCore(key: string, store: FetchTranslationParams, o
 
   const regex = new RegExp(pattern, "g");
 
-  // Replace all occurrences in a single pass
-  return translation.replace(regex, (matched) => options.replace?.[matched] || matched);
+  // Replace all occurrences in a single pass. `translation` can be undefined
+  // when the current language's translation hasn't arrived yet (translateKey
+  // was just queued above) — fall back to the key like the no-replace path.
+  return (translation || key).replace(regex, (matched) => options.replace?.[matched] || matched);
 }
 
 const translating: Record<string, boolean> = {};

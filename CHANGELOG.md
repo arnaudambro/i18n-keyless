@@ -6,6 +6,17 @@ All notable changes to i18n-keyless are documented here. The three packages
 This project follows [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
 
+## [2.6.1] — 2026-07-22
+
+### Fixed — crash in `getTranslationCore` with the `replace` option
+
+- **`getTranslation(key, { replace })` threw `Cannot read properties of undefined
+  (reading 'replace')`** when the current language differed from the source language and
+  the translation hadn't arrived in the store yet (first render, offline, or key not yet
+  translated server-side). The no-replace path already fell back to the key
+  (`translation || key`); the replace path now does the same before interpolating.
+  `i18n-keyless-node` was not affected (it guards on `translation` before interpolating).
+
 ## [2.4.2] — 2026-06-22
 
 ### Fixed — Metro/React Native bundling of `request-scope`

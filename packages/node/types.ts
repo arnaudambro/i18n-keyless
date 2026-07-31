@@ -1,10 +1,17 @@
 import {
   HandleTranslateFunction,
+  I18nKeylessAllTranslationsResponse,
   Lang,
   TranslationsUsage,
   PrimaryLang,
   SendTranslationsUsageFunction,
 } from "i18n-keyless-core";
+
+/**
+ * Re-exported from core rather than redeclared: the implementation consumes core's types, so
+ * a local copy silently drops options (it used to lack `replace` and `originLanguage`).
+ */
+export type { TranslationOptions, I18nKeylessRequestBody, I18nKeylessAllTranslationsResponse } from "i18n-keyless-core";
 
 export type Translations = Record<string, string>;
 
@@ -111,50 +118,3 @@ export interface I18nKeylessNodeStore {
   config: I18nKeylessNodeConfig;
 }
 
-export type TranslationOptions = {
-  /**
-   * The context of the translation.
-   * Useful for ambiguous translations, like "8 heures" in French could be "8 AM" or "8 hours".
-   * You'll find it useful when it occurs to you, don't worry :)
-   */
-  context?: string;
-  /**
-   * The namespace this translation belongs to. Defaults to `defaultNamespace` from config.
-   */
-  namespace?: string;
-  /**
-   * No effect in node (the node store is in-memory only); accepted for API symmetry with the
-   * client. On i18n-keyless-react it keeps the namespace's translations out of storage.
-   */
-  unpersistedNamespace?: boolean;
-  /**
-   * Could be helpful if something weird happens with this particular key.
-   */
-  debug?: boolean;
-  /**
-   * If the proposed translation from AI is not satisfactory,
-   * you can use this field to setup your own translation.
-   * You can leave it there forever, or remove it once your translation is saved.
-   */
-  forceTemporary?: Partial<Record<Lang, string>>;
-};
-
-export interface I18nKeylessRequestBody {
-  key: string;
-  context?: string;
-  namespace?: string;
-  forceTemporary?: TranslationOptions["forceTemporary"];
-  languages: I18nKeylessNodeConfig["languages"]["supported"];
-  primaryLanguage: I18nKeylessNodeConfig["languages"]["primary"];
-}
-
-export interface I18nKeylessAllTranslationsResponse {
-  ok: boolean;
-  data: {
-    translations: Record<Lang, Translations>; // { "fr": { "un text": "a text" }, "en": { "un text": "a text" }  } // already translated
-    uniqueId: string | null;
-    lastRefresh: string | null;
-  };
-  error: string;
-  message: string;
-}

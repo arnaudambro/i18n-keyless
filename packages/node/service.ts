@@ -4,6 +4,8 @@ import {
   type I18nKeylessRequestBody,
   queue,
   getNamespacesToFetchAfterTranslationFinished,
+  resolveOriginLanguage,
+  AVAILABLE_LANGS,
   DEFAULT_NAMESPACE,
   I18nKeylessAllTranslationsResponse,
   api
@@ -155,6 +157,68 @@ export async function sendTranslationsUsageToI18nKeyless(): Promise<{ ok: boolea
   }
 }
 
+/**
+ * Applies the `replace` map to a text: keys are regex-escaped and replaced in a single pass.
+ */
+function applyReplace(text: string, replace?: TranslationOptions["replace"]): string {
+  if (!replace) {
+    return text;
+  }
+  // Create a regex that matches all keys to replace
+  // Escape special regex characters in keys
+  const pattern = Object.keys(replace)
+    .map((key) => key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("|");
+  if (!pattern) {
+    return text;
+  }
+  const regex = new RegExp(pattern, "g");
+
+  // Replace all occurrences in a single pass
+  return text.replace(regex, (matched) => replace[matched] || matched);
+}
+
+/**
+ * Merges a translation into the in-memory store for every language the API returned.
+ *
+ * The store is flat (one map per language, no namespace dimension), like the bulk fetch that
+ * feeds it at init: two namespaces sharing the exact same source text share one cache entry.
+ */
+function cacheTranslation(translationKey: string, translationByLang?: Partial<Record<Lang, string>>) {
+  if (!translationByLang) {
+    return;
+  }
+  for (const lang of Object.keys(translationByLang) as Lang[]) {
+    const value = translationByLang[lang];
+    // Ignore anything that isn't a known language: a custom `handleTranslate` is free to
+    // return whatever it wants, and we don't want it to grow phantom entries in the store.
+    if (!value || !AVAILABLE_LANGS.includes(lang)) {
+      continue;
+    }
+    store.translations[lang] = { ...(store.translations[lang] ?? {}), [translationKey]: value };
+  }
+}
+
+/**
+ * Usage is flushed on a debounce instead of on every newly-seen key: a server rendering a
+ * page with hundreds of keys would otherwise POST the (cumulative) usage map once per key,
+ * which is what rate limits the process. One POST per window carries everything anyway,
+ * since the map is cumulative and never reset.
+ */
+const USAGE_FLUSH_DEBOUNCE_MS = 10_000;
+let usageFlushTimeout: ReturnType<typeof setTimeout> | null = null;
+function scheduleTranslationsUsageFlush() {
+  if (usageFlushTimeout) {
+    return;
+  }
+  usageFlushTimeout = setTimeout(() => {
+    usageFlushTimeout = null;
+    sendTranslationsUsageToI18nKeyless();
+  }, USAGE_FLUSH_DEBOUNCE_MS);
+  // Never keep the process alive just to report analytics (scripts, serverless).
+  (usageFlushTimeout as unknown as { unref?: () => void }).unref?.();
+}
+
 queue.on("empty", () => {
   // When a batch of missing words finishes, refetch — but only the namespaces that had a
   // miss this round, and merge per language so other namespaces aren't clobbered.
@@ -191,12 +255,98 @@ export async function init(newConfig: I18nKeylessNodeConfig): Promise<I18nKeyles
   store.config = newConfig;
   store.config.onInit?.(newConfig.languages.primary);
 
-  const response = await getAllTranslationsForAllLanguages();
+  // Boot fetch must target the configured namespace, otherwise a project using
+  // `defaultNamespace` boots with the (empty) "default" namespace and every key misses.
+  const response = await getAllTranslationsForAllLanguages(newConfig.defaultNamespace);
   if (response?.ok) {
     store.translations = response.data.translations;
+    // Identify this consumer on subsequent calls. `lastRefresh` is deliberately NOT stored:
+    // it's global here while fetches are per namespace, so reusing namespace A's timestamp
+    // for namespace B would silently drop everything B had before it.
+    store.uniqueId = response.data.uniqueId ?? store.uniqueId;
   }
 
   return newConfig;
+}
+
+/** In-flight POSTs keyed by `namespace:key__context:originLanguage`, to dedup concurrent misses. */
+const inFlightTranslations = new Map<string, Promise<Partial<Record<Lang, string>> | undefined>>();
+
+/**
+ * POSTs a missing key to the translation API and caches the result in the store, so the same
+ * key never goes over the wire twice in the lifetime of the process.
+ * @returns the translation for every language the API returned, or undefined
+ */
+async function fetchTranslationFromApi(
+  key: string,
+  translationKey: string,
+  options?: TranslationOptions
+): Promise<Partial<Record<Lang, string>> | undefined> {
+  const config = store.config;
+  const uniqueId = store.uniqueId;
+  const debug = options?.debug;
+  const namespace = options?.namespace || config.defaultNamespace || DEFAULT_NAMESPACE;
+
+  const body: I18nKeylessRequestBody = {
+    key,
+    context: options?.context,
+    // Omit the default namespace so the wire format is unchanged for non-namespaced use.
+    namespace: namespace === DEFAULT_NAMESPACE ? undefined : namespace,
+    forceTemporary: options?.forceTemporary,
+    languages: config.languages.supported,
+    primaryLanguage: config.languages.primary,
+    // UGC flow: `key` is written in originLanguage; the backend keys the row by its
+    // primary-language AI translation and keeps the raw key for originLanguage viewers.
+    // The bulk-fetch dictionaries also index UGC rows by the raw key, so store lookups
+    // keep working for every language (identity for originLanguage itself).
+    originLanguage: resolveOriginLanguage(options, config)
+  };
+  const apiUrl = config.API_URL || "https://api.i18n-keyless.com";
+  const url = `${apiUrl}/translate`;
+
+  if (debug) {
+    console.log("i18n-keyless: Fetching translation from API:", { url, body });
+  }
+
+  // Type assertion for the expected API response structure
+  type ApiResponse = {
+    ok: boolean;
+    data?: { translation: Partial<Record<Lang, string>> };
+    error?: string;
+    message?: string;
+  };
+
+  const response = await api
+    .fetchTranslation(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.API_KEY}`,
+        unique_id: uniqueId || "",
+        Version: packageJson.version
+      },
+      body: JSON.stringify(body)
+    })
+    .then((res) => res as ApiResponse);
+
+  if (debug) {
+    console.log("i18n-keyless: API response received:", response);
+  }
+
+  if (!response.ok) {
+    // Throw an error if the API response indicates failure
+    throw new Error(response.error || `i18n-keyless: API request failed for key "${key}"`);
+  }
+
+  if (response.message) {
+    // Log any informational messages from the API
+    console.warn("i18n-keyless: API message:", response.message);
+  }
+
+  // Feed the store, otherwise every later call for this key POSTs again — forever.
+  cacheTranslation(translationKey, response.data?.translation);
+
+  return response.data?.translation;
 }
 
 /**
@@ -213,7 +363,6 @@ async function awaitForTranslationFn(
 ): Promise<string> {
   const config = store.config;
   const translations = store.translations;
-  const uniqueId = store.uniqueId;
   const context = options?.context;
   const namespace = options?.namespace || config.defaultNamespace || DEFAULT_NAMESPACE;
   const debug = options?.debug;
@@ -250,6 +399,21 @@ async function awaitForTranslationFn(
     }
     if (usageChanged && usageBucket) {
       usageBucket[translationKey] = newLastUsedAt;
+      scheduleTranslationsUsageFlush();
+    }
+
+    // The language the key is already written in: the primary language, except for UGC
+    // (originLanguage). When the current language is that one, the key renders as-is — no
+    // store lookup and, above all, no API call. Same short-circuit as `getTranslationCore`
+    // on the client, except that an explicit `forceTemporary` for that very language still
+    // goes through, to keep registering the override. Usage is still recorded above, so the
+    // backend doesn't prune keys that only ever render in their source language.
+    const sourceLanguage = resolveOriginLanguage(options, config) ?? config.languages.primary;
+    if (currentLanguage === sourceLanguage && !forceTemporaryLang) {
+      if (debug) {
+        console.log(`i18n-keyless: "${translationKey}" is already in "${currentLanguage}", returning it as-is`);
+      }
+      return applyReplace(key, replace);
     }
 
     // Safe navigation for potentially undefined language store
@@ -263,23 +427,7 @@ async function awaitForTranslationFn(
       if (debug) {
         console.log(`i18n-keyless: Translation found in store for key: "${translationKey}"`);
       }
-      if (usageChanged) {
-        sendTranslationsUsageToI18nKeyless();
-      }
-      if (!replace) {
-        return translation;
-      }
-
-      // Create a regex that matches all keys to replace
-      // Escape special regex characters in keys
-      const pattern = Object.keys(replace)
-        .map((key) => key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-        .join("|");
-
-      const regex = new RegExp(pattern, "g");
-
-      // Replace all occurrences in a single pass
-      return translation.replace(regex, (matched) => replace[matched] || matched);
+      return applyReplace(translation, replace);
     }
     if (debug) {
       console.log(`i18n-keyless: Translation not found in store for key: "${translationKey}"`);
@@ -291,14 +439,16 @@ async function awaitForTranslationFn(
         console.log(`i18n-keyless: Using handleTranslate for key: "${key}"`);
       }
       // Expect handleTranslate to manage its own errors/state updates
-      await config.handleTranslate(key); // Pass only the key
+      const handlerResponse = await config.handleTranslate(key); // Pass only the key
+      // Cache whatever the handler returned, so this key doesn't call it again on every render
+      cacheTranslation(translationKey, handlerResponse?.data?.translation as Partial<Record<Lang, string>>);
       // Re-check store after custom handler, maybe it populated the translation
       const updatedTranslation = translations[currentLanguage]?.[translationKey];
       if (updatedTranslation) {
         if (debug) {
           console.log(`i18n-keyless: Translation found for key "${translationKey}" after handleTranslate`);
         }
-        return updatedTranslation;
+        return applyReplace(updatedTranslation, replace);
       }
       // If still not found after custom handler, return original key
       if (debug) {
@@ -313,81 +463,34 @@ async function awaitForTranslationFn(
       throw new Error("i18n-keyless: API_KEY is required for API translation but missing.");
     }
 
-    const body: I18nKeylessRequestBody = {
-      key,
-      context,
-      // Omit the default namespace so the wire format is unchanged for non-namespaced use.
-      namespace: namespace === DEFAULT_NAMESPACE ? undefined : namespace,
-      forceTemporary: options?.forceTemporary,
-      languages: config.languages.supported,
-      primaryLanguage: config.languages.primary,
-      // UGC flow: `key` is written in originLanguage; the backend keys the row by its
-      // primary-language AI translation and keeps the raw key for originLanguage viewers.
-      // The bulk-fetch dictionaries also index UGC rows by the raw key, so store lookups
-      // above keep working for every language (identity for originLanguage itself).
-      originLanguage:
-        options?.originLanguage && options.originLanguage !== config.languages.primary
-          ? options.originLanguage
-          : undefined
-    };
-    const apiUrl = config.API_URL || "https://api.i18n-keyless.com";
-    const url = `${apiUrl}/translate`;
-
-    if (debug) {
-      console.log("i18n-keyless: Fetching translation from API:", { url, body });
+    // Collapse concurrent misses of the same key: a server handling N simultaneous requests
+    // would otherwise fire N identical POSTs before the first one comes back and fills the
+    // store. `forceTemporary` calls are never shared (they carry a caller-specific value).
+    const dedupKey = `${namespace}:${translationKey}:${options?.originLanguage ?? ""}`;
+    const canDedup = !options?.forceTemporary;
+    let request = canDedup ? inFlightTranslations.get(dedupKey) : undefined;
+    if (!request) {
+      request = fetchTranslationFromApi(key, translationKey, options);
+      if (canDedup) {
+        inFlightTranslations.set(dedupKey, request);
+        // Both handlers, so a rejection here is never an unhandled one — callers still get
+        // the rejection through their own `await request`.
+        request.then(
+          () => inFlightTranslations.delete(dedupKey),
+          () => inFlightTranslations.delete(dedupKey)
+        );
+      }
     }
-
-    // Type assertion for the expected API response structure
-    type ApiResponse = { ok: boolean; data?: { translation: Record<Lang, string> }; error?: string; message?: string };
-
-    const response = await api
-      .fetchTranslation(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${config.API_KEY}`,
-          unique_id: uniqueId || "",
-          Version: packageJson.version
-        },
-        body: JSON.stringify(body)
-      })
-      .then((res) => res as ApiResponse);
-
-    if (debug) {
-      console.log("i18n-keyless: API response received:", response);
-    }
-
-    if (!response.ok) {
-      // Throw an error if the API response indicates failure
-      throw new Error(response.error || `i18n-keyless: API request failed for key "${key}"`);
-    }
-
-    if (response.message) {
-      // Log any informational messages from the API
-      console.warn("i18n-keyless: API message:", response.message);
-    }
+    const translationByLang = await request;
 
     // Return the fetched translation or the original key if not available for the current language
-    const fetchedTranslation = response.data?.translation?.[currentLanguage];
+    const fetchedTranslation = translationByLang?.[currentLanguage];
     if (debug && !fetchedTranslation) {
       console.log(
         `i18n-keyless: Translation for lang "${currentLanguage}" not found in API response for key "${key}". Returning original key.`
       );
     }
-    if (!replace) {
-      return fetchedTranslation || key;
-    }
-
-    // Create a regex that matches all keys to replace
-    // Escape special regex characters in keys
-    const pattern = Object.keys(replace)
-      .map((key) => key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-      .join("|");
-
-    const regex = new RegExp(pattern, "g");
-
-    // Replace all occurrences in a single pass
-    return (fetchedTranslation || key).replace(regex, (matched) => replace[matched] || matched);
+    return applyReplace(fetchedTranslation || key, replace);
   } catch (error) {
     // Log the specific error during translation attempt
     console.error(`i18n-keyless: Error during awaitForTranslationFn for key "${key}":`, error);

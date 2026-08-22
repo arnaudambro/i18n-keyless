@@ -1,4 +1,12 @@
-export { AVAILABLE_LANGS, DEFAULT_NAMESPACE } from "./types.ts";
+export {
+  AVAILABLE_LANGS,
+  DEFAULT_NAMESPACE,
+  LEGACY_LANG_MAP,
+  APP_STORE_LOCALES,
+  normalizeLang,
+  resolveLang,
+  toAppStoreLocale
+} from "./types.ts";
 export type {
   Lang,
   PrimaryLang,

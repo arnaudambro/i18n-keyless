@@ -218,6 +218,46 @@ describe("i18n-keyless store", () => {
 
       expect(useI18nKeyless.getState().currentLanguage).toBe("fr");
     });
+
+    it("upgrades a v2 language code persisted by a previous install", async () => {
+      // v2 spelled Simplified Chinese "cn"; v3 spells it "zh-Hans".
+      mockStorage.getItem.mockImplementation((key) => {
+        if (key === "i18n-keyless-current-language") return "cn";
+        return Promise.resolve(null);
+      });
+
+      await init({
+        languages: {
+          primary: "en",
+          supported: ["en", "zh-Hans"],
+        },
+        storage: mockStorage,
+        API_KEY: "test-api-key",
+      });
+
+      // The user keeps the language they had picked instead of being reset to the fallback...
+      expect(useI18nKeyless.getState().currentLanguage).toBe("zh-Hans");
+      // ...and the upgrade is written back, so it only ever happens once.
+      expect(mockStorage.setItem).toHaveBeenCalledWith("i18n-keyless-current-language", "zh-Hans");
+    });
+
+    it("keeps a v2 language code that did not change in v3", async () => {
+      mockStorage.getItem.mockImplementation((key) => {
+        if (key === "i18n-keyless-current-language") return "fr";
+        return Promise.resolve(null);
+      });
+
+      await init({
+        languages: {
+          primary: "en",
+          supported: ["en", "fr"],
+        },
+        storage: mockStorage,
+        API_KEY: "test-api-key",
+      });
+
+      expect(useI18nKeyless.getState().currentLanguage).toBe("fr");
+    });
   });
 
   describe("Translation functionality", () => {

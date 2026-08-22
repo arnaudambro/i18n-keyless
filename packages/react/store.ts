@@ -13,6 +13,7 @@ import {
   sendTranslationsUsageToI18nKeyless,
   resolveNamespace,
   resolveOriginLanguage,
+  normalizeLang,
 } from "i18n-keyless-core";
 import { type I18nConfig, type TranslationStore } from "./types.ts";
 import { create } from "zustand";
@@ -246,11 +247,14 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
       }
     }
 
-    // Only fetch translations if the new language is not the primary language
-    if (lang !== store.config.languages.primary) {
+    // Only fetch translations if the new language is not the primary language.
+    // Fetch the *validated* language: `lang` may have been a legacy v2 code (upgraded to its
+    // v3 equivalent) or an unsupported one (replaced by the fallback), and fetching the raw
+    // value would download a language the store never switched to.
+    if (validatedLang !== store.config.languages.primary) {
       await Promise.all(
         knownNamespaces.map((namespace) =>
-          getAllTranslationsFromLanguage(lang, { ...store, lastRefresh: null }, namespace).then((response) =>
+          getAllTranslationsFromLanguage(validatedLang!, { ...store, lastRefresh: null }, namespace).then((response) =>
             store.setTranslations(response, namespace, isUnpersisted(namespace))
           )
         )
@@ -261,7 +265,7 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
       // flat lookup map still holds the previous language's values for them.
       await Promise.all(
         store.originNamespaces.map((namespace) =>
-          getAllTranslationsFromLanguage(lang, { ...store, lastRefresh: null }, namespace).then((response) =>
+          getAllTranslationsFromLanguage(validatedLang!, { ...store, lastRefresh: null }, namespace).then((response) =>
             store.setTranslations(response, namespace, isUnpersisted(namespace))
           )
         )
@@ -380,8 +384,14 @@ async function hydrate() {
     if (debug) console.log("i18n-keyless: _hydrate: skip current language hydration");
     useI18nKeyless.setState({ currentLanguage: config?.languages.initWithDefault });
   } else if (currentLanguage) {
-    if (debug) console.log("i18n-keyless: _hydrate", currentLanguage);
-    useI18nKeyless.setState({ currentLanguage: currentLanguage as Lang });
+    // A v2 install persisted a v2 code ("fr", "cn", …). Upgrade it in place so the user
+    // keeps the language they had picked instead of being reset to the fallback.
+    const normalized = normalizeLang(currentLanguage as string);
+    if (debug) console.log("i18n-keyless: _hydrate", currentLanguage, normalized ? `→ ${normalized}` : "(unknown)");
+    useI18nKeyless.setState({ currentLanguage: normalized ?? config?.languages.initWithDefault });
+    if (normalized && normalized !== currentLanguage) {
+      setItem(storeKeys.currentLanguage, normalized, storage);
+    }
   } else {
     if (debug) console.log("i18n-keyless: _hydrate: no current language");
     useI18nKeyless.setState({ currentLanguage: config?.languages.initWithDefault });

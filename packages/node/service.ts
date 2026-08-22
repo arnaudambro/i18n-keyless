@@ -6,6 +6,7 @@ import {
   getNamespacesToFetchAfterTranslationFinished,
   resolveOriginLanguage,
   AVAILABLE_LANGS,
+  normalizeLang,
   DEFAULT_NAMESPACE,
   I18nKeylessAllTranslationsResponse,
   api
@@ -14,28 +15,16 @@ import { I18nKeylessNodeConfig, I18nKeylessNodeStore } from "./types.ts";
 import packageJson from "./package.json" with { type: "json" };
 import { I18nKeylessTranslationsUsageRequestBody, SendTranslationsUsageFunction } from "i18n-keyless-core/types";
 
+/**
+ * An empty translations bucket for every supported language. Derived from
+ * `AVAILABLE_LANGS` so adding a language to core never leaves this map behind.
+ */
+function emptyTranslationsByLang(): I18nKeylessNodeStore["translations"] {
+  return Object.fromEntries(AVAILABLE_LANGS.map((lang) => [lang, {}])) as I18nKeylessNodeStore["translations"];
+}
+
 const store: I18nKeylessNodeStore = {
-  translations: {
-    fr: {},
-    en: {},
-    es: {},
-    nl: {},
-    it: {},
-    de: {},
-    pl: {},
-    pt: {},
-    ro: {},
-    hu: {},
-    sv: {},
-    tr: {},
-    ja: {},
-    cn: {},
-    cz: {},
-    ru: {},
-    ko: {},
-    ar: {},
-    el: {}
-  },
+  translations: emptyTranslationsByLang(),
   translationsUsageByNamespace: {},
   uniqueId: "",
   lastRefresh: "",
@@ -192,10 +181,13 @@ function cacheTranslation(translationKey: string, translationByLang?: Partial<Re
     const value = translationByLang[lang];
     // Ignore anything that isn't a known language: a custom `handleTranslate` is free to
     // return whatever it wants, and we don't want it to grow phantom entries in the store.
-    if (!value || !AVAILABLE_LANGS.includes(lang)) {
+    // A v2 code ("cn", "cz") is upgraded rather than dropped, so a backend still serving
+    // legacy codes — or serving a mix, because other clients are still on v2 — keeps working.
+    const normalized = normalizeLang(lang);
+    if (!value || !normalized) {
       continue;
     }
-    store.translations[lang] = { ...(store.translations[lang] ?? {}), [translationKey]: value };
+    store.translations[normalized] = { ...(store.translations[normalized] ?? {}), [translationKey]: value };
   }
 }
 
@@ -228,7 +220,13 @@ queue.on("empty", () => {
     getAllTranslationsForAllLanguages(namespace).then((res) => {
       if (res?.ok) {
         for (const lang of Object.keys(res.data.translations) as Lang[]) {
-          store.translations[lang] = { ...store.translations[lang], ...res.data.translations[lang] };
+          // Upgrade legacy v2 codes so they merge into the v3 bucket instead of creating a
+          // phantom one nothing ever reads from.
+          const normalized = normalizeLang(lang);
+          if (!normalized) {
+            continue;
+          }
+          store.translations[normalized] = { ...store.translations[normalized], ...res.data.translations[lang] };
         }
       }
     });
@@ -259,7 +257,15 @@ export async function init(newConfig: I18nKeylessNodeConfig): Promise<I18nKeyles
   // `defaultNamespace` boots with the (empty) "default" namespace and every key misses.
   const response = await getAllTranslationsForAllLanguages(newConfig.defaultNamespace);
   if (response?.ok) {
-    store.translations = response.data.translations;
+    // Merge rather than assign, so the per-language buckets survive, and normalize the keys
+    // so a backend answering with v2 codes ("cn", "cz") lands in the v3 buckets.
+    for (const lang of Object.keys(response.data.translations) as Lang[]) {
+      const normalized = normalizeLang(lang);
+      if (!normalized) {
+        continue;
+      }
+      store.translations[normalized] = { ...store.translations[normalized], ...response.data.translations[lang] };
+    }
     // Identify this consumer on subsequent calls. `lastRefresh` is deliberately NOT stored:
     // it's global here while fetches are per namespace, so reusing namespace A's timestamp
     // for namespace B would silently drop everything B had before it.

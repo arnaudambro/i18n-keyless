@@ -24,7 +24,7 @@ Regions are used only where the translation is genuinely different text: `zh-Han
 bare `zh`), `pt-BR`, `es-MX`, `fr-CA`, `en-GB`. You are billed per language you opt into, so
 `['pt']` is one translation and `['pt', 'pt-BR']` is two.
 
-### Added — `resolveLang`, `toAppStoreLocale`, `normalizeLang` (`i18n-keyless-core`)
+### Added — `resolveLang`, `toAppStoreLocale` (`i18n-keyless-core`)
 
 - **`resolveLang(tag, { supported, fallback })`** maps any BCP-47 tag — `navigator.language`,
   `Localization.getLocales()[0].languageTag`, an `Accept-Language` entry — onto a language you
@@ -36,7 +36,6 @@ bare `zh`), `pt-BR`, `es-MX`, `fr-CA`, `en-GB`. You are billed per language you 
   (`"fr"` → `"fr-FR"`, `"pt"` → `"pt-PT"`), for pushing localized metadata, screenshots or
   release notes. Also exported as the `APP_STORE_LOCALES` record. Apple's `en-AU` and `en-CA`
   slots have no dedicated language — fill them from `en`.
-- **`normalizeLang(code)`** resolves an exact code, upgrading a v2 code to its v3 equivalent.
 
 ### Changed — `primary` accepts any supported language
 
@@ -60,30 +59,15 @@ Update your config:
   }
 ```
 
-**Mixed v2 / v3 deployments are supported.** A v3 server and v2 clients (or the reverse) can
-talk to the same backend, because only `cn` and `cz` differ:
-
-- A **v2 code persisted by a previous install** is upgraded in place on the first v3 boot and
-  written back, so a user who had picked Chinese keeps it instead of being reset to the
-  fallback.
-- A **v2 code reaching a v3 client at runtime** — from a URL segment, stored state, or app
-  code not yet migrated — is accepted by `setCurrentLanguage` and upgraded.
-- **`i18n-keyless-node` upgrades legacy codes in API responses** instead of discarding them,
-  so a backend still serving `cn`/`cz` (or serving a mix, because other clients are still on
-  v2) keeps working.
-- **`LEGACY_LANG_MAP` is exported** so a backend can alias the two codes from the same source
-  of truth as its clients.
-
-If you run your own backend, alias `cn` ↔ `zh-Hans` and `cz` ↔ `cs` so both spellings resolve
-to one stored language before upgrading any client.
+A `cn` or `cz` persisted by a v2 install is not recognised by v3 and falls back to
+`languages.fallback`. If you run your own backend, rename the two codes in your stored data.
 
 ### Fixed — `setLanguage` fetched the requested language, not the resolved one
 
 `setCurrentLanguage(lang)` set the store to the *validated* language but downloaded
 translations for the **raw** one, so passing an unsupported code switched the UI to the
 fallback while fetching a language the store never used — a wasted round-trip, and an empty
-result merged into the store. It now fetches the language it switched to. This also makes the
-legacy-code upgrade above correct end-to-end.
+result merged into the store. It now fetches the language it switched to.
 
 ## [2.6.1] — 2026-07-22
 

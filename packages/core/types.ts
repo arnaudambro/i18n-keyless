@@ -156,40 +156,6 @@ export function toAppStoreLocale(lang: Lang): string {
   return APP_STORE_LOCALES[lang];
 }
 
-/**
- * v2 language codes that changed in v3, mapped onto their v3 equivalent.
- *
- * Only these two moved: every other v2 code (`fr`, `en`, `es`, `de`, `nl`, `pt`, `ar`, `it`,
- * `pl`, `ro`, `hu`, `sv`, `tr`, `ja`, `ru`, `ko`, `el`) is unchanged in v3 and travels
- * identically on the wire — so a v2 client and a v3 client can talk to the same backend.
- *
- * Exported so a backend can alias the two legacy codes from the same source of truth as the
- * clients, rather than hardcoding the pair.
- */
-export const LEGACY_LANG_MAP: Record<string, Lang> = {
-  cn: "zh-Hans", // v2 used the country code for Simplified Chinese
-  cz: "cs" // v2 used the country code for Czech
-};
-
-/**
- * Resolves a language code to a supported `Lang`:
- * - a v3 code is returned as-is
- * - a v2 code is upgraded through `LEGACY_LANG_MAP` (`"cn"` → `"zh-Hans"`)
- * - anything else returns `undefined`, so the caller can apply its own fallback
- *
- * This is the exact-code path. To resolve a full locale tag from a device or a browser
- * (`"fr-CH"`, `"zh-TW"`, `"pt_BR"`), use `resolveLang`.
- */
-export function normalizeLang(lang: string | null | undefined): Lang | undefined {
-  if (!lang) {
-    return undefined;
-  }
-  if ((AVAILABLE_LANGS as readonly string[]).includes(lang)) {
-    return lang as Lang;
-  }
-  return LEGACY_LANG_MAP[lang];
-}
-
 /** Lowercased `Lang` → canonical `Lang`, so lookups can be case-insensitive. */
 const LANGS_BY_LOWERCASE = new Map<string, Lang>(AVAILABLE_LANGS.map((lang) => [lang.toLowerCase(), lang]));
 
@@ -219,7 +185,6 @@ const CHINESE_REGION_SCRIPTS: Record<string, Lang> = {
  * resolveLang("zh-TW")   // "zh-Hant"
  * resolveLang("zh_CN")   // "zh-Hans" — underscores are accepted
  * resolveLang("es-419")  // "es-MX"   — Latin America
- * resolveLang("cn")      // "zh-Hans" — v2 code
  * resolveLang("xx")      // undefined
  * ```
  *
@@ -269,9 +234,8 @@ function langCandidates(tag: string | null | undefined): Lang[] {
     }
   };
 
-  // 1. the tag as written ("pt-BR", "zh-Hans"), then the v2 codes ("cn", "cz")
+  // 1. the tag as written ("pt-BR", "zh-Hans")
   push(LANGS_BY_LOWERCASE.get(normalized));
-  push(LEGACY_LANG_MAP[normalized]);
 
   // 2. Chinese resolves by script and never falls back to a bare language
   if (language === "zh") {

@@ -1,5 +1,5 @@
 import type { I18nConfig } from "./types.ts";
-import { DEFAULT_NAMESPACE, normalizeLang } from "i18n-keyless-core";
+import { DEFAULT_NAMESPACE } from "i18n-keyless-core";
 
 /**
  * The keys used to store i18n-keyless data in storage
@@ -177,11 +177,8 @@ export function validateLanguage(lang: I18nConfig["languages"]["supported"][numb
   if (!config.API_KEY) {
     throw new Error(`i18n-keyless: config is not initialized validating language`);
   }
-  // Accept a v2 code ("fr", "cn", …) at runtime — it can still reach us from a URL segment,
-  // a persisted value or app code not yet migrated — and upgrade it to its v3 equivalent.
-  const normalized = normalizeLang(lang as string) ?? lang;
-  if (!config.languages.supported.includes(normalized)) {
+  if (!config.languages.supported.includes(lang)) {
     return config.languages.fallback;
   }
-  return normalized;
+  return lang;
 }

@@ -23,8 +23,10 @@
   ],
   "scripts": {
     "prepublishOnly": "rm -rf ./dist && tsc --project tsconfig.json && npm pack",
-    "test": "echo 'no test for core'",
-    "postpublish": "rm -f *.tgz"
+    "test": "vitest run",
+    "postpublish": "rm -f *.tgz",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
     "@types/node": "^22.5.5",

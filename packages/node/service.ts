@@ -6,7 +6,6 @@ import {
   getNamespacesToFetchAfterTranslationFinished,
   resolveOriginLanguage,
   AVAILABLE_LANGS,
-  normalizeLang,
   DEFAULT_NAMESPACE,
   I18nKeylessAllTranslationsResponse,
   api
@@ -168,26 +167,38 @@ function applyReplace(text: string, replace?: TranslationOptions["replace"]): st
 }
 
 /**
+ * Keeps only the entries that name a language we know.
+ *
+ * A custom `handleTranslate` is free to return whatever it wants, and it must not grow
+ * phantom entries in the store.
+ */
+function knownLanguagesOnly(
+  translationByLang?: Partial<Record<Lang, string>>
+): Partial<Record<Lang, string>> {
+  const known: Partial<Record<Lang, string>> = {};
+  if (!translationByLang) {
+    return known;
+  }
+  for (const lang of Object.keys(translationByLang) as Lang[]) {
+    const value = translationByLang[lang];
+    if (!value || !AVAILABLE_LANGS.includes(lang)) {
+      continue;
+    }
+    known[lang] = value;
+  }
+  return known;
+}
+
+/**
  * Merges a translation into the in-memory store for every language the API returned.
  *
  * The store is flat (one map per language, no namespace dimension), like the bulk fetch that
  * feeds it at init: two namespaces sharing the exact same source text share one cache entry.
  */
 function cacheTranslation(translationKey: string, translationByLang?: Partial<Record<Lang, string>>) {
-  if (!translationByLang) {
-    return;
-  }
-  for (const lang of Object.keys(translationByLang) as Lang[]) {
-    const value = translationByLang[lang];
-    // Ignore anything that isn't a known language: a custom `handleTranslate` is free to
-    // return whatever it wants, and we don't want it to grow phantom entries in the store.
-    // A v2 code ("cn", "cz") is upgraded rather than dropped, so a backend still serving
-    // legacy codes — or serving a mix, because other clients are still on v2 — keeps working.
-    const normalized = normalizeLang(lang);
-    if (!value || !normalized) {
-      continue;
-    }
-    store.translations[normalized] = { ...(store.translations[normalized] ?? {}), [translationKey]: value };
+  const normalized = knownLanguagesOnly(translationByLang);
+  for (const lang of Object.keys(normalized) as Lang[]) {
+    store.translations[lang] = { ...(store.translations[lang] ?? {}), [translationKey]: normalized[lang]! };
   }
 }
 
@@ -220,13 +231,10 @@ queue.on("empty", () => {
     getAllTranslationsForAllLanguages(namespace).then((res) => {
       if (res?.ok) {
         for (const lang of Object.keys(res.data.translations) as Lang[]) {
-          // Upgrade legacy v2 codes so they merge into the v3 bucket instead of creating a
-          // phantom one nothing ever reads from.
-          const normalized = normalizeLang(lang);
-          if (!normalized) {
+          if (!AVAILABLE_LANGS.includes(lang)) {
             continue;
           }
-          store.translations[normalized] = { ...store.translations[normalized], ...res.data.translations[lang] };
+          store.translations[lang] = { ...store.translations[lang], ...res.data.translations[lang] };
         }
       }
     });
@@ -257,14 +265,12 @@ export async function init(newConfig: I18nKeylessNodeConfig): Promise<I18nKeyles
   // `defaultNamespace` boots with the (empty) "default" namespace and every key misses.
   const response = await getAllTranslationsForAllLanguages(newConfig.defaultNamespace);
   if (response?.ok) {
-    // Merge rather than assign, so the per-language buckets survive, and normalize the keys
-    // so a backend answering with v2 codes ("cn", "cz") lands in the v3 buckets.
+    // Merge rather than assign, so the per-language buckets survive.
     for (const lang of Object.keys(response.data.translations) as Lang[]) {
-      const normalized = normalizeLang(lang);
-      if (!normalized) {
+      if (!AVAILABLE_LANGS.includes(lang)) {
         continue;
       }
-      store.translations[normalized] = { ...store.translations[normalized], ...response.data.translations[lang] };
+      store.translations[lang] = { ...store.translations[lang], ...response.data.translations[lang] };
     }
     // Identify this consumer on subsequent calls. `lastRefresh` is deliberately NOT stored:
     // it's global here while fetches are per namespace, so reusing namespace A's timestamp
@@ -352,7 +358,7 @@ async function fetchTranslationFromApi(
   // Feed the store, otherwise every later call for this key POSTs again — forever.
   cacheTranslation(translationKey, response.data?.translation);
 
-  return response.data?.translation;
+  return knownLanguagesOnly(response.data?.translation);
 }
 
 /**

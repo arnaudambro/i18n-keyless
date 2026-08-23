@@ -13,7 +13,6 @@ import {
   sendTranslationsUsageToI18nKeyless,
   resolveNamespace,
   resolveOriginLanguage,
-  normalizeLang,
 } from "i18n-keyless-core";
 import { type I18nConfig, type TranslationStore } from "./types.ts";
 import { create } from "zustand";
@@ -384,14 +383,8 @@ async function hydrate() {
     if (debug) console.log("i18n-keyless: _hydrate: skip current language hydration");
     useI18nKeyless.setState({ currentLanguage: config?.languages.initWithDefault });
   } else if (currentLanguage) {
-    // A v2 install persisted a v2 code ("fr", "cn", …). Upgrade it in place so the user
-    // keeps the language they had picked instead of being reset to the fallback.
-    const normalized = normalizeLang(currentLanguage as string);
-    if (debug) console.log("i18n-keyless: _hydrate", currentLanguage, normalized ? `→ ${normalized}` : "(unknown)");
-    useI18nKeyless.setState({ currentLanguage: normalized ?? config?.languages.initWithDefault });
-    if (normalized && normalized !== currentLanguage) {
-      setItem(storeKeys.currentLanguage, normalized, storage);
-    }
+    if (debug) console.log("i18n-keyless: _hydrate", currentLanguage);
+    useI18nKeyless.setState({ currentLanguage: currentLanguage as Lang });
   } else {
     if (debug) console.log("i18n-keyless: _hydrate: no current language");
     useI18nKeyless.setState({ currentLanguage: config?.languages.initWithDefault });

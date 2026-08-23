@@ -43,7 +43,11 @@ const useI18nKeylessMock = ((selectorOrStore: any) => {
 
 // Add the getState and setState methods to the mock function
 useI18nKeylessMock.getState = vi.fn(() => store);
-useI18nKeylessMock.setState = vi.fn((newState) => Object.assign(store, newState));
+// zustand's setState accepts either a partial or an updater function; the Provider uses
+// the updater form to merge into existing translations, so the mock must support both.
+useI18nKeylessMock.setState = vi.fn((newState) =>
+  Object.assign(store, typeof newState === "function" ? newState(store) : newState)
+);
 
 export const mockStore = useI18nKeylessMock;
 

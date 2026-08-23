@@ -2,12 +2,10 @@ import { describe, it, expect } from "vitest";
 import {
   AVAILABLE_LANGS,
   APP_STORE_LOCALES,
-  LEGACY_LANG_MAP,
-  normalizeLang,
   resolveLang,
   toAppStoreLocale,
   type Lang,
-} from "i18n-keyless-core";
+} from "../types.ts";
 
 /** The 19 languages i18n-keyless v2 shipped, as they were spelled on the wire. */
 const V2_LANGS = [
@@ -49,40 +47,22 @@ describe("AVAILABLE_LANGS", () => {
   });
 });
 
-describe("v2 retro-compatibility", () => {
-  it("keeps every v2 code except the two that moved", () => {
-    const stillValid = V2_LANGS.filter((lang) => (AVAILABLE_LANGS as readonly string[]).includes(lang));
-    const moved = V2_LANGS.filter((lang) => !(AVAILABLE_LANGS as readonly string[]).includes(lang));
-    expect(moved).toEqual(["cn", "cz"]);
-    expect(stillValid).toHaveLength(17);
+describe("v2 language codes", () => {
+  // v3 drops them: the backend ships v3 before the lib does, so a v3 client never meets a
+  // v2 backend, and nothing translates the old spellings any more.
+  it("no longer accepts cn or cz", () => {
+    expect(AVAILABLE_LANGS).not.toContain("cn");
+    expect(AVAILABLE_LANGS).not.toContain("cz");
+    expect(resolveLang("cn")).toBeUndefined();
+    expect(resolveLang("cz")).toBeUndefined();
   });
 
-  it("normalizes every v2 code to a supported language", () => {
-    for (const lang of V2_LANGS) {
-      const normalized = normalizeLang(lang);
-      expect(normalized, `v2 code "${lang}" should resolve`).toBeDefined();
-      expect(AVAILABLE_LANGS).toContain(normalized as Lang);
+  it("keeps the 17 v2 codes that did not change", () => {
+    const unchanged = V2_LANGS.filter((lang) => lang !== "cn" && lang !== "cz");
+    for (const lang of unchanged) {
+      expect(AVAILABLE_LANGS, `"${lang}" should still exist`).toContain(lang as Lang);
     }
-  });
-
-  it("maps the two moved codes onto their v3 equivalent", () => {
-    expect(normalizeLang("cn")).toBe("zh-Hans");
-    expect(normalizeLang("cz")).toBe("cs");
-    expect(LEGACY_LANG_MAP).toEqual({ cn: "zh-Hans", cz: "cs" });
-  });
-
-  it("leaves unchanged v2 codes exactly as they were (same bytes on the wire)", () => {
-    expect(normalizeLang("fr")).toBe("fr");
-    expect(normalizeLang("en")).toBe("en");
-    expect(normalizeLang("pt")).toBe("pt");
-    expect(normalizeLang("ar")).toBe("ar");
-  });
-
-  it("returns undefined for an unknown code, so callers can fall back", () => {
-    expect(normalizeLang("xx")).toBeUndefined();
-    expect(normalizeLang("")).toBeUndefined();
-    expect(normalizeLang(null)).toBeUndefined();
-    expect(normalizeLang(undefined)).toBeUndefined();
+    expect(unchanged).toHaveLength(17);
   });
 });
 
@@ -162,9 +142,9 @@ describe("resolveLang", () => {
     expect(resolveLang("es-419")).toBe("es-MX");
   });
 
-  it("understands v2 codes", () => {
-    expect(resolveLang("cn")).toBe("zh-Hans");
-    expect(resolveLang("cz")).toBe("cs");
+  it("still maps the zh-CN region tag, which is a real locale", () => {
+    // "zh-CN" is a BCP-47 tag a device can report; the bare "cn" of v2 is not.
+    expect(resolveLang("zh-CN")).toBe("zh-Hans");
   });
 
   it("only returns a language the app actually ships", () => {

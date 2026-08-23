@@ -219,29 +219,24 @@ describe("i18n-keyless store", () => {
       expect(useI18nKeyless.getState().currentLanguage).toBe("fr");
     });
 
-    it("upgrades a v2 language code persisted by a previous install", async () => {
-      // v2 spelled Simplified Chinese "cn"; v3 spells it "zh-Hans".
+    // v3 drops the v2 codes entirely, so a device that stored "cn" under lib v2 falls back
+    // to the configured fallback language on its first v3 boot.
+    it("falls back when storage holds a code v3 no longer knows", async () => {
       mockStorage.getItem.mockImplementation((key) => {
         if (key === "i18n-keyless-current-language") return "cn";
         return Promise.resolve(null);
       });
 
       await init({
-        languages: {
-          primary: "en",
-          supported: ["en", "zh-Hans"],
-        },
+        languages: { primary: "en", supported: ["en", "zh-Hans"] },
         storage: mockStorage,
         API_KEY: "test-api-key",
       });
 
-      // The user keeps the language they had picked instead of being reset to the fallback...
-      expect(useI18nKeyless.getState().currentLanguage).toBe("zh-Hans");
-      // ...and the upgrade is written back, so it only ever happens once.
-      expect(mockStorage.setItem).toHaveBeenCalledWith("i18n-keyless-current-language", "zh-Hans");
+      expect(useI18nKeyless.getState().currentLanguage).toBe("en");
     });
 
-    it("keeps a v2 language code that did not change in v3", async () => {
+    it("keeps a language code that is still valid in v3", async () => {
       mockStorage.getItem.mockImplementation((key) => {
         if (key === "i18n-keyless-current-language") return "fr";
         return Promise.resolve(null);

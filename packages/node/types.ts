@@ -43,8 +43,7 @@ export interface I18nKeylessNodeConfig {
     primary: PrimaryLang;
     /**
      * the languages supported for the user.
-     * For now we support:
-     * fr, nl, it, de, es, pl, pt, ro, hu, sv, tr, ja, cn, cz, ru, ko, ar, el
+     * We support the 50 App Store localizations — see `AVAILABLE_LANGS`.
      *
      * If you need more, please reach out to @ambroselli_io on X/Twitter or by mail at arnaud.ambroselli.io@gmail.com
      */

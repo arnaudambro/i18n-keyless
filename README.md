@@ -14,6 +14,9 @@ Welcome to **i18n-keyless**! 🚀 This package provides a seamless way to handle
   - [React](#-react-usage-i18n-keyless-react)
   - [Node](#-node-usage-i18n-keyless-node)
 - [Namespaces](#️-namespaces)
+- [User-Generated Content](#-user-generated-content)
+- [Server-Side Rendering](#-server-side-rendering)
+- [Supported Languages](#-supported-languages)
 - [Setup](#️-setup-with-i18n-keyless-service)
 - [Custom Component Example](#️-custom-component-example)
 - [What pains does it solve?](#-what-pains-does-it-solve)
@@ -422,6 +425,161 @@ optional `namespace` on the translate routes — see
 
 ---
 
+## 💬 **User-Generated Content**
+
+Translate text your *users* wrote, not just text you wrote — a review, a comment, a chat
+message — with the same `<T>` you already use.
+
+Pass `originLanguage` to say what language the text arrived in:
+
+```jsx
+<T originLanguage="es">Hola mundo</T>
+```
+
+Every reader sees it in their own language. A French reader gets "Bonjour le monde", an
+English reader "Hello world", and a Spanish reader gets the original text back untouched —
+never a round-trip through a translation.
+
+It works with the imperative API and on the server too:
+
+```js
+getTranslation(review.body, { originLanguage: review.lang });
+
+// node
+await awaitForTranslation(review.body, "en", { originLanguage: review.lang });
+```
+
+**How it stays cheap.** The row is keyed by the primary-language version, so the same
+sentence submitted by ten users costs one translation. Text already seen is recognised by
+its original wording, never re-translated. Pair it with an
+[unpersisted namespace](#memory-only-namespaces-unpersistednamespace) when the content is
+high-cardinality and short-lived:
+
+```jsx
+<T originLanguage={msg.lang} namespace={`chat-${roomId}`} unpersistedNamespace>
+  {msg.body}
+</T>
+```
+
+---
+
+## 🖥️ **Server-Side Rendering**
+
+Render fully translated HTML on the server — real content for crawlers and a first paint
+with no flash of untranslated text.
+
+Wrap the tree in a provider and hand it the language for *this* request:
+
+```jsx
+import { I18nKeylessProvider, getServerTranslations } from "i18n-keyless-react";
+
+export async function handler(request) {
+  const lang = langFromUrl(request); // /en/about -> "en"
+  const translations = await getServerTranslations(lang);
+
+  return renderToString(
+    <I18nKeylessProvider lang={lang} translations={translations}>
+      <App />
+    </I18nKeylessProvider>
+  );
+}
+```
+
+`<T>` reads the provider first and falls back to the store, so **SPA mode is untouched** —
+adding SSR to an existing app changes nothing about how it already works.
+
+- **No cross-request leaking.** The language lives in per-render context, not in the
+  process-wide store, so concurrent requests in different languages cannot mix.
+- **`getTranslation()` works too.** A plain function cannot read React context, so seed the
+  store once in your client entry with `hydrateFromServer({ lang, translations })` before
+  `hydrateRoot`.
+- **Less traffic than a SPA, not more.** Usage analytics are suppressed on the server, and a
+  long-lived process fetches each language once per boot.
+- **Edge-safe.** Request scoping uses `AsyncLocalStorage` when available and degrades to a
+  no-op when it is not, instead of crashing.
+
+Full reference, including per-request scoping with `runWithI18nKeyless`, in
+[docs/SSR.md](docs/SSR.md).
+
+---
+
+## 🌍 **Supported Languages**
+
+i18n-keyless covers the 50 [App Store
+localizations](https://developer.apple.com/help/app-store-connect/reference/app-information/app-store-localizations/),
+as 48 language codes. Any of them can be your `primary`.
+
+| | | | |
+|---|---|---|---|
+| `ar` Arabic | `bn` Bangla | `ca` Catalan | `zh-Hans` Chinese (Simplified) |
+| `zh-Hant` Chinese (Traditional) | `hr` Croatian | `cs` Czech | `da` Danish |
+| `nl` Dutch | `en` English | `en-GB` English (U.K.) | `fi` Finnish |
+| `fr` French | `fr-CA` French (Canada) | `de` German | `el` Greek |
+| `gu` Gujarati | `he` Hebrew | `hi` Hindi | `hu` Hungarian |
+| `id` Indonesian | `it` Italian | `ja` Japanese | `kn` Kannada |
+| `ko` Korean | `ms` Malay | `ml` Malayalam | `mr` Marathi |
+| `no` Norwegian | `or` Odia | `pl` Polish | `pt` Portuguese |
+| `pt-BR` Portuguese (Brazil) | `pa` Punjabi | `ro` Romanian | `ru` Russian |
+| `sk` Slovak | `sl` Slovenian | `es` Spanish | `es-MX` Spanish (Latin America) |
+| `sv` Swedish | `ta` Tamil | `te` Telugu | `th` Thai |
+| `tr` Turkish | `uk` Ukrainian | `ur` Urdu | `vi` Vietnamese |
+
+### Why most codes are bare
+
+A bare language code matches **every** region of that language: `fr` covers fr-FR, fr-CA,
+fr-BE and fr-CH at once. Adding a region narrows it. So we only regionalize where the
+translation is genuinely different text:
+
+- **`zh-Hans` / `zh-Hant`** — a script, not a region. There is no bare `zh`: Simplified and
+  Traditional aren't mutually readable.
+- **`pt-BR`** — Brazilian vocabulary differs from European Portuguese in everyday UI words
+  (usuário/utilizador, arquivo/ficheiro, tela/ecrã).
+- **`es-MX`** — Latin American Spanish (computadora/ordenador, celular/móvil).
+- **`fr-CA`** — Québec French.
+- **`en-GB`** — British spelling.
+
+You're billed per language you opt into, so `['pt']` is one translation and
+`['pt', 'pt-BR']` is two. Start bare; add a variant when you actually want that second
+translation.
+
+### Matching a device locale
+
+`resolveLang` maps any BCP-47 tag — `navigator.language`,
+`Localization.getLocales()[0].languageTag`, an `Accept-Language` entry — onto a language you
+ship, most specific first:
+
+```js
+import { resolveLang } from 'i18n-keyless-core';
+
+resolveLang('pt-BR');   // 'pt-BR'
+resolveLang('pt-AO');   // 'pt'       — no Angolan variant, falls back to the bare language
+resolveLang('zh-TW');   // 'zh-Hant'
+resolveLang('es-419');  // 'es-MX'
+
+// Pass `supported` so you only ever get a language you actually ship
+resolveLang(navigator.language, { supported: ['pt', 'en'], fallback: 'en' });
+// 'pt-BR' device → 'pt'
+```
+
+### Pushing metadata to App Store Connect
+
+App Store Connect has no bare slots — it wants `fr-FR`, not `fr`. `toAppStoreLocale` maps a
+language onto its listing slot:
+
+```js
+import { toAppStoreLocale } from 'i18n-keyless-core';
+
+toAppStoreLocale('fr');      // 'fr-FR'
+toAppStoreLocale('en');      // 'en-US'
+toAppStoreLocale('pt');      // 'pt-PT'
+toAppStoreLocale('pt-BR');   // 'pt-BR'
+```
+
+Apple's `en-AU` and `en-CA` slots have no dedicated language — fill them from `en`, or opt
+into `en-GB` for British spelling.
+
+---
+
 ## ⚙️ **Setup Options**
 
 While the Quick Start uses the [i18n-keyless service](https://i18n-keyless.com) via `API_KEY`, you have other options:
@@ -606,7 +764,7 @@ I18nKeyless.init({
   storage: window.localStorage,
   languages: {
     primary: 'en',
-    supported: [ 'en', 'fr', /* 'es', 'pt', 'ar', 'de', 'it', 'ja', 'ko', 'nl', 'pl', 'ro', 'hu', 'ru', 'sv', 'tr', 'cn', 'cz', 'el' */ ],
+    supported: [ 'en', 'fr', /* 'es', 'pt', 'ar', 'de', 'it', 'ja', 'ko', 'nl', 'pl', 'ro', 'hu', 'ru', 'sv', 'tr', 'zh-Hans', 'cs', 'el', … */ ],
   },
 });
 

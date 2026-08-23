@@ -31,3 +31,4 @@ dist-ssr
 
 # Tgz
 *.tgz
+coverage/

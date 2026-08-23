@@ -246,11 +246,14 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
       }
     }
 
-    // Only fetch translations if the new language is not the primary language
-    if (lang !== store.config.languages.primary) {
+    // Only fetch translations if the new language is not the primary language.
+    // Fetch the *validated* language: `lang` may have been a legacy v2 code (upgraded to its
+    // v3 equivalent) or an unsupported one (replaced by the fallback), and fetching the raw
+    // value would download a language the store never switched to.
+    if (validatedLang !== store.config.languages.primary) {
       await Promise.all(
         knownNamespaces.map((namespace) =>
-          getAllTranslationsFromLanguage(lang, { ...store, lastRefresh: null }, namespace).then((response) =>
+          getAllTranslationsFromLanguage(validatedLang!, { ...store, lastRefresh: null }, namespace).then((response) =>
             store.setTranslations(response, namespace, isUnpersisted(namespace))
           )
         )
@@ -261,7 +264,7 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
       // flat lookup map still holds the previous language's values for them.
       await Promise.all(
         store.originNamespaces.map((namespace) =>
-          getAllTranslationsFromLanguage(lang, { ...store, lastRefresh: null }, namespace).then((response) =>
+          getAllTranslationsFromLanguage(validatedLang!, { ...store, lastRefresh: null }, namespace).then((response) =>
             store.setTranslations(response, namespace, isUnpersisted(namespace))
           )
         )
@@ -505,6 +508,12 @@ export function setCurrentLanguage(lang: I18nConfig["languages"]["supported"][nu
 }
 
 export async function clearI18nKeylessStorageAndStore() {
+  // Read the storage BEFORE wiping the config: the config holds the adapter, so clearing it
+  // first left nothing to clear the storage with, and the persisted keys survived.
+  const storage = useI18nKeyless.getState().config?.storage;
+  if (storage) {
+    await clearI18nKeylessStorage(storage);
+  }
   useI18nKeyless.setState({
     translations: {},
     translationsByNamespace: {},
@@ -516,8 +525,4 @@ export async function clearI18nKeylessStorageAndStore() {
     currentLanguage: "fr",
     config: undefined,
   });
-  const config = useI18nKeyless.getState().config;
-  if (config?.storage) {
-    clearI18nKeylessStorage(config.storage);
-  }
 }

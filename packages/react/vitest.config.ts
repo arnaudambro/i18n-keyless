@@ -11,7 +11,19 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
-      exclude: ["**/node_modules/**", "**/dist/**", "**/test/**"],
+      // Measure real source only: barrel re-exports, type-only files, configs and the
+      // test doubles themselves are not behaviour.
+      all: true,
+      include: ["*.ts", "*.tsx"],
+      exclude: [
+        "**/node_modules/**",
+        "**/dist/**",
+        "**/test/**",
+        "**/__tests__/**",
+        "**/*.config.*",
+        "index.ts",
+        "types.ts",
+      ],
     },
     include: ["**/*.test.ts", "**/*.test.tsx"],
   },

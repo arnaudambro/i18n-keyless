@@ -6,6 +6,85 @@ All notable changes to i18n-keyless are documented here. The three packages
 This project follows [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
 
+## [3.0.0] — 2026-08-04
+
+### Added — all 50 App Store localizations (19 → 48 language codes)
+
+i18n-keyless now covers every [App Store
+localization](https://developer.apple.com/help/app-store-connect/reference/app-information/app-store-localizations/),
+including the 11 languages Apple added in March 2026. 29 new languages: `bn`, `ca`, `hr`,
+`da`, `fi`, `gu`, `he`, `hi`, `id`, `kn`, `ms`, `ml`, `mr`, `no`, `or`, `pa`, `sk`, `sl`,
+`ta`, `te`, `th`, `uk`, `ur`, `vi`, plus the variants `zh-Hant`, `pt-BR`, `es-MX`, `fr-CA`
+and `en-GB`.
+
+**Most codes stay bare on purpose.** A bare language code matches every region of that
+language — `fr` covers fr-FR, fr-CA, fr-BE and fr-CH — so adding a region *narrows* it.
+Regions are used only where the translation is genuinely different text: `zh-Hans`/`zh-Hant`
+(a script, not a region — Simplified and Traditional aren't mutually readable, so there is no
+bare `zh`), `pt-BR`, `es-MX`, `fr-CA`, `en-GB`. You are billed per language you opt into, so
+`['pt']` is one translation and `['pt', 'pt-BR']` is two.
+
+### Added — `resolveLang`, `toAppStoreLocale`, `normalizeLang` (`i18n-keyless-core`)
+
+- **`resolveLang(tag, { supported, fallback })`** maps any BCP-47 tag — `navigator.language`,
+  `Localization.getLocales()[0].languageTag`, an `Accept-Language` entry — onto a language you
+  ship, most specific match first: `"pt-BR"` → `pt-BR`, `"pt-AO"` → `pt`, `"zh-TW"` →
+  `zh-Hant`, `"es-419"` → `es-MX`. Underscores and any casing are accepted (`"zh_CN"`,
+  `"PT-br"`). With `supported`, the walk continues to the next candidate when a more specific
+  one isn't in your list, so a `pt-BR` device on an app shipping only `pt` gets `pt`.
+- **`toAppStoreLocale(lang)`** maps a language onto its App Store Connect listing slot
+  (`"fr"` → `"fr-FR"`, `"pt"` → `"pt-PT"`), for pushing localized metadata, screenshots or
+  release notes. Also exported as the `APP_STORE_LOCALES` record. Apple's `en-AU` and `en-CA`
+  slots have no dedicated language — fill them from `en`.
+- **`normalizeLang(code)`** resolves an exact code, upgrading a v2 code to its v3 equivalent.
+
+### Changed — `primary` accepts any supported language
+
+`PrimaryLang` was `"fr" | "en"`; it is now every language in `AVAILABLE_LANGS`. You can write
+your app in any of the 48.
+
+### BREAKING — `cn` → `zh-Hans`, `cz` → `cs`
+
+The only two codes that moved. Both were country codes standing in for a language; they are
+now the standard ones. **The other 17 v2 codes** — `fr`, `en`, `nl`, `it`, `de`, `es`, `pl`,
+`pt`, `ro`, `hu`, `sv`, `tr`, `ja`, `ru`, `ko`, `ar`, `el` — **are unchanged and travel
+identically on the wire.**
+
+Update your config:
+
+```diff
+  languages: {
+    primary: 'fr',
+-   supported: ['fr', 'en', 'cn', 'cz'],
++   supported: ['fr', 'en', 'zh-Hans', 'cs'],
+  }
+```
+
+**Mixed v2 / v3 deployments are supported.** A v3 server and v2 clients (or the reverse) can
+talk to the same backend, because only `cn` and `cz` differ:
+
+- A **v2 code persisted by a previous install** is upgraded in place on the first v3 boot and
+  written back, so a user who had picked Chinese keeps it instead of being reset to the
+  fallback.
+- A **v2 code reaching a v3 client at runtime** — from a URL segment, stored state, or app
+  code not yet migrated — is accepted by `setCurrentLanguage` and upgraded.
+- **`i18n-keyless-node` upgrades legacy codes in API responses** instead of discarding them,
+  so a backend still serving `cn`/`cz` (or serving a mix, because other clients are still on
+  v2) keeps working.
+- **`LEGACY_LANG_MAP` is exported** so a backend can alias the two codes from the same source
+  of truth as its clients.
+
+If you run your own backend, alias `cn` ↔ `zh-Hans` and `cz` ↔ `cs` so both spellings resolve
+to one stored language before upgrading any client.
+
+### Fixed — `setLanguage` fetched the requested language, not the resolved one
+
+`setCurrentLanguage(lang)` set the store to the *validated* language but downloaded
+translations for the **raw** one, so passing an unsupported code switched the UI to the
+fallback while fetching a language the store never used — a wasted round-trip, and an empty
+result merged into the store. It now fetches the language it switched to. This also makes the
+legacy-code upgrade above correct end-to-end.
+
 ## [2.6.1] — 2026-07-22
 
 ### Fixed — crash in `getTranslationCore` with the `replace` option

@@ -1,7 +1,7 @@
 {
   "name": "i18n-keyless-node",
   "private": false,
-  "version": "2.6.2",
+  "version": "3.0.0",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -18,11 +18,13 @@
   ],
   "scripts": {
     "prepublishOnly": "rm -rf ./dist && tsc --project tsconfig.json && npm pack",
-    "test": "echo 'no test for node'",
-    "postpublish": "rm -rf ./dist && rm *.tgz"
+    "test": "vitest run",
+    "postpublish": "rm -rf ./dist && rm *.tgz",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "i18n-keyless-core": "2.6.2"
+    "i18n-keyless-core": "3.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.0",

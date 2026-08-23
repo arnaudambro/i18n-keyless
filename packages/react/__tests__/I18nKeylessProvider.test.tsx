@@ -28,7 +28,11 @@ const mockStore = vi.hoisted(() => {
   const useI18nKeylessMock = (selectorOrStore: any) =>
     typeof selectorOrStore === "function" ? selectorOrStore(store) : store;
   useI18nKeylessMock.getState = vi.fn(() => store);
-  useI18nKeylessMock.setState = vi.fn((newState) => Object.assign(store, newState));
+  // zustand's setState takes a partial OR an updater function; the provider uses the
+  // updater form to merge into existing translations, so the mock must accept both.
+  useI18nKeylessMock.setState = vi.fn((newState) =>
+    Object.assign(store, typeof newState === "function" ? newState(store) : newState)
+  );
   return useI18nKeylessMock;
 });
 
@@ -105,5 +109,36 @@ describe("I18nKeylessProvider", () => {
     mockStore.setState({ currentLanguage: "fr", translations: { "Hello World": "Bonjour le monde" } });
     render(<I18nKeylessText>Hello World</I18nKeylessText>);
     expect(screen.getByText("Bonjour le monde")).toBeInTheDocument();
+  });
+
+  // The provider also seeds the global store in an effect, so that reads AFTER hydration —
+  // notably the imperative getTranslation(), which cannot read React context — match what
+  // the server rendered.
+  it("seeds the global store with the server snapshot after mount", () => {
+    mockStore.setState({ currentLanguage: "fr", translations: {} });
+
+    render(
+      <I18nKeylessProvider lang="es" translations={{ "Hello World": "Hola Mundo" }}>
+        <span>child</span>
+      </I18nKeylessProvider>
+    );
+
+    expect(mockStore.getState().currentLanguage).toBe("es");
+    expect(mockStore.getState().translations).toMatchObject({ "Hello World": "Hola Mundo" });
+  });
+
+  it("merges the snapshot into what the store already had", () => {
+    mockStore.setState({ currentLanguage: "fr", translations: { Existing: "Déjà là" } });
+
+    render(
+      <I18nKeylessProvider lang="es" translations={{ "Hello World": "Hola Mundo" }}>
+        <span>child</span>
+      </I18nKeylessProvider>
+    );
+
+    expect(mockStore.getState().translations).toMatchObject({
+      Existing: "Déjà là",
+      "Hello World": "Hola Mundo",
+    });
   });
 });

@@ -6,6 +6,8 @@ type QueuedTask = {
   task: Task<any>;
   priority: number;
   id: string;
+  /** The promise handed to every caller that adds this id while it is still waiting. */
+  promise: Promise<any>;
 };
 
 class EventEmitter {
@@ -34,6 +36,8 @@ export default class MyPQueue extends EventEmitter {
   private pending = 0;
   private readonly concurrency: number;
   private processing = false;
+  /** Backs the default id. `Date.now()` collided for anything added in the same ms. */
+  private nextId = 0;
 
   constructor(options: { concurrency?: number } = {}) {
     super();
@@ -41,16 +45,22 @@ export default class MyPQueue extends EventEmitter {
   }
 
   add<T>(task: Task<T>, options: { priority?: number; id?: string } = {}): Promise<T> {
-    const { priority = 0, id = String(Date.now()) } = options;
+    const { priority = 0, id = `task-${this.nextId++}` } = options;
 
-    // If task with same ID exists, return its promise
+    // Same id, still waiting its turn: hand back the promise it will settle with.
+    //
+    // This used to `return existingTask.task()`, which re-invoked the queued work straight
+    // away — bypassing the concurrency limit, and then decrementing `pending` in the
+    // wrapper's `finally` for a run that never incremented it. `pending` drifted negative
+    // and the limit stopped holding for the lifetime of the queue.
     const existingTask = this.queue.find((item) => item.id === id);
     if (existingTask) {
-      return existingTask.task() as Promise<T>;
+      return existingTask.promise as Promise<T>;
     }
 
-    return new Promise<T>((resolve, reject) => {
-      const wrappedTask = async () => {
+    let wrappedTask!: Task<T>;
+    const promise = new Promise<T>((resolve, reject) => {
+      wrappedTask = async () => {
         try {
           const result = await task();
           resolve(result);
@@ -63,12 +73,13 @@ export default class MyPQueue extends EventEmitter {
           this.processNext();
         }
       };
-
-      this.queue.push({ task: wrappedTask, priority, id });
-      this.queue.sort((a, b) => b.priority - a.priority);
-
-      this.processNext();
     });
+
+    this.queue.push({ task: wrappedTask, priority, id, promise });
+    this.queue.sort((a, b) => b.priority - a.priority);
+    this.processNext();
+
+    return promise;
   }
 
   private async processNext() {

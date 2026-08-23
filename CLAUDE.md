@@ -96,4 +96,4 @@ Tests use Vitest with happy-dom environment and `@testing-library/react`. Zustan
 
 ## Type System
 
-`Lang` is a union of 19 language codes. `PrimaryLang` is restricted to `"fr" | "en"`. The `replace` option in `TranslationOptions` does regex-safe string replacement on translated text.
+`Lang` is a union of 48 language codes (`AVAILABLE_LANGS` in `core/types.ts`). Since v3 any of them can be a project's primary language — `PrimaryLang` is no longer `"fr" | "en"`. v2 spelled Chinese `cn` and Czech `cz`; v3 spells them `zh-Hans` and `cs`, and the API answers each client in its own dialect based on the `Version` header the SDK sends. The `replace` option in `TranslationOptions` does regex-safe string replacement on translated text.

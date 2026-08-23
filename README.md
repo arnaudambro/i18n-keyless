@@ -14,6 +14,8 @@ Welcome to **i18n-keyless**! 🚀 This package provides a seamless way to handle
   - [React](#-react-usage-i18n-keyless-react)
   - [Node](#-node-usage-i18n-keyless-node)
 - [Namespaces](#️-namespaces)
+- [User-Generated Content](#-user-generated-content)
+- [Server-Side Rendering](#-server-side-rendering)
 - [Supported Languages](#-supported-languages)
 - [Setup](#️-setup-with-i18n-keyless-service)
 - [Custom Component Example](#️-custom-component-example)
@@ -420,6 +422,84 @@ Namespaces are backward compatible: the default namespace reuses the existing st
 so apps that don't use namespaces are unchanged. Self-hosted backends only need to handle an
 optional `namespace` on the translate routes — see
 [Using your own API](#using-your-own-api).
+
+---
+
+## 💬 **User-Generated Content**
+
+Translate text your *users* wrote, not just text you wrote — a review, a comment, a chat
+message — with the same `<T>` you already use.
+
+Pass `originLanguage` to say what language the text arrived in:
+
+```jsx
+<T originLanguage="es">Hola mundo</T>
+```
+
+Every reader sees it in their own language. A French reader gets "Bonjour le monde", an
+English reader "Hello world", and a Spanish reader gets the original text back untouched —
+never a round-trip through a translation.
+
+It works with the imperative API and on the server too:
+
+```js
+getTranslation(review.body, { originLanguage: review.lang });
+
+// node
+await awaitForTranslation(review.body, "en", { originLanguage: review.lang });
+```
+
+**How it stays cheap.** The row is keyed by the primary-language version, so the same
+sentence submitted by ten users costs one translation. Text already seen is recognised by
+its original wording, never re-translated. Pair it with an
+[unpersisted namespace](#memory-only-namespaces-unpersistednamespace) when the content is
+high-cardinality and short-lived:
+
+```jsx
+<T originLanguage={msg.lang} namespace={`chat-${roomId}`} unpersistedNamespace>
+  {msg.body}
+</T>
+```
+
+---
+
+## 🖥️ **Server-Side Rendering**
+
+Render fully translated HTML on the server — real content for crawlers and a first paint
+with no flash of untranslated text.
+
+Wrap the tree in a provider and hand it the language for *this* request:
+
+```jsx
+import { I18nKeylessProvider, getServerTranslations } from "i18n-keyless-react";
+
+export async function handler(request) {
+  const lang = langFromUrl(request); // /en/about -> "en"
+  const translations = await getServerTranslations(lang);
+
+  return renderToString(
+    <I18nKeylessProvider lang={lang} translations={translations}>
+      <App />
+    </I18nKeylessProvider>
+  );
+}
+```
+
+`<T>` reads the provider first and falls back to the store, so **SPA mode is untouched** —
+adding SSR to an existing app changes nothing about how it already works.
+
+- **No cross-request leaking.** The language lives in per-render context, not in the
+  process-wide store, so concurrent requests in different languages cannot mix.
+- **`getTranslation()` works too.** A plain function cannot read React context, so seed the
+  store once in your client entry with `hydrateFromServer({ lang, translations })` before
+  `hydrateRoot`.
+- **Less traffic than a SPA, not more.** Usage analytics are suppressed on the server, and a
+  long-lived process fetches each language once per boot.
+- **Edge-safe.** Request scoping uses `AsyncLocalStorage` when available and degrades to a
+  no-op when it is not, instead of crashing.
+
+Full reference, including per-request scoping with `runWithI18nKeyless`, in
+[docs/SSR.md](docs/SSR.md).
 
 ---
 

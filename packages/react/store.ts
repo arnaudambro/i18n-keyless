@@ -508,6 +508,12 @@ export function setCurrentLanguage(lang: I18nConfig["languages"]["supported"][nu
 }
 
 export async function clearI18nKeylessStorageAndStore() {
+  // Read the storage BEFORE wiping the config: the config holds the adapter, so clearing it
+  // first left nothing to clear the storage with, and the persisted keys survived.
+  const storage = useI18nKeyless.getState().config?.storage;
+  if (storage) {
+    await clearI18nKeylessStorage(storage);
+  }
   useI18nKeyless.setState({
     translations: {},
     translationsByNamespace: {},
@@ -519,8 +525,4 @@ export async function clearI18nKeylessStorageAndStore() {
     currentLanguage: "fr",
     config: undefined,
   });
-  const config = useI18nKeyless.getState().config;
-  if (config?.storage) {
-    clearI18nKeylessStorage(config.storage);
-  }
 }

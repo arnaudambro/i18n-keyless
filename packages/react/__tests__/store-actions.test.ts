@@ -305,3 +305,55 @@ describe("the exported helpers", () => {
     expect(useI18nKeyless.getState().namespaces).toEqual([]);
   });
 });
+
+describe("useCurrentLanguage", () => {
+  it("re-renders a component when the language changes", async () => {
+    const { useI18nKeyless, useCurrentLanguage, core: mod } = await booted();
+    vi.spyOn(mod, "getAllTranslationsFromLanguage").mockResolvedValue(okResponse({}) as never);
+    const { renderHook, act } = await import("@testing-library/react");
+
+    const { result } = renderHook(() => useCurrentLanguage());
+    expect(result.current).toBe("fr");
+
+    await act(async () => {
+      await useI18nKeyless.getState().setLanguage("en");
+    });
+
+    expect(result.current).toBe("en");
+  });
+});
+
+describe("getTranslation", () => {
+  it("registers the namespace of a UGC key, so switching to primary refetches it", async () => {
+    const { useI18nKeyless, getTranslation } = await booted();
+
+    getTranslation("Hola mundo", { originLanguage: "es", namespace: "chat" });
+    // usage and namespace registration are deferred to a microtask, off the render path
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(useI18nKeyless.getState().originNamespaces).toEqual(["chat"]);
+  });
+
+  it("does not register a namespace for a regular key", async () => {
+    const { useI18nKeyless, getTranslation } = await booted();
+
+    getTranslation("Bonjour");
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(useI18nKeyless.getState().originNamespaces).toEqual([]);
+  });
+});
+
+describe("clearI18nKeylessStorageAndStore", () => {
+  it("also wipes the persisted keys", async () => {
+    const { useI18nKeyless, clearI18nKeylessStorageAndStore, storage } = await booted();
+    useI18nKeyless.getState().setTranslations(okResponse({ Bonjour: "Hello" }) as never, "default");
+    expect(storage.data.size).toBeGreaterThan(0);
+
+    await clearI18nKeylessStorageAndStore();
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(storage.data.get("i18n-keyless-translations")).toBeUndefined();
+    expect(storage.data.get("i18n-keyless-user-id")).toBeUndefined();
+  });
+});

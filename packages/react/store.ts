@@ -247,9 +247,14 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
     }
 
     // Only fetch translations if the new language is not the primary language.
-    // Fetch the *validated* language: `lang` may have been a legacy v2 code (upgraded to its
-    // v3 equivalent) or an unsupported one (replaced by the fallback), and fetching the raw
-    // value would download a language the store never switched to.
+    // Fetch the *validated* language, not `lang`: an unsupported code was replaced by the
+    // fallback above, and fetching the raw value would download a language the store never
+    // switched to.
+    //
+    // Note that nothing upgrades a legacy v2 code here. `cn` and `cz` are not BCP-47 tags,
+    // they were i18n-keyless spellings, so `resolveLang` returns undefined for both and
+    // `validateLanguage` simply falls back. An app carrying a stored `cn` has to map it
+    // itself — see the v3 upgrade guide.
     if (validatedLang !== store.config.languages.primary) {
       await Promise.all(
         knownNamespaces.map((namespace) =>

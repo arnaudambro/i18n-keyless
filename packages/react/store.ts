@@ -469,6 +469,16 @@ export async function init(newConfig: I18nConfig) {
   }
 }
 
+/**
+ * Returns the current language, and subscribes the component to language changes.
+ *
+ * Call it in every component that calls {@link getTranslation}, even when you ignore the
+ * return value. `getTranslation` is a plain function: it reads the store once and never
+ * subscribes, so without this hook the component does not re-render on a language switch
+ * and its text stays in the previous language.
+ *
+ * `<I18nKeylessText>` subscribes on its own and does not need this.
+ */
 export function useCurrentLanguage(): Lang | null {
   const currentLanguage = useI18nKeyless((state) => state.currentLanguage);
   return currentLanguage;
@@ -478,6 +488,15 @@ export function getSupportedLanguages(): I18nConfig["languages"]["supported"] {
   return useI18nKeyless.getState().config.languages.supported;
 }
 
+/**
+ * Translates a string outside of a `<I18nKeylessText>` component — a prop, an `alt`, a
+ * string handed to another library.
+ *
+ * IMPORTANT: this is a plain function, not a hook. It reads the store once via
+ * `getState()` and does NOT subscribe to it. The calling component therefore does not
+ * re-render when the language changes, and the text stays in the previous language.
+ * Call {@link useCurrentLanguage} at the top of that component to subscribe it.
+ */
 export function getTranslation(key: string, options?: TranslationOptions): string {
   const base = useI18nKeyless.getState();
   // Read-only on the server: don't record usage (a render may be a crawler hit).

@@ -254,12 +254,15 @@ For now, you need to use JavaScript to switch between cases, and maybe context t
 
 ### **React Hooks and Methods**
 
-For translating text outside of components, use the `getTranslation` method:
+For translating text outside of a `<I18nKeylessText>` component — a prop, an `alt`, a
+string you pass to another library — use the `getTranslation` method:
 
 ```javascript
-import { getTranslation } from "i18n-keyless-react";
+import { getTranslation, useCurrentLanguage } from "i18n-keyless-react";
 
 export default function Home() {
+  useCurrentLanguage(); // 👈 required, see below
+
   return (
     <HomeTabs.Navigator>
       <HomeTabs.Screen
@@ -270,6 +273,30 @@ export default function Home() {
   );
 }
 ```
+
+> [!IMPORTANT]
+> **Call `useCurrentLanguage()` in every component that calls `getTranslation()`.**
+>
+> `getTranslation` is a plain function, not a hook. It reads the store one time and does
+> **not** subscribe to it. So the component that calls it never re-renders when the user
+> switches language, and the text stays in the previous language.
+>
+> `<I18nKeylessText>` subscribes on its own, so it always updates. This is why a page can
+> switch only *some* of its texts: the `<I18nKeylessText>` ones update, the
+> `getTranslation()` ones do not.
+>
+> `useCurrentLanguage()` subscribes the component to the current language. Add it once at
+> the top of the component. You do not need to use the return value:
+>
+> ```javascript
+> function Hero() {
+>   useCurrentLanguage(); // subscribe: re-render when the language changes
+>   return <h1>{getTranslation("Votre coach de vie")}</h1>;
+> }
+> ```
+>
+> The rule applies to the parent that calls `getTranslation()`. A `useCurrentLanguage()`
+> in a child component does not help the parent.
 
 For setting a new current language, use the `setCurrentLanguage` method wherever you want:
 
@@ -286,6 +313,10 @@ import { useCurrentLanguage } from "i18n-keyless-react";
 
 const currentLanguage = useCurrentLanguage();
 ```
+
+It has a second job: it subscribes the component to language changes. Call it in every
+component that calls `getTranslation()`, even if you ignore the return value. See the
+note above.
 
 ### **Storage Management**
 
@@ -775,6 +806,10 @@ export default function MyText({
   children: string;
   i18nProps?: I18nKeylessTextProps;
 }) {
+  // getTranslation does not subscribe to the store, so subscribe here.
+  // Without this, the text keeps the previous language after a language switch.
+  I18nKeyless.useCurrentLanguage();
+
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}

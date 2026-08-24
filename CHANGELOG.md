@@ -6,6 +6,35 @@ All notable changes to i18n-keyless are documented here. The three packages
 This project follows [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
 
+## [3.1.0] — 2026-08-24
+
+### Changed — `<T>` re-renders only when its own text changes (`i18n-keyless-react`)
+
+`<I18nKeylessText>` selected the whole `translations` map. `setTranslations` rebuilds that
+object on every batch that lands, so zustand's `Object.is` check always failed and **every
+`<T>` on the page re-rendered** — including the ones whose text had not changed, and the
+ones belonging to a different namespace. `<T>` now selects the single string it renders.
+
+Measured on a 50-`<T>` page (`packages/react/__tests__/render-count.test.tsx`):
+
+| Event | Before | After |
+| --- | --- | --- |
+| A batch lands for another namespace (chat / checkout / UGC) | 50 re-renders | 0 |
+| A batch adds one new key | 50 re-renders | 1 |
+| Language switch | 50 re-renders | 50 (all texts really do change) |
+
+Apps that use namespaces, and above all apps with high-cardinality
+`unpersistedNamespace` namespaces (one per discussion), gain the most. No API change.
+
+### Docs — `getTranslation()` needs `useCurrentLanguage()` in the same component
+
+`getTranslation` is a plain function: it reads the store once and never subscribes. The
+component that calls it therefore does not re-render on a language switch, and its text
+stays in the previous language — while the `<I18nKeylessText>` around it updates, because
+`<T>` subscribes on its own. Call `useCurrentLanguage()` at the top of any component that
+calls `getTranslation()`, even when you ignore the return value. The README and the JSDoc
+now state the rule, and the ReactMarkdown recipe applies it.
+
 ## [3.0.0] — 2026-08-04
 
 ### Added — all 50 App Store localizations (19 → 48 language codes)

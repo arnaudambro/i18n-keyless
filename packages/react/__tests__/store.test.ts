@@ -519,6 +519,29 @@ describe("i18n-keyless store", () => {
       expect(body).not.toContain("namespace");
     });
 
+    it("replays the ETag: If-None-Match replaces last_refresh, and a 304 is a silent no-op", async () => {
+      const store = useI18nKeyless.getState();
+      // First fetch: 200 with an ETag → the SDK must remember it.
+      global.fetch = vi.fn().mockResolvedValue({
+        status: 200,
+        headers: { get: (name: string) => (name.toLowerCase() === "etag" ? 'W/"42"' : null) },
+        json: () => Promise.resolve({ ok: true, data: { translations: { Hallo: "Hallo" } } }),
+      });
+      const first = await getAllTranslationsFromLanguage("de", { ...store, lastRefresh: null }, "etag-ns");
+      expect(first?.etag).toBe('W/"42"');
+      expect((fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0]).toContain("last_refresh");
+
+      // Second fetch: the URL is stable (no last_refresh — cache-friendly), the ETag travels
+      // in If-None-Match, and the 304 resolves to void so the stored dictionary is kept.
+      global.fetch = vi.fn().mockResolvedValue({ status: 304 });
+      const second = await getAllTranslationsFromLanguage("de", { ...store, lastRefresh: null }, "etag-ns");
+
+      expect(second).toBeUndefined();
+      const [url, options] = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(url).toBe("https://api.i18n-keyless.com/translate/de?namespace=etag-ns");
+      expect(options.headers["If-None-Match"]).toBe('W/"42"');
+    });
+
     it("appends &namespace= to the bulk fetch URL for a non-default namespace", async () => {
       const store = useI18nKeyless.getState();
       global.fetch = vi.fn().mockResolvedValue({

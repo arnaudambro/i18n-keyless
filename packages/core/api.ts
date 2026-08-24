@@ -21,7 +21,15 @@ async function fetchWithRetry(url: string, options: RequestInit): Promise<any> {
     const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
       const res = await fetch(url, { ...options, signal: controller.signal });
-      if (res.status === 200) return await res.json();
+      // 304: the caller's copy is current — no body to parse, nothing to merge.
+      if (res.status === 304) return { ok: true, notModified: true };
+      if (res.status === 200) {
+        const json = await res.json();
+        // Surface the payload's ETag so the caller can replay it as If-None-Match.
+        const etag = res.headers?.get?.("etag");
+        if (etag && json && typeof json === "object") json.etag = etag;
+        return json;
+      }
       lastError = res.statusText || `HTTP ${res.status}`;
       // 4xx (except 429) is not transient: answer now, do not hammer the API.
       if (res.status < 500 && res.status !== 429) return { ok: false, error: lastError };

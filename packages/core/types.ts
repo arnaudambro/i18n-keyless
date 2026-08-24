@@ -401,6 +401,10 @@ export interface I18nKeylessResponse {
   };
   error: string;
   message: string;
+  /** ETag of this payload, when the API sent one; replayed as `If-None-Match` on the next fetch. */
+  etag?: string;
+  /** True when the API answered `304 Not Modified`: nothing changed, `data` is absent. */
+  notModified?: boolean;
 }
 
 export interface I18nKeylessAllTranslationsResponse {
@@ -412,6 +416,10 @@ export interface I18nKeylessAllTranslationsResponse {
   };
   error: string;
   message: string;
+  /** ETag of this payload, when the API sent one; replayed as `If-None-Match` on the next fetch. */
+  etag?: string;
+  /** True when the API answered `304 Not Modified`: nothing changed, `data` is absent. */
+  notModified?: boolean;
 }
 
 export type FetchTranslationParams = {

@@ -41,6 +41,13 @@ const store: I18nKeylessNodeStore = {
  * @param store - The translation store
  * @returns Promise resolving to the translation response or void if failed
  */
+/**
+ * ETags of the all-languages dictionaries fetched by this process, keyed by namespace.
+ * Replayed as `If-None-Match`: an unchanged namespace answers `304` with no body over a
+ * stable, cache-friendly URL. In-memory only — after a restart the first fetch is a 200.
+ */
+const dictionaryEtags = new Map<string, string>();
+
 export async function getAllTranslationsForAllLanguages(
   namespace?: string
 ): Promise<I18nKeylessAllTranslationsResponse | void> {
@@ -59,26 +66,42 @@ export async function getAllTranslationsForAllLanguages(
   // hitting the exact same URL.
   const namespaceQuery =
     namespace && namespace !== DEFAULT_NAMESPACE ? `&namespace=${encodeURIComponent(namespace)}` : "";
+  const etagKey = namespace || DEFAULT_NAMESPACE;
+  const etag = dictionaryEtags.get(etagKey);
+  // With an ETag in hand, freshness travels in the If-None-Match header and last_refresh
+  // leaves the URL — the URL becomes stable, so shared HTTP caches can hold it.
+  const query = etag
+    ? namespaceQuery
+      ? `?${namespaceQuery.slice(1)}`
+      : ""
+    : `?last_refresh=${lastRefresh}${namespaceQuery}`;
   try {
     const response = config.getAllTranslationsForAllLanguages
       ? await config.getAllTranslationsForAllLanguages()
       : await api
-          .fetchAllTranslationsForAllLanguages(
-            `${config.API_URL || "https://api.i18n-keyless.com"}/translate/?last_refresh=${lastRefresh}${namespaceQuery}`,
-            {
-              method: "GET",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${config.API_KEY}`,
-                Version: packageJson.version,
-                unique_id: uniqueId || ""
-              }
+          .fetchAllTranslationsForAllLanguages(`${config.API_URL || "https://api.i18n-keyless.com"}/translate/${query}`, {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${config.API_KEY}`,
+              Version: packageJson.version,
+              unique_id: uniqueId || "",
+              ...(etag ? { "If-None-Match": etag } : {})
             }
-          )
+          })
           .then((res) => res as I18nKeylessAllTranslationsResponse);
+
+    if (response.notModified) {
+      // Nothing changed server-side: keep the in-memory dictionaries as they are.
+      return;
+    }
 
     if (!response.ok) {
       throw new Error(response.error);
+    }
+
+    if (response.etag) {
+      dictionaryEtags.set(etagKey, response.etag);
     }
 
     if (response.message) {

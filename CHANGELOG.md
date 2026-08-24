@@ -8,6 +8,25 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
 
 ## [3.1.0] — 2026-08-24
 
+### Added — conditional dictionary fetches with ETag / `If-None-Match`
+
+Dictionary fetches now use HTTP conditional requests. The SDK keeps the `ETag` of every
+dictionary it fetched, then replays it as `If-None-Match`. An unchanged namespace answers
+`304 Not Modified` with **no body**, and the SDK keeps the dictionary it already stored.
+
+Once it holds an ETag, the SDK **drops `last_refresh` from the URL**. Freshness travels in
+the header instead, so the URL becomes stable and any shared HTTP cache — a CDN, a proxy —
+can serve it.
+
+- `I18nKeylessResponse` and `I18nKeylessAllTranslationsResponse` gained an optional
+  `etag?: string` and `notModified?: boolean`. Additive, so non-breaking.
+- The ETag map is **in-memory only**. After a restart the first fetch is a plain `200`,
+  exactly as before. `i18n-keyless-core` keys it by (API key, language, namespace);
+  `i18n-keyless-node` keys it by namespace.
+- `etagCacheKey(apiKey, lang, namespace)` is exported from `i18n-keyless-core`.
+
+The API still supports `last_refresh` forever, so an older SDK is unaffected.
+
 ### Added — network resilience on every API call (`i18n-keyless-core`)
 
 The four `api.*` methods now share one `fetchWithRetry`:

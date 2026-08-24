@@ -223,6 +223,18 @@ export function translateKey(key: string, store: FetchTranslationParams, options
  * @param store - The translation store
  * @returns Promise resolving to the translation response or void if failed
  */
+/**
+ * ETags of the dictionaries fetched this session, keyed by (api key, language, namespace).
+ * Replayed as `If-None-Match`: an unchanged namespace answers `304` with no body — and the
+ * request URL carries no per-client query, so any HTTP cache (CDN, proxy) can serve it.
+ * In-memory only: after a restart the first fetch is a plain 200, exactly like today.
+ */
+const dictionaryEtags = new Map<string, string>();
+
+export function etagCacheKey(apiKey: string, lang: string, namespace?: string): string {
+  return `${apiKey}|${lang}|${namespace || DEFAULT_NAMESPACE}`;
+}
+
 export async function getAllTranslationsFromLanguage(
   targetLanguage: Lang,
   store: FetchTranslationParams,
@@ -243,14 +255,21 @@ export async function getAllTranslationsFromLanguage(
   // hitting the exact same URL.
   const namespaceQuery =
     namespace && namespace !== DEFAULT_NAMESPACE ? `&namespace=${encodeURIComponent(namespace)}` : "";
+  const etagKey = etagCacheKey(config.API_KEY, targetLanguage, namespace);
+  const etag = dictionaryEtags.get(etagKey);
+  // With an ETag in hand, freshness travels in the If-None-Match header and last_refresh
+  // leaves the URL — the URL becomes stable, so shared HTTP caches can hold it.
+  const query = etag
+    ? namespaceQuery
+      ? `?${namespaceQuery.slice(1)}`
+      : ""
+    : `?last_refresh=${lastRefresh}${namespaceQuery}`;
   try {
     const response = config.getAllTranslations
       ? await config.getAllTranslations()
       : await api
           .fetchTranslationsForOneLanguage(
-            `${
-              config.API_URL || "https://api.i18n-keyless.com"
-            }/translate/${targetLanguage}?last_refresh=${lastRefresh}${namespaceQuery}`,
+            `${config.API_URL || "https://api.i18n-keyless.com"}/translate/${targetLanguage}${query}`,
             {
               method: "GET",
               headers: {
@@ -258,13 +277,23 @@ export async function getAllTranslationsFromLanguage(
                 Authorization: `Bearer ${config.API_KEY}`,
                 Version: packageJson.version,
                 unique_id: uniqueId || "",
+                ...(etag ? { "If-None-Match": etag } : {}),
               },
             }
           )
           .then((res) => res as ReturnType<NonNullable<GetAllTranslationsFunction>>);
 
+    if (response.notModified) {
+      // Nothing changed server-side: keep the stored dictionary, nothing to merge.
+      return;
+    }
+
     if (!response.ok) {
       throw new Error(response.error);
+    }
+
+    if (response.etag) {
+      dictionaryEtags.set(etagKey, response.etag);
     }
 
     if (response.message) {

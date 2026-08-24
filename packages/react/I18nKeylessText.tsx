@@ -71,7 +71,19 @@ export const I18nKeylessText: React.FC<I18nKeylessTextProps> = ({
   forceTemporary,
   originLanguage
 }) => {
-  const storeTranslations = useI18nKeyless((store) => store.translations);
+  // Trim the source text immediately. Pure computation, kept above the hooks so the
+  // translation selector below can close over this component's own storage key.
+  const rawText = Array.isArray(children) ? children.join("") : String(children ?? "");
+  const sourceText = rawText.trim();
+  const storageKey = context ? `${sourceText}__${context}` : sourceText;
+
+  // Select ONLY this key's translation, never the whole `translations` map. Every batch
+  // that lands replaces the map with a new object, so a map selector makes zustand
+  // re-render every <T> on the page — including the ones whose text did not change, and
+  // the ones belonging to another namespace entirely. Selecting the string keeps the
+  // default Object.is check meaningful: a <T> re-renders only when its own text changes.
+  // See __tests__/render-count.test.tsx.
+  const storeTranslation = useI18nKeyless((store) => store.translations[storageKey]);
   const storeCurrentLanguage = useI18nKeyless((store) => store.currentLanguage);
   const config = useI18nKeyless((store) => store.config);
 
@@ -80,12 +92,8 @@ export const I18nKeylessText: React.FC<I18nKeylessTextProps> = ({
   // AsyncLocalStorage request scope (set by runWithI18nKeyless). Otherwise (SPA mode)
   // both are absent and we use the global store. See docs/SSR.md.
   const requestScope = useI18nKeylessContext() ?? getRequestScope();
-  const translations = requestScope?.translations ?? storeTranslations;
+  const translation = requestScope?.translations ? requestScope.translations[storageKey] : storeTranslation;
   const currentLanguage = requestScope?.lang ?? storeCurrentLanguage;
-
-  // Trim the source text immediately
-  const rawText = Array.isArray(children) ? children.join("") : String(children ?? "");
-  const sourceText = rawText.trim();
 
   useEffect(() => {
     warnAboutWhitespace(rawText);
@@ -95,7 +103,6 @@ export const I18nKeylessText: React.FC<I18nKeylessTextProps> = ({
     getTranslation(sourceText, { context, namespace, unpersistedNamespace, debug, forceTemporary, originLanguage });
   }, [sourceText, currentLanguage, context, namespace, unpersistedNamespace, debug, forceTemporary, originLanguage]);
 
-  const storageKey = context ? `${sourceText}__${context}` : sourceText;
   // Record the key for the per-page SSR snapshot (no-op off-server; pure Set.add, no
   // setState, so no render-time update warning). See docs/SSR.md.
   recordUsedKey(storageKey);
@@ -104,7 +111,7 @@ export const I18nKeylessText: React.FC<I18nKeylessTextProps> = ({
   // when the current language is the primary one.
   const sourceLanguage =
     originLanguage && originLanguage !== config!.languages.primary ? originLanguage : config!.languages.primary;
-  const translatedText = currentLanguage === sourceLanguage ? sourceText : translations[storageKey] || sourceText;
+  const translatedText = currentLanguage === sourceLanguage ? sourceText : translation || sourceText;
   const finalText = useMemo(() => {
     if (!replace) {
       return translatedText;

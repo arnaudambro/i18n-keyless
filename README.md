@@ -323,10 +323,13 @@ note above.
 Clear the i18n-keyless storage:
 
 ```javascript
-import { clearI18nKeylessStorage } from "i18n-keyless-react";
+import { clearI18nKeylessStorage, clearI18nKeylessStorageAndStore } from "i18n-keyless-react";
 
-// Clear all translations from storage
-clearI18nKeylessStorage();
+// Clear the cached translations from the storage you passed to init()
+clearI18nKeylessStorage(window.localStorage);
+
+// Same, and also resets the in-memory store, so the UI drops back to the source strings
+await clearI18nKeylessStorageAndStore();
 ```
 
 ## 🚀 **Node Usage (i18n-keyless-node)**

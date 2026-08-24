@@ -5,6 +5,7 @@ import { mockStore, mockStorage } from "./__mocks__/store";
 import { useI18nKeyless, init, getTranslation, hydrateFromServer } from "../store";
 import { runWithI18nKeyless, getUsedTranslationsSnapshot } from "../request-scope";
 import {
+  api,
   getTranslationCore,
   getAllTranslationsFromLanguage,
   getNamespacesToFetchAfterTranslationFinished,
@@ -304,6 +305,7 @@ describe("i18n-keyless store", () => {
       const store = useI18nKeyless.getState();
       // Mock fetch for API calls
       global.fetch = vi.fn().mockResolvedValue({
+        status: 200,
         json: () => Promise.resolve({ ok: true, data: { translations: {} } }),
       });
 
@@ -316,7 +318,9 @@ describe("i18n-keyless store", () => {
       // return Hello because translation is not available in fr
       expect(result).toBe("Hungry");
       // expect fetch to have been called with the correct params
-      expect(fetch).toHaveBeenCalledWith("https://api.i18n-keyless.com/translate", {
+      expect(fetch).toHaveBeenCalledWith(
+        "https://api.i18n-keyless.com/translate",
+        expect.objectContaining({
         body: JSON.stringify({
           key: "Hungry",
           forceTemporary: {
@@ -332,7 +336,8 @@ describe("i18n-keyless store", () => {
           unique_id: "",
         },
         method: "POST",
-      });
+        })
+      );
     });
 
     it("forceTemporary should works when translation is available", () => {
@@ -340,6 +345,7 @@ describe("i18n-keyless store", () => {
       const store = useI18nKeyless.getState();
       // Mock fetch for API calls
       global.fetch = vi.fn().mockResolvedValue({
+        status: 200,
         json: () => Promise.resolve({ ok: true }),
       });
 
@@ -352,7 +358,9 @@ describe("i18n-keyless store", () => {
       // return Joie because translation forced is not there yet
       expect(result).toBe("Joie");
       // expect fetch to have been called with the correct params
-      expect(fetch).toHaveBeenCalledWith("https://api.i18n-keyless.com/translate", {
+      expect(fetch).toHaveBeenCalledWith(
+        "https://api.i18n-keyless.com/translate",
+        expect.objectContaining({
         body: JSON.stringify({
           key: "Happiness",
           forceTemporary: {
@@ -368,7 +376,8 @@ describe("i18n-keyless store", () => {
           unique_id: "",
         },
         method: "POST",
-      });
+        })
+      );
     });
 
     it("should queue translation requests when translation is missing", () => {
@@ -381,23 +390,38 @@ describe("i18n-keyless store", () => {
       expect(queueSpy).toHaveBeenCalled();
     });
 
-    it("should handle API translation errors gracefully", async () => {
-      useI18nKeyless.setState({ currentLanguage: "fr" });
-      const store = useI18nKeyless.getState();
+    it("should handle API translation errors gracefully: retry, then resolve { ok: false }", async () => {
+      // The api layer retries a network failure with backoff and NEVER throws: the app
+      // falls back to its stored translations instead of showing empty text.
+      vi.useFakeTimers();
+      try {
+        global.fetch = vi.fn().mockRejectedValue(new Error("API Error"));
 
-      // Mock a failed API call
-      global.fetch = vi.fn().mockRejectedValue(new Error("API Error"));
-      useI18nKeyless.setState({ currentLanguage: "fr" });
+        const pending = api.fetchTranslation("https://api.i18n-keyless.com/translate", { method: "POST" });
+        await vi.runAllTimersAsync();
+        const response = await pending;
 
-      getTranslationCore("Test Error", store);
+        expect(response).toEqual({ ok: false, error: "API Error" });
+        expect(fetch).toHaveBeenCalledTimes(3); // 1 attempt + 2 retries
+      } finally {
+        vi.useRealTimers();
+      }
+    });
 
-      // Wait for async queue to process
-      await new Promise((resolve) => setTimeout(resolve, 0));
+    it("does not retry a 4xx answer — a wrong key stays wrong", async () => {
+      vi.useFakeTimers();
+      try {
+        global.fetch = vi.fn().mockResolvedValue({ status: 401, statusText: "Unauthorized" });
 
-      expect(console.error).toHaveBeenCalledWith(
-        expect.stringContaining("i18n-keyless: fetch all translations error:"),
-        new Error("API Error")
-      );
+        const pending = api.fetchTranslation("https://api.i18n-keyless.com/translate", { method: "POST" });
+        await vi.runAllTimersAsync();
+        const response = await pending;
+
+        expect(response).toEqual({ ok: false, error: "Unauthorized" });
+        expect(fetch).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it("should not translate empty strings", () => {
@@ -461,6 +485,7 @@ describe("i18n-keyless store", () => {
       useI18nKeyless.setState({ currentLanguage: "fr", translations: {} });
       const store = useI18nKeyless.getState();
       global.fetch = vi.fn().mockResolvedValue({
+        status: 200,
         json: () => Promise.resolve({ ok: true, data: { translations: {} } }),
       });
 
@@ -484,6 +509,7 @@ describe("i18n-keyless store", () => {
       useI18nKeyless.setState({ currentLanguage: "fr", translations: {} });
       const store = useI18nKeyless.getState();
       global.fetch = vi.fn().mockResolvedValue({
+        status: 200,
         json: () => Promise.resolve({ ok: true, data: { translations: {} } }),
       });
 
@@ -496,6 +522,7 @@ describe("i18n-keyless store", () => {
     it("appends &namespace= to the bulk fetch URL for a non-default namespace", async () => {
       const store = useI18nKeyless.getState();
       global.fetch = vi.fn().mockResolvedValue({
+        status: 200,
         json: () => Promise.resolve({ ok: true, data: { translations: {} } }),
       });
 
@@ -510,6 +537,7 @@ describe("i18n-keyless store", () => {
     it("omits the namespace from the bulk fetch URL for the default namespace", async () => {
       const store = useI18nKeyless.getState();
       global.fetch = vi.fn().mockResolvedValue({
+        status: 200,
         json: () => Promise.resolve({ ok: true, data: { translations: {} } }),
       });
 
@@ -545,7 +573,7 @@ describe("i18n-keyless store", () => {
 
     it("sends usage as a single map keyed by namespace, default under 'default'", async () => {
       const store = useI18nKeyless.getState();
-      global.fetch = vi.fn().mockResolvedValue({ json: () => Promise.resolve({ ok: true }) });
+      global.fetch = vi.fn().mockResolvedValue({ status: 200, json: () => Promise.resolve({ ok: true }) });
 
       await sendTranslationsUsageToI18nKeyless(
         { default: { Hello: "2026-06-22" }, checkout: { Pay: "2026-06-22" } },
@@ -565,6 +593,7 @@ describe("i18n-keyless store", () => {
       useI18nKeyless.setState({ currentLanguage: "fr", translations: {} });
       const store = useI18nKeyless.getState();
       global.fetch = vi.fn().mockResolvedValue({
+        status: 200,
         json: () => Promise.resolve({ ok: true, data: { translations: {} } }),
       });
 

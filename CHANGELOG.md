@@ -8,6 +8,21 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
 
 ## [3.1.0] — 2026-08-24
 
+### Added — network resilience on every API call (`i18n-keyless-core`)
+
+The four `api.*` methods now share one `fetchWithRetry`:
+
+- a **10 s timeout** (`AbortController`), so an app never hangs on a slow translation API,
+- **3 attempts** total, with a 500 ms then a 1500 ms backoff,
+- retries a **network error, a 5xx and a 429** — all transient,
+- **no retry on any other 4xx**: a wrong key stays wrong, and a retry only burns quota,
+- **never throws**. Every failure resolves to `{ ok: false, error }`, so the app falls back
+  to its stored translations instead of showing empty text. A timeout reports
+  `error: "timeout"`.
+
+A failed call never clears the cached translations. There is no wire-format change and the
+`Version` header is untouched. Backward compatible.
+
 ### Changed — `<T>` re-renders only when its own text changes (`i18n-keyless-react`)
 
 `<I18nKeylessText>` selected the whole `translations` map. `setTranslations` rebuilds that

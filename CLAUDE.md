@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-i18n-keyless is a translation library that eliminates manual key management. Developers write text in their primary language directly, and translations are handled automatically via AI-powered APIs. The library supports React (browser), Node.js, and an experimental web component.
+i18n-keyless is a translation library that eliminates manual key management. Developers write text in their primary language directly, and translations are handled automatically via AI-powered APIs. The library supports React (browser) and Node.js.
 
 ## Commands
 
@@ -41,7 +41,6 @@ Monorepo with npm workspaces. Three packages with a dependency chain:
 packages/core   → i18n-keyless-core    (zero deps, pure TypeScript)
 packages/react  → i18n-keyless-react   (depends on core + zustand, peer: react>=18)
 packages/node   → i18n-keyless-node    (depends on core)
-packages/web-component                  (experimental/WIP)
 ```
 
 All packages share the same version (currently in root `package.json`). When bumping versions, update root + all three package.json files + the dependency references in react and node packages.

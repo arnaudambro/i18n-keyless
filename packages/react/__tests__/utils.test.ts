@@ -77,8 +77,25 @@ describe("clearI18nKeylessStorage", () => {
     expect(deleted).toContain("i18n-keyless-translations__checkout");
     expect(deleted).toContain("i18n-keyless-last-refresh__checkout");
     // fixed keys (incl. the namespaces index itself)
-    expect(deleted).toContain("i18n-keyless-user-id");
     expect(deleted).toContain("i18n-keyless-translations-usage");
     expect(deleted).toContain("i18n-keyless-namespaces");
+    expect(deleted).toContain("i18n-keyless-current-language");
+  });
+
+  it("keeps the device id: it identifies the install, not the cache", async () => {
+    const deleted: string[] = [];
+    const storage = {
+      getItem: vi.fn(() => null),
+      setItem: vi.fn(),
+      removeItem: vi.fn((key: string) => {
+        deleted.push(key);
+      }),
+    };
+
+    await clearI18nKeylessStorage(storage);
+
+    // Wiping it would make the next launch generate a fresh one, and the API would count a
+    // brand-new monthly active user for the same device.
+    expect(deleted).not.toContain("i18n-keyless-user-id");
   });
 });

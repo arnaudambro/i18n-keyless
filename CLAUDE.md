@@ -15,8 +15,10 @@ i18n-keyless is a translation library that eliminates manual key management. Dev
 (cd packages/core  && rm -rf dist && npx tsc --project tsconfig.json)   # core first
 (cd packages/react && rm -rf dist && npx tsc --project tsconfig.json)   # then react
 
-# Test (only the react package has real tests)
-npm run test               # Single run
+# Test — all three packages have real suites. `.npmrc` sets workspaces=true, so a bare
+# `npm run test` from the root fans out to core, node and react, and exits non-zero if any
+# one of them fails. Run a single package with `cd packages/<pkg> && npx vitest run`.
+npm run test               # Single run, all three packages
 npm run test:watch         # Watch mode
 npm run test:coverage      # With V8 coverage
 ```
@@ -27,8 +29,9 @@ Build uses `tsc` directly (no bundler). Output goes to `dist/` in each package. 
 
 NOTE: the root `.npmrc` sets `workspaces=true`, so a bare `npm run <script>` from the repo
 root runs that script in **every** workspace (and fails on any workspace missing it). That
-is why `npm run test` works (it fans out; core/node just echo) but there is no usable root
-`npm run build`. To target one package use `cd packages/<pkg>` as shown above.
+is why `npm run test` works (it fans out to all three real suites) but there is no usable
+root `npm run build` (no package defines the `build:lib` script the root scripts call). To
+target one package use `cd packages/<pkg>` as shown above.
 
 ## Package Structure
 
@@ -92,7 +95,12 @@ The react package uses a flexible storage adapter that normalizes different stor
 
 ## Testing
 
-Tests use Vitest with happy-dom environment and `@testing-library/react`. Zustand is mocked in `__tests__/setup.ts`. Only the react package has tests — core and node have no test suites.
+All three packages have Vitest suites, and all three run them in `prepublishOnly`. The
+react package uses the happy-dom environment and `@testing-library/react`, with zustand
+mocked in `__tests__/setup.ts`; core and node run in the default node environment.
+
+A stale assertion in core survived a whole release because only react ran its tests on
+publish — so keep the root `npm run test` green, not just the package you touched.
 
 ## Type System
 

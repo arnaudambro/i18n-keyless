@@ -18,6 +18,7 @@ export type {
   FetchTranslationParams,
   TranslationOptions
 } from "./types.ts";
+export type { SdkRuntime } from "./unique-id.ts";
 export {
   getTranslationCore,
   getAllTranslationsFromLanguage,
@@ -28,3 +29,18 @@ export {
   queue
 } from "./service.ts";
 export { api } from "./api.ts";
+export {
+  generateUniqueId,
+  isUniqueId,
+  setUniqueId,
+  getUniqueId,
+  holdRequestsUntilUniqueIdIsKnown,
+  releaseUniqueIdGate,
+  whenUniqueIdIsKnown,
+  resolveUniqueIdForRequest,
+  setSdkRuntime,
+  getSdkRuntime,
+  identityHeaders,
+  // exported for the SDK test suites: clears the process-level id and any held gate
+  resetUniqueIdState
+} from "./unique-id.ts";

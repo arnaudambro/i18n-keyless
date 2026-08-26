@@ -8,7 +8,9 @@ import {
   AVAILABLE_LANGS,
   DEFAULT_NAMESPACE,
   I18nKeylessAllTranslationsResponse,
-  api
+  api,
+  identityHeaders,
+  setSdkRuntime
 } from "i18n-keyless-core";
 import { I18nKeylessNodeConfig, I18nKeylessNodeStore } from "./types.ts";
 import packageJson from "./package.json" with { type: "json" };
@@ -25,7 +27,6 @@ function emptyTranslationsByLang(): I18nKeylessNodeStore["translations"] {
 const store: I18nKeylessNodeStore = {
   translations: emptyTranslationsByLang(),
   translationsUsageByNamespace: {},
-  uniqueId: "",
   lastRefresh: "",
   config: {
     API_KEY: "",
@@ -53,7 +54,6 @@ export async function getAllTranslationsForAllLanguages(
 ): Promise<I18nKeylessAllTranslationsResponse | void> {
   const config = store.config;
   const lastRefresh = store.lastRefresh;
-  const uniqueId = store.uniqueId;
   if (!config.API_KEY) {
     console.error("i18n-keyless: No config found");
     return;
@@ -85,7 +85,7 @@ export async function getAllTranslationsForAllLanguages(
               "Content-Type": "application/json",
               Authorization: `Bearer ${config.API_KEY}`,
               Version: packageJson.version,
-              unique_id: uniqueId || "",
+              ...identityHeaders(),
               ...(etag ? { "If-None-Match": etag } : {})
             }
           })
@@ -151,6 +151,9 @@ export async function sendTranslationsUsageToI18nKeyless(): Promise<{ ok: boolea
               headers: {
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${config.API_KEY}`,
+                // This route is counted like any other, so it must be labelled like any
+                // other. It used to carry no identity header at all.
+                ...identityHeaders(),
                 Version: packageJson.version
               },
               body: JSON.stringify(requestBody)
@@ -284,6 +287,12 @@ export async function init(newConfig: I18nKeylessNodeConfig): Promise<I18nKeyles
   store.config = newConfig;
   store.config.onInit?.(newConfig.languages.primary);
 
+  // A server sends no `unique_id`: the API counts it by source IP, which it cannot shape.
+  // Any id this process invented would be wrong in one direction or the other — a fresh one
+  // per boot inflates the count, a pinned one collapses a fleet to a single billed user.
+  // The `sdk` header tells the API to count this request that way.
+  setSdkRuntime("node");
+
   // Boot fetch must target the configured namespace, otherwise a project using
   // `defaultNamespace` boots with the (empty) "default" namespace and every key misses.
   const response = await getAllTranslationsForAllLanguages(newConfig.defaultNamespace);
@@ -295,10 +304,12 @@ export async function init(newConfig: I18nKeylessNodeConfig): Promise<I18nKeyles
       }
       store.translations[lang] = { ...store.translations[lang], ...response.data.translations[lang] };
     }
-    // Identify this consumer on subsequent calls. `lastRefresh` is deliberately NOT stored:
-    // it's global here while fetches are per namespace, so reusing namespace A's timestamp
-    // for namespace B would silently drop everything B had before it.
-    store.uniqueId = response.data.uniqueId ?? store.uniqueId;
+    // `lastRefresh` is deliberately NOT stored: it's global here while fetches are per
+    // namespace, so reusing namespace A's timestamp for namespace B would silently drop
+    // everything B had before it.
+    //
+    // The id the server echoes back is ignored: we sent our own, it is the same value, and
+    // adopting a response's id would let a hiccup re-identify a stable process.
   }
 
   return newConfig;
@@ -318,7 +329,6 @@ async function fetchTranslationFromApi(
   options?: TranslationOptions
 ): Promise<Partial<Record<Lang, string>> | undefined> {
   const config = store.config;
-  const uniqueId = store.uniqueId;
   const debug = options?.debug;
   const namespace = options?.namespace || config.defaultNamespace || DEFAULT_NAMESPACE;
 
@@ -357,7 +367,7 @@ async function fetchTranslationFromApi(
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${config.API_KEY}`,
-        unique_id: uniqueId || "",
+        ...identityHeaders(),
         Version: packageJson.version
       },
       body: JSON.stringify(body)
@@ -544,40 +554,55 @@ async function awaitForTranslationFn(
  * is designed to cause a **FATAL ERROR** and **CRASH** the Node.js process to prevent
  * silent failures. Ensure all calls are properly handled.
  *
+ * Handling it IS honoured, though: a caller with a `try/catch` or a `.catch()` gets the
+ * error and keeps running, so it can fall back to its own text. Only an ignored rejection
+ * is fatal. (Until 3.2.0 the reverse was true: the wrapper returned a promise it had
+ * already marked as handled, so ignoring the error was silent, while a correct `try/catch`
+ * crashed the process anyway.)
+ *
  * **Recommendation:** Use the `@typescript-eslint/no-floating-promises` lint rule.
  *
  * @param key - The text to translate
  * @param currentLanguage - The language to translate to
  * @param options - Optional parameters for the translation process
- * @returns A Promise resolving to the translated string or the original key if not found/on error *after handling*.
- * @throws Re-throws any internal error if the promise rejection is not handled by the caller.
+ * @returns A Promise resolving to the translated string, or the original key when the
+ *          current language has no translation for it.
+ * @throws An Error naming the key, with the underlying failure as its `cause`. Ignore it
+ *         and the process crashes; catch it and you own the fallback.
  */
 export const awaitForTranslation = new Proxy(
   awaitForTranslationFn, // Target the named async function
   {
     apply(target, thisArg, args) {
-      // Call the actual async function
-      const promise = Reflect.apply(target, thisArg, args) as Promise<string>;
-
-      // Attach a catch handler. This runs ONLY if the promise REJECTS.
-      promise.catch((error) => {
-        // Log a specific error message indicating an unhandled rejection.
-        console.error(
-          `i18n-keyless: FATAL: Unhandled rejection in awaitForTranslation! ` +
-            `The promise for key "${String(args[0])}" was rejected and not caught. ` +
-            `Ensure the call is wrapped in try/catch and awaited, or attach a .catch() handler. ` +
-            `Original error:`,
-          error
+      // Crashing on an ignored rejection is the point of this wrapper: a server that
+      // cannot translate must fail loudly, not serve the wrong text and carry on.
+      //
+      // Which promise we hand back is what makes that work. A `.catch()` marks the promise
+      // it is attached to as HANDLED. This used to attach a logger to the promise and then
+      // return that same promise, which inverted both cases: the caller's promise counted
+      // as handled, so ignoring it crashed nothing, while the logger's own re-throw built a
+      // second, unreachable rejection that crashed even the callers who had written a
+      // correct try/catch.
+      //
+      // So we return the DERIVED promise instead. It is the only one the caller holds, and
+      // it is the one carrying the rejection:
+      //   - the caller ignores it → nothing handles it → Node crashes the process,
+      //   - the caller catches it → their handler runs → their own fallback is honoured.
+      //
+      // The guidance travels in the error rather than in a console.error, so the crash
+      // report Node prints already says what failed and what to do about it.
+      return (Reflect.apply(target, thisArg, args) as Promise<string>).catch((error: unknown) => {
+        const original = error instanceof Error ? error.message : String(error);
+        const guided = new Error(
+          `i18n-keyless: FATAL: awaitForTranslation failed for key "${String(args[0])}". ` +
+            `Wrap the call in try/catch (or attach a .catch()) to handle it yourself, ` +
+            `or leave it unhandled on purpose to crash this process. ` +
+            `Original error: ${original}`
         );
-
-        // Re-throw the error. In Node.js, an uncaught promise rejection
-        // will typically terminate the process (depending on Node version and handlers).
-        // This enforces handling of translation errors.
-        throw error;
+        // `cause` by assignment, not the second constructor argument: this package is ES2020.
+        (guided as Error & { cause?: unknown }).cause = error;
+        throw guided;
       });
-
-      // Return the original promise to the caller
-      return promise;
     }
   }
 );

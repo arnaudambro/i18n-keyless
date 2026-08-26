@@ -95,10 +95,6 @@ export interface I18nKeylessNodeConfig {
 
 export interface I18nKeylessNodeStore {
   /**
-   * the unique id of the consumer of i18n-keyless API, to help identify the usage API side
-   */
-  uniqueId: string | null;
-  /**
    * the last refresh of the translations, to only fetch the new ones if any
    */
   lastRefresh: string | null;

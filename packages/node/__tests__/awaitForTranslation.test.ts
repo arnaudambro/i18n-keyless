@@ -165,20 +165,71 @@ describe("awaitForTranslation", () => {
   });
 
   describe("the unhandled-rejection Proxy", () => {
-    it("logs a fatal message when a caller never handles the rejection", async () => {
+    /** Drives one scenario and reports whether Node would have killed the process. */
+    async function withUnhandledWatch(run: () => Promise<void>): Promise<unknown[]> {
+      const unhandled: unknown[] = [];
+      const onUnhandled = (reason: unknown) => unhandled.push(reason);
+      process.on("unhandledRejection", onUnhandled);
+      try {
+        await run();
+        await new Promise((r) => setTimeout(r, 10));
+      } finally {
+        process.off("unhandledRejection", onUnhandled);
+      }
+      return unhandled;
+    }
+
+    async function bootFailing() {
       const { awaitForTranslation, api } = await boot();
-      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      vi.spyOn(console, "error").mockImplementation(() => {});
       vi.spyOn(api, "fetchTranslation").mockResolvedValue({
         ok: false,
-        error: "boom",
+        error: "quota exceeded",
         data: {},
         message: "",
       });
+      return awaitForTranslation;
+    }
 
-      await expect(awaitForTranslation("Bonjour", "en")).rejects.toThrow();
-      await new Promise((r) => setTimeout(r, 10));
+    it("crashes the process when the caller ignores the rejection", async () => {
+      const awaitForTranslation = await bootFailing();
 
-      expect(error.mock.calls.flat().join(" ")).toMatch(/FATAL: Unhandled rejection/);
+      const unhandled = await withUnhandledWatch(async () => {
+        // A floating promise: no await, no catch. This MUST stay fatal — a server that
+        // cannot translate has to fail loudly instead of serving the wrong text.
+        void awaitForTranslation("Bonjour", "en");
+      });
+
+      expect(unhandled).toHaveLength(1);
+      expect((unhandled[0] as Error).message).toMatch(/FATAL: awaitForTranslation failed for key "Bonjour"/);
+    });
+
+    it("does not crash the process when the caller handles the rejection", async () => {
+      const awaitForTranslation = await bootFailing();
+      let handled: Error | null = null;
+
+      const unhandled = await withUnhandledWatch(async () => {
+        try {
+          await awaitForTranslation("Bonjour", "en");
+        } catch (error) {
+          handled = error as Error;
+        }
+      });
+
+      // The caller wrote exactly what the JSDoc asks for, so their fallback must run.
+      expect(handled).toBeInstanceOf(Error);
+      expect(unhandled).toEqual([]);
+    });
+
+    it("names the key, says what to do, and keeps the original error as the cause", async () => {
+      const awaitForTranslation = await bootFailing();
+
+      const error = await awaitForTranslation("Bonjour", "en").catch((e: Error) => e);
+
+      expect(error.message).toMatch(/FATAL: awaitForTranslation failed for key "Bonjour"/);
+      expect(error.message).toMatch(/try\/catch/);
+      expect(error.message).toMatch(/quota exceeded/);
+      expect((error as Error & { cause?: Error }).cause?.message).toBe("quota exceeded");
     });
   });
 });

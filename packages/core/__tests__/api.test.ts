@@ -33,13 +33,19 @@ describe("api", () => {
     await expect(api[method]("https://x.test", {})).resolves.toEqual({ ok: false, error: "offline" });
   });
 
-  it("passes the url and init through to fetch untouched", async () => {
+  it("passes the url and init through to fetch, adding only the timeout signal", async () => {
     const spy = vi.fn().mockResolvedValue({ status: 200, json: async () => ({}) });
     global.fetch = spy as never;
     const init = { method: "POST", headers: { Authorization: "Bearer k" } };
 
     await api.fetchTranslation("https://x.test/translate", init);
 
-    expect(spy).toHaveBeenCalledWith("https://x.test/translate", init);
+    const [url, sentInit] = spy.mock.calls[0];
+    expect(url).toBe("https://x.test/translate");
+    // Everything the caller passed survives verbatim...
+    expect(sentInit).toMatchObject(init);
+    // ...and `signal` is the one field fetchWithRetry owns: it is what aborts at 10s.
+    expect(sentInit.signal).toBeInstanceOf(AbortSignal);
+    expect(Object.keys(sentInit).sort()).toEqual(["headers", "method", "signal"]);
   });
 });

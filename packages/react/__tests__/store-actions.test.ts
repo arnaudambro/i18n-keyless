@@ -354,6 +354,21 @@ describe("clearI18nKeylessStorageAndStore", () => {
     await new Promise((r) => setTimeout(r, 0));
 
     expect(storage.data.get("i18n-keyless-translations")).toBeUndefined();
-    expect(storage.data.get("i18n-keyless-user-id")).toBeUndefined();
+    expect(storage.data.get("i18n-keyless-current-language")).toBeUndefined();
+  });
+
+  it("keeps the device id, so the same install is not re-counted as a new user", async () => {
+    const storage = makeStorage();
+    storage.data.set("i18n-keyless-user-id", "deviceIdABCDEF12");
+    const { useI18nKeyless, clearI18nKeylessStorageAndStore } = await booted(storage);
+    useI18nKeyless.setState({ uniqueId: "deviceIdABCDEF12" });
+    useI18nKeyless.getState().setTranslations(okResponse({ Bonjour: "Hello" }) as never, "default");
+
+    await clearI18nKeylessStorageAndStore();
+    await new Promise((r) => setTimeout(r, 0));
+
+    // The cache is gone, the identity is not: a new id would be a new billed user.
+    expect(storage.data.get("i18n-keyless-translations")).toBeUndefined();
+    expect(storage.data.get("i18n-keyless-user-id")).toBe("deviceIdABCDEF12");
   });
 });

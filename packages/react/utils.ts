@@ -133,7 +133,15 @@ export async function clearI18nKeylessStorage(storage: I18nConfig["storage"]) {
   }
   // Then the fixed keys (this also covers the default namespace, whose translations /
   // last-refresh keys are the legacy values in storeKeys).
+  //
+  // The device id is deliberately kept: it identifies the install, not the translation
+  // cache. Wiping it means the next launch generates a fresh one, and the API counts a
+  // brand-new "monthly active user" — so an app that clears its cache on logout would bill
+  // one extra user per logout.
   for (const key of Object.values(storeKeys)) {
+    if (key === storeKeys.uniqueId) {
+      continue;
+    }
     deleteItem(key, storage);
   }
 }

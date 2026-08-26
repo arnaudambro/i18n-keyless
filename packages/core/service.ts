@@ -14,6 +14,7 @@ import { DEFAULT_NAMESPACE } from "./types.ts";
 import MyPQueue from "./my-pqueue.ts";
 import packageJson from "./package.json" with { type: "json" };
 import { api } from "./api.ts";
+import { identityHeaders, whenUniqueIdIsKnown } from "./unique-id.ts";
 
 export const queue = new MyPQueue({ concurrency: 30 });
 
@@ -170,6 +171,13 @@ export function translateKey(key: string, store: FetchTranslationParams, options
         if (config.handleTranslate) {
           await config.handleTranslate?.(key);
         } else {
+          // Wait for the device/server id before the first request of a session can leave.
+          // `POST /translate` does not echo an id back, so one sent with an empty header is
+          // counted as a brand-new user that we could never reuse. See unique-id.ts.
+          const uniqueIdGate = whenUniqueIdIsKnown();
+          if (uniqueIdGate) {
+            await uniqueIdGate;
+          }
           const body: I18nKeylessRequestBody = {
             key,
             context,
@@ -192,7 +200,7 @@ export function translateKey(key: string, store: FetchTranslationParams, options
               headers: {
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${config.API_KEY}`,
-                unique_id: uniqueId || "",
+                ...identityHeaders(uniqueId),
                 Version: packageJson.version,
               },
               body: JSON.stringify(body),
@@ -264,6 +272,12 @@ export async function getAllTranslationsFromLanguage(
       ? `?${namespaceQuery.slice(1)}`
       : ""
     : `?last_refresh=${lastRefresh}${namespaceQuery}`;
+  // Same gate as `translateKey`: never let a bulk fetch race hydration and go out
+  // unidentified. See unique-id.ts.
+  const uniqueIdGate = whenUniqueIdIsKnown();
+  if (uniqueIdGate) {
+    await uniqueIdGate;
+  }
   try {
     const response = config.getAllTranslations
       ? await config.getAllTranslations()
@@ -276,7 +290,7 @@ export async function getAllTranslationsFromLanguage(
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${config.API_KEY}`,
                 Version: packageJson.version,
-                unique_id: uniqueId || "",
+                ...identityHeaders(uniqueId),
                 ...(etag ? { "If-None-Match": etag } : {}),
               },
             }
@@ -334,6 +348,13 @@ export async function sendTranslationsUsageToI18nKeyless(
     primaryLanguage: config.languages.primary,
     translationsUsageByNamespace,
   };
+  // This route is counted like any other. It used to carry no `unique_id` header at all,
+  // so the API minted one throwaway "user" per `init()` — one per app launch, for every
+  // install, forever. See unique-id.ts.
+  const uniqueIdGate = whenUniqueIdIsKnown();
+  if (uniqueIdGate) {
+    await uniqueIdGate;
+  }
   try {
     const response = config.sendTranslationsUsage
       ? // custom handlers keep their flat signature: hand them the default-namespace bucket
@@ -346,6 +367,7 @@ export async function sendTranslationsUsageToI18nKeyless(
               headers: {
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${config.API_KEY}`,
+                ...identityHeaders(store.uniqueId),
                 Version: packageJson.version,
               },
               body: JSON.stringify(requestBody),

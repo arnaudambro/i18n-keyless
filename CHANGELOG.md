@@ -6,6 +6,94 @@ All notable changes to i18n-keyless are documented here. The three packages
 This project follows [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
 
+## [3.2.0] — 2026-08-26
+
+### Fixed — the MAU over-count
+
+The API counts one "monthly active user" per distinct `unique_id` header, and it minted a
+brand-new id for every request whose header was empty. Only the two bulk `GET` routes echo
+that id back — `POST /translate` and `POST /translate/last-used-translations` do not. So an
+empty header was never "one anonymous request": it was **one brand-new billed user, for
+that one request, forever**. A React Native project with under 500 real users reported
+**5,517 MAU**, 41,077 of its 41,371 ids having made exactly one request.
+
+Three leaks fed it:
+
+- **The usage POST carried no `unique_id` header at all.** `init()` flushes usage on every
+  boot, so every app launch on every install minted a throwaway user. Both
+  `i18n-keyless-core` and `i18n-keyless-node` were affected.
+- **`init()` is async, and requests raced it.** The device id was read from storage last,
+  after the translations, the usage map and the language. Components that had already
+  mounted fired their misses during that window with an empty header.
+- **A server process started with an empty id**, let the API mint one, and only learned it
+  back from the boot fetch — so every restart began a new user.
+
+A device and a server are now identified in the two different ways that actually suit them,
+and every request says which it is via a new `sdk` header:
+
+- **`react-client`** (browser, React Native) — behind NAT and roaming the source IP means
+  nothing, so the SDK generates its own id, persists it under `i18n-keyless-user-id`, and
+  sends it. It resolves that id **first** in `hydrate()`, and `init()` holds every outbound
+  request until it is known, so nothing races the boot.
+- **`react-server`** (SSR, or `ssr: true`) and **`node`** — a server sends **no id at all**.
+  Any id a server invented would be wrong in one direction or the other: fresh per boot
+  inflates the count, pinned across a fleet collapses it. The API counts the source
+  connection, which the client cannot shape.
+
+Consequences worth knowing:
+
+- There is **no `uniqueId` config option and no environment variable**. Both existed in a
+  draft of this release and were removed: either would let one value be pinned across a
+  fleet, and it is our own meter.
+- **Nothing is written to disk.** A cache file for the server id was also drafted and
+  removed — a translation library has no business writing to a disk the caller never
+  mentioned.
+- **A response can no longer re-identify a device.** The id a bulk `GET` echoes back is
+  adopted only when the install has none.
+- **`clearI18nKeylessStorageAndStore()` keeps the device id.** It clears the translation
+  cache, not the identity; wiping it billed one extra user per logout.
+
+Existing installs keep the id they already have.
+
+### Fixed — `awaitForTranslation` had its two failure cases backwards (`i18n-keyless-node`)
+
+`awaitForTranslation` is meant to be fatal when you ignore a failure: a server that cannot
+translate must fail loudly rather than serve the wrong text. It did the opposite, in both
+directions.
+
+The wrapper attached a logging `.catch()` to the promise and returned **that same promise**.
+A `.catch()` marks the promise it is attached to as *handled*, so:
+
+- **ignoring the rejection crashed nothing** — the promise you were handed already counted
+  as handled, so Node never reported it. The failure was silent.
+- **handling it correctly crashed the process** — the logger re-threw, and a re-throw inside
+  a `.catch()` builds a *second* rejected promise no caller can reach. It fired behind a
+  perfectly correct `try/catch`, and Node terminates on an unhandled rejection by default
+  since v15.
+
+The wrapper now returns the **derived** promise — the only one the caller holds, and the one
+carrying the rejection. Ignore it and the process crashes, as intended; catch it and your
+fallback runs. The guidance moved into the error itself, so Node's crash report names the
+key and says what to do, and the original failure is kept as the error's `cause`.
+
+### Fixed — the core and node suites never ran on publish
+
+Only `i18n-keyless-react` ran its tests in `prepublishOnly`. Both other packages now do too.
+A stale assertion in `packages/core/__tests__/api.test.ts` had been failing since the 10 s
+timeout landed in 3.1.0: it asserted that `fetch` received the caller's `init` untouched,
+and `fetchWithRetry` now adds a `signal`. It asserts the passthrough plus the signal instead.
+
+### Added
+
+- `i18n-keyless-core` exports `generateUniqueId`, `isUniqueId`, `setUniqueId`, `getUniqueId`,
+  `resolveUniqueIdForRequest`, `setSdkRuntime`, `getSdkRuntime`, `identityHeaders`,
+  `holdRequestsUntilUniqueIdIsKnown`, `releaseUniqueIdGate`, `whenUniqueIdIsKnown`, and the
+  `SdkRuntime` type.
+
+### Removed
+
+- `I18nKeylessNodeStore.uniqueId`. The node SDK holds no identity of its own.
+
 ## [3.1.0] — 2026-08-24
 
 ### Added — conditional dictionary fetches with ETag / `If-None-Match`

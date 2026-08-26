@@ -209,6 +209,13 @@ export interface TranslationStoreState {
 
 export type TranslationOptions = {
   /**
+   * The keys to replace in the text.
+   * It's an object where the key is the placeholder and the value is the replacement.
+   * Example: { "{{name}}": "John" } will replace all the {{name}} in the text with "John".
+   * RegEx is `key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))` so you can use use your own syntax.
+   */
+  replace?: Record<string, string>;
+  /**
    * The context of the translation.
    * Useful for ambiguous translations, like "8 heures" in French could be "8 AM" or "8 hours".
    * You'll find it useful when it occurs to you, don't worry :)

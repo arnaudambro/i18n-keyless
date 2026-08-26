@@ -13,6 +13,11 @@ import {
   sendTranslationsUsageToI18nKeyless,
   resolveNamespace,
   resolveOriginLanguage,
+  generateUniqueId,
+  isUniqueId,
+  setUniqueId,
+  setSdkRuntime,
+  holdRequestsUntilUniqueIdIsKnown,
 } from "i18n-keyless-core";
 import { type I18nConfig, type TranslationStore } from "./types.ts";
 import { create } from "zustand";
@@ -45,6 +50,31 @@ function isServerEnv(): boolean {
  * SPA mode, so SPA hydration is unchanged. See docs/SSR.md.
  */
 let serverSnapshotApplied = false;
+
+/**
+ * Adopts the id the server echoed back, but only when this device has none.
+ *
+ * Every request now carries an id we generated ourselves, so the server should only ever
+ * echo that same value back. The guard matters for the one case where it does not: an
+ * install upgrading from a version that never generated an id, whose first bulk GET is
+ * answered with a server-minted one. After that, the local id wins — a response must never
+ * be able to re-identify a device, because a new id is a new billed "user".
+ */
+function adoptServerUniqueId(serverUniqueId: string | null | undefined, storage: I18nConfig["storage"]): void {
+  // Never on a server: it is counted by IP, and storing an id there would only resurrect
+  // the per-boot identity we just removed.
+  if (isServerEnv() || useI18nKeyless.getState().config?.ssr) {
+    return;
+  }
+  if (useI18nKeyless.getState().uniqueId || !isUniqueId(serverUniqueId)) {
+    return;
+  }
+  setUniqueId(serverUniqueId);
+  useI18nKeyless.setState({ uniqueId: serverUniqueId });
+  if (storage) {
+    setItem(storeKeys.uniqueId, serverUniqueId, storage);
+  }
+}
 
 queue.on("empty", () => {
   // When a batch of missing words finishes translating, bulk-fetch the current language —
@@ -117,13 +147,15 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
       unpersistedNamespaces: nextUnpersisted,
     });
 
+    // The server echoes an id back on the bulk GETs. Adopt it only when this device has
+    // none yet — an install upgrading from a version that never generated one. The header
+    // we send is authoritative: letting a response replace a persisted id would hand the
+    // same device a new identity, and the account a new billed "user", on any hiccup.
+    adoptServerUniqueId(response.data.uniqueId, storage);
+
     // Unpersisted namespaces live in memory only: never touch storage, never enter the
     // persisted index, never store a delta cursor.
     if (unpersisted) {
-      if (response.data.uniqueId) {
-        set({ uniqueId: response.data.uniqueId });
-        setItem(storeKeys.uniqueId, response.data.uniqueId, storage);
-      }
       if (response.data.lastRefresh) {
         set({
           lastRefresh: response.data.lastRefresh,
@@ -138,10 +170,6 @@ export const useI18nKeyless = create<TranslationStore>((set, get) => ({
       // Persist only the persisted namespaces in the index.
       const persistedNamespaces = nextNamespaces.filter((ns) => !nextUnpersisted.includes(ns));
       setItem(storeKeys.namespaces, JSON.stringify(persistedNamespaces), storage);
-    }
-    if (response.data.uniqueId) {
-      set({ uniqueId: response.data.uniqueId });
-      setItem(storeKeys.uniqueId, response.data.uniqueId, storage);
     }
 
     if (response.data.lastRefresh) {
@@ -311,6 +339,37 @@ async function hydrate() {
   if (!storage) {
     throw new Error(`i18n-keyless: storage is not initialized hydrating`);
   }
+  // The device id, FIRST — before any other storage read.
+  //
+  // `init()` holds every outbound request until this line has run, because the API counts
+  // one new "user" for every request whose `unique_id` header is empty, and `POST
+  // /translate` never echoes an id back for us to reuse. Reading it last (as this used to)
+  // left a window of several async storage round-trips during which the components that
+  // had already mounted fired their misses unidentified — a fistful of throwaway users on
+  // every single app launch.
+  //
+  // When storage holds nothing (first launch, or an install upgrading from a version that
+  // let the server mint the id), we generate one here and persist it right away, so the
+  // device is identified before its very first request instead of after its first
+  // successful bulk GET.
+  //
+  // On a server there is no device to identify and no storage worth the name (the default
+  // is in-memory, so an id would be new on every boot). We label the request `react-server`
+  // instead and send no id: the API counts a server by its source IP. See unique-id.ts.
+  if (isServerEnv() || config.ssr) {
+    setSdkRuntime("react-server");
+    if (debug) console.log("i18n-keyless: _hydrate: server runtime, no device id");
+  } else {
+    setSdkRuntime("react-client");
+    const storedUniqueId = await getItem(storeKeys.uniqueId, storage);
+    const uniqueId = isUniqueId(storedUniqueId) ? storedUniqueId : generateUniqueId();
+    setUniqueId(uniqueId);
+    useI18nKeyless.setState({ uniqueId });
+    if (uniqueId !== storedUniqueId) {
+      setItem(storeKeys.uniqueId, uniqueId, storage);
+    }
+    if (debug) console.log("i18n-keyless: _hydrate: uniqueId", uniqueId);
+  }
   // When a server snapshot was applied, it is authoritative for the current request's
   // language: skip loading translations / currentLanguage from storage (storage holds a
   // single, possibly different/stale language and would clobber or mix the seed). Usage,
@@ -394,10 +453,6 @@ async function hydrate() {
     if (debug) console.log("i18n-keyless: _hydrate: no current language");
     useI18nKeyless.setState({ currentLanguage: config?.languages.initWithDefault });
   }
-  const uniqueId = await getItem(storeKeys.uniqueId, storage);
-  if (uniqueId) {
-    useI18nKeyless.setState({ uniqueId: uniqueId as string });
-  }
   const lastRefresh = await getItem(storeKeys.lastRefresh, storage);
   if (lastRefresh) {
     useI18nKeyless.setState({ lastRefresh: lastRefresh as string });
@@ -456,8 +511,18 @@ export async function init(newConfig: I18nConfig) {
     throw new Error(`i18n-keyless: API_KEY is required`);
   }
 
+  // Close the boot race before the config lands: the moment a config with an API_KEY is in
+  // the store, a mounted <T> can queue a request, and `init` is async (device storage is).
+  // The gate makes those requests wait for the device id instead of going out unidentified
+  // — which the API bills as a brand-new user each time. Released in `finally` so a failed
+  // hydration can never deadlock the queue. See i18n-keyless-core/unique-id.ts.
+  const releaseUniqueIdGate = holdRequestsUntilUniqueIdIsKnown();
   useI18nKeyless.setState({ config: newConfig });
-  await hydrate();
+  try {
+    await hydrate();
+  } finally {
+    releaseUniqueIdGate();
+  }
   const currentLanguage = useI18nKeyless.getState().currentLanguage;
   newConfig.onInit?.(currentLanguage);
   // initialize the language to fetch all the translations

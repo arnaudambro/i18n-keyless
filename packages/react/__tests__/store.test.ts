@@ -333,7 +333,9 @@ describe("i18n-keyless store", () => {
           Authorization: "Bearer test-api-key",
           "Content-Type": "application/json",
           Version: packageJson.version,
-          unique_id: "",
+          sdk: "react-client",
+          // never "": an empty header makes the API mint a new billed user per request
+          unique_id: expect.stringMatching(/^[0-9A-Z_a-z]{16}$/),
         },
         method: "POST",
         })
@@ -373,7 +375,9 @@ describe("i18n-keyless store", () => {
           Authorization: "Bearer test-api-key",
           "Content-Type": "application/json",
           Version: packageJson.version,
-          unique_id: "",
+          sdk: "react-client",
+          // never "": an empty header makes the API mint a new billed user per request
+          unique_id: expect.stringMatching(/^[0-9A-Z_a-z]{16}$/),
         },
         method: "POST",
         })

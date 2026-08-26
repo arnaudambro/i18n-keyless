@@ -327,6 +327,9 @@ import { clearI18nKeylessStorage, clearI18nKeylessStorageAndStore } from "i18n-k
 
 // Clear the cached translations from the storage you passed to init()
 clearI18nKeylessStorage(window.localStorage);
+// Note: the device id (`i18n-keyless-user-id`) is deliberately kept. It identifies the
+// install, not the cache — dropping it would count this device as a new monthly active
+// user on its next launch.
 
 // Same, and also resets the in-memory store, so the UI drops back to the source strings
 await clearI18nKeylessStorageAndStore();
@@ -360,7 +363,17 @@ Use `awaitForTranslation` to retrieve a translation, automatically fetching it f
 
 **You MUST `await` the `awaitForTranslation` function calls**. You would be blocked by 429 Too many requests if you didn't.
 
-Failure to do so is **not optional**. If the underlying translation process encounters an error (network issue, API error, etc.) and the promise rejects.
+Failure to do so is **not optional**. If the underlying translation process encounters an
+error (network issue, API error, etc.) the promise rejects, and an unhandled rejection
+terminates the Node process — deliberately, so a server that cannot translate fails loudly
+instead of serving the wrong text.
+
+Handling it is honoured, though: a `try/catch` or a `.catch()` gets the error and your
+process keeps running, so you can fall back to your own text. Only an *ignored* rejection is
+fatal. The error names the key and carries the underlying failure as its `cause`.
+
+> **Before 3.2.0 this was backwards**: ignoring the rejection was silent, and a correct
+> `try/catch` crashed the process anyway.
 
 ```javascript
 import { awaitForTranslation } from "i18n-keyless-node";
@@ -372,13 +385,13 @@ async function getGreetingSafe(name: string, lang: string): Promise<string> {
 }
 
 
-// --- INCORRECT USAGE (Will crash on error) ---
+// --- ALSO CORRECT: .catch() is honoured, your fallback runs, nothing crashes ---
 awaitForTranslation("Processing complete.", "es")
   .then(message => {
     console.log(message); // Output: "Procesamiento completo."
   })
   .catch(error => {
-    console.error("FATAL: Failed to get processing message:", error);
+    console.error("Failed to get processing message:", error);
     // Handle error, maybe use fallback text
   });
 

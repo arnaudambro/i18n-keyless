@@ -142,7 +142,7 @@ describe("I18nKeylessText", () => {
 
     expect(console.log).toHaveBeenCalledWith(
       expect.objectContaining({
-        children: "Hello World",
+        text: "Hello World",
         sourceText: "Hello World",
         currentLanguage: "en",
       })

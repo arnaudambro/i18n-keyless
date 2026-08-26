@@ -127,9 +127,23 @@ import { getTranslation } from "i18n-keyless-react";
 
 Same options as `I18nKeylessText`. Returns `string`. It is a **plain function, not a hook** — it reads the store at call time, so it also works outside components (route loaders, utilities) once `init` has run. The flip side: it is **not reactive**. A component that only calls `getTranslation` won't re-render when the translation arrives or the language changes — subscribe in that component with `useCurrentLanguage()` and/or `useI18nKeyless((s) => s.translations)`.
 
+### `useTranslation(text, options?)` — translated string hook (≥ 3.3.0)
+
+```tsx
+import { useTranslation } from "i18n-keyless-react";
+
+function SearchBox() {
+  const placeholder = useTranslation("Votre email");
+  const title = useTranslation("8 heures", { context: "durée" });
+  return <input placeholder={placeholder} title={title} />;
+}
+```
+
+Same options as `I18nKeylessText`; it is the hook behind that component. Returns `string`. **Inside a component, this is the string API**: it is reactive, and under SSR it reads `<I18nKeylessProvider>` like `<T>` does — so it is correct in TanStack Start, where `getTranslation()` in a component body renders the primary language. Keep `getTranslation()` for code outside components (loaders, `head()`, utilities).
+
 ### `useCurrentLanguage()` — current language hook
 
-Returns `Lang | null` (null until set).
+Returns `Lang | null` (null until set). Under `<I18nKeylessProvider>` (SSR) it is the provider's language, on the server and the client alike (≥ 3.3.0).
 
 ```ts
 const current = useCurrentLanguage(); // "fr" | "en" | ... | null
@@ -674,4 +688,5 @@ Generated from the site — run `npm run docs:sync` in `docs/` after adding a pa
 - setCurrentLanguage() — https://docs.i18n-keyless.com/docs/api/react/setCurrentLanguage
 - useCurrentLanguage() — https://docs.i18n-keyless.com/docs/api/react/useCurrentLanguage
 - useI18nKeyless() — https://docs.i18n-keyless.com/docs/api/react/useI18nKeyless
+- useTranslation() — https://docs.i18n-keyless.com/docs/api/react/useTranslation
 <!-- /fact -->

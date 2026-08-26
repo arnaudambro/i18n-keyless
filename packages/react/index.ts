@@ -1,4 +1,5 @@
 export { I18nKeylessText, I18nKeylessText as T } from "./I18nKeylessText.tsx";
+export { useTranslation } from "./useTranslation.ts";
 export {
   init,
   hydrateFromServer,

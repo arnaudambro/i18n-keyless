@@ -272,48 +272,45 @@ For now, you need to use JavaScript to switch between cases, and maybe context t
 ### **React Hooks and Methods**
 
 For translating text outside of a `<I18nKeylessText>` component — a prop, an `alt`, a
-string you pass to another library — use the `getTranslation` method:
+`placeholder`, a string you pass to another library — use the `useTranslation` hook. It is
+the hook behind `<I18nKeylessText>`, so it takes the same options and resolves the same way:
 
 ```javascript
-import { getTranslation, useCurrentLanguage } from "i18n-keyless-react";
+import { useTranslation } from "i18n-keyless-react";
 
 export default function Home() {
-  useCurrentLanguage(); // 👈 required, see below
+  const welcome = useTranslation("Welcome");
+  const search = useTranslation("Search {what}", { replace: { "{what}": "products" } });
 
   return (
     <HomeTabs.Navigator>
-      <HomeTabs.Screen
-        options={{ tabBarLabel: getTranslation("Welcome") }}
-        name="WELCOME"
-      />
+      <HomeTabs.Screen options={{ tabBarLabel: welcome }} name="WELCOME" />
+      <input placeholder={search} />
     </HomeTabs.Navigator>
   );
 }
 ```
 
+It is a hook, so the component re-renders when the translation arrives and when the user
+switches language — and under SSR it reads the request's language from
+`<I18nKeylessProvider>`, like `<I18nKeylessText>` does.
+
+**Outside a component** — a route loader, a utility, a `head()` — there is no hook to call.
+Use the plain `getTranslation` function there:
+
+```javascript
+import { getTranslation } from "i18n-keyless-react";
+
+export const loader = async () => ({ title: getTranslation("Welcome") });
+```
+
 > [!IMPORTANT]
-> **Call `useCurrentLanguage()` in every component that calls `getTranslation()`.**
->
-> `getTranslation` is a plain function, not a hook. It reads the store one time and does
-> **not** subscribe to it. So the component that calls it never re-renders when the user
-> switches language, and the text stays in the previous language.
->
-> `<I18nKeylessText>` subscribes on its own, so it always updates. This is why a page can
-> switch only *some* of its texts: the `<I18nKeylessText>` ones update, the
-> `getTranslation()` ones do not.
->
-> `useCurrentLanguage()` subscribes the component to the current language. Add it once at
-> the top of the component. You do not need to use the return value:
->
-> ```javascript
-> function Hero() {
->   useCurrentLanguage(); // subscribe: re-render when the language changes
->   return <h1>{getTranslation("Votre coach de vie")}</h1>;
-> }
-> ```
->
-> The rule applies to the parent that calls `getTranslation()`. A `useCurrentLanguage()`
-> in a child component does not help the parent.
+> **`getTranslation` is a plain function, not a hook.** It reads the store one time and does
+> **not** subscribe to it. A component that calls it in render never re-renders when the
+> user switches language, and the text stays in the previous language. In a component, use
+> `useTranslation` instead. If you must keep `getTranslation` in a component, call
+> `useCurrentLanguage()` once at the top of *that* component to subscribe it (a
+> `useCurrentLanguage()` in a child does not help the parent).
 
 For setting a new current language, use the `setCurrentLanguage` method wherever you want:
 

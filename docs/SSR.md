@@ -164,7 +164,13 @@ they need different wiring:
 
 - **`<I18nKeylessText>` / `<T>`** is a component and reads the language from React context
   — `<I18nKeylessProvider>` covers it on both server and client (and the Provider seeds
-  the store on mount).
+  the store on mount). **`useTranslation(text, options)`** is the hook behind it and reads
+  the same context: use it where the component needs a *string* (a `placeholder`, a
+  `title`, a markdown source). It is the component path, not the function path.
+  `useCurrentLanguage()` reads the Provider too, so a switcher shows the request's language.
+- **Store selectors are SSR-safe (≥ 3.3.0).** `useI18nKeyless(selector)` hands React the
+  real state as its server snapshot. Before, React read zustand's `getInitialState()` on the
+  server and on the hydration render, so selectors saw the defaults (`primary: "fr"`).
 - **`getTranslation(key)`** is a plain function and cannot read React context. On the
   **server** it reads the request scope set by `runWithI18nKeyless` (AsyncLocalStorage).
   On the **client** it reads the store, so the store must be seeded **synchronously before
@@ -176,7 +182,7 @@ they need different wiring:
 Which mechanism you need depends on whether your framework renders the **component tree
 inside or outside** the `runWithI18nKeyless` scope:
 
-| Framework | Component tree renders… | `<T>` (component path) | `getTranslation` (function path) |
+| Framework | Component tree renders… | `<T>` / `useTranslation` (component path) | `getTranslation` (function path) |
 |---|---|---|---|
 | **Remix / React Router 7** | **inside** the ALS (`entry.server` calls `renderToPipeableStream` directly inside `runWithI18nKeyless`) | ALS *or* Provider | ALS — works anywhere in the tree |
 | **TanStack Start** | **outside** the ALS (only `head()` + `loader`s run inside it) | **Provider** (fed via the root loader) | ALS — **only in loaders / `head()`**, never a component body |
@@ -186,9 +192,9 @@ Rules of thumb:
 
 - If you can wrap the actual render call (`renderToString`/`renderToPipeableStream`) in
   `runWithI18nKeyless`, the whole tree is in scope → both paths work from the ALS (Remix).
-- If the framework renders the tree outside your reach, use `<I18nKeylessProvider>` for `<T>`,
-  and keep imperative `getTranslation` calls in a place that *is* in scope (a loader/`head()`)
-  or accept primary-on-server for that call (Next/Astro).
+- If the framework renders the tree outside your reach, use `<I18nKeylessProvider>` for `<T>`
+  and `useTranslation`, and keep imperative `getTranslation` calls in a place that *is* in
+  scope (a loader/`head()`) or accept primary-on-server for that call (Next/Astro).
 
 **TanStack Start (the one that needs both mechanisms):**
 
@@ -216,6 +222,10 @@ Rules of thumb:
    // …wrap the body in <I18nKeylessProvider lang={data.lang} translations={data.translations}>.
    ```
 3. Put imperative `getTranslation()` calls in route **loaders** (in scope), not component bodies.
+   A component that needs a *string* — a `placeholder`, an `aria-label` — calls
+   `useTranslation(text)` instead: it reads the Provider, so it is correct on the server
+   and identical on the client. Do not re-implement the lookup against the store or the
+   context yourself; the hook is the lookup.
 
 Requires i18n-keyless **≥ 2.3.2** (see *One ALS per process* above). Gotchas:
 

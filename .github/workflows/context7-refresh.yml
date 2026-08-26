@@ -1,0 +1,66 @@
+# Tell Context7 to re-parse this repository after a push that changed what it indexes.
+#
+# Context7 also refreshes on its own, but lazily: only when someone requests the library, and
+# only once the index is older than a staleness threshold set by popularity rank (45 days for
+# an unranked library). That is too slow to be the only path — a reader can get a stale answer
+# for weeks after a release. This closes the gap.
+#
+# Needs one repository secret, CONTEXT7_API_KEY: context7.com/dashboard -> API Keys.
+name: Context7 refresh
+
+on:
+  push:
+    branches: [main]
+    paths:
+      # Only what Context7 parses. `context7.json` itself decides the parse, so a change
+      # there has to re-run too.
+      - 'README.md'
+      - 'llms.txt'
+      - 'context7.json'
+      - 'docs/**'
+      - 'examples/**'
+      - 'skills/**'
+  workflow_dispatch:
+
+# A push that lands while a refresh is in flight replaces it rather than queueing a second.
+concurrency:
+  group: context7-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    name: Refresh /arnaudambro/i18n-keyless
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger the re-parse
+        env:
+          CONTEXT7_API_KEY: ${{ secrets.CONTEXT7_API_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${CONTEXT7_API_KEY}" ]; then
+            echo "::error::CONTEXT7_API_KEY is not set. Add it at Settings -> Secrets -> Actions."
+            exit 1
+          fi
+
+          code=$(curl -sS -o /tmp/body.json -w '%{http_code}' \
+            -X POST https://context7.com/api/v1/refresh \
+            -H "Authorization: Bearer ${CONTEXT7_API_KEY}" \
+            -H 'Content-Type: application/json' \
+            -d '{"libraryName":"/arnaudambro/i18n-keyless","branch":"main"}')
+
+          echo "HTTP ${code}"
+          cat /tmp/body.json
+          echo
+
+          # 429 means the refresh limit is spent, which is not a broken build: the index is
+          # simply already fresh enough for Context7. Anything else non-2xx is a real failure.
+          if [ "${code}" = "429" ]; then
+            echo "::warning::Context7 refresh rate-limited. The index will catch up on its own."
+            exit 0
+          fi
+
+          case "${code}" in
+            2*) echo "Refresh queued. Watch it at https://context7.com/arnaudambro/i18n-keyless?tab=logs" ;;
+            *)  echo "::error::Context7 refresh failed with HTTP ${code}."; exit 1 ;;
+          esac

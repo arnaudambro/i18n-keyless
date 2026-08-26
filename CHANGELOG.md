@@ -6,6 +6,47 @@ All notable changes to i18n-keyless are documented here. The three packages
 This project follows [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
 
+## [3.3.0] — 2026-08-26
+
+### Fixed — SSR rendered the source text for the store's default primary language
+
+`<I18nKeylessText>` read the config through a zustand selector. Under `renderToString` —
+and on the client's hydration render — React feeds `useSyncExternalStore` the store's
+*server snapshot*, which zustand implements as `getInitialState()`: the default config
+(`primary: "fr"`, no API key), not the one `init()` set. So with a Provider or a request
+scope set to `fr`, the SDK compared `fr` with a primary of `fr`, decided the text was already
+in its source language, and rendered it untranslated. Every other language rendered fine,
+which is how it survived: the app that found it is English-primary and its most-tested
+language is French.
+
+The fix is in the store hook itself: `useI18nKeyless(selector)` now hands React the real
+current state as its server snapshot, so every selector — the config, `useCurrentLanguage()`,
+your own — reads what `init()` and `hydrateFromServer()` put there, on the server and on
+the hydration render. And `useCurrentLanguage()` now answers with the `<I18nKeylessProvider>`
+language when one is present: the language the subtree renders in, on both sides.
+
+### Added — `useTranslation(text, options)` in `i18n-keyless-react`
+
+The hook behind `<I18nKeylessText>`, exported. It returns the translated **string**, for
+the places an element cannot go — a `placeholder`, a `title`, an `aria-label`, a string
+handed to another library (a markdown renderer, a navigator's `tabBarLabel`).
+
+Until now the only string API was `getTranslation()`, a plain function: it does not
+subscribe to the store, and under SSR it reads the `AsyncLocalStorage` scope, which
+TanStack Start does not have active while the component tree renders. So a placeholder
+either stayed in the previous language after a switch, or rendered the primary language on
+the server whatever the request asked for. Consumers worked around it by re-implementing
+the component's internals — the storage key format, the primary-language shortcut, the
+`replace` regex — and every copy drifted (no `originLanguage`, no SSR snapshot recording,
+a hardcoded primary language).
+
+`useTranslation` is that internal, so it cannot drift: `<I18nKeylessText>` is now
+`useTranslation` plus a fragment. Same options as the component. Reactive. Reads
+`<I18nKeylessProvider>` first, then the request scope, then the store — exactly like `<T>`.
+
+`getTranslation()` is unchanged and remains the right call **outside** a component: a
+loader, `head()`, a utility.
+
 ## [3.2.0] — 2026-08-26
 
 ### Fixed — the MAU over-count

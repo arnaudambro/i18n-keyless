@@ -1,27 +1,9 @@
-import React, { createContext, useContext, useEffect } from "react";
+import React, { useEffect } from "react";
 import { type Lang, type Translations } from "i18n-keyless-core";
 import { useI18nKeyless } from "./store.ts";
+import { I18nKeylessContext } from "./context.ts";
 
-export interface I18nKeylessContextValue {
-  /**
-   * The language this subtree renders in (typically derived from the URL / Accept-Language).
-   */
-  lang: Lang;
-  /**
-   * The translations map for `lang`, typically produced by `getServerTranslations(lang)`.
-   */
-  translations: Translations;
-}
-
-const I18nKeylessContext = createContext<I18nKeylessContextValue | null>(null);
-
-/**
- * Returns the nearest `I18nKeylessProvider` value, or `null` when none is present.
- * When `null`, `<I18nKeylessText>` falls back to the global zustand store (SPA mode).
- */
-export function useI18nKeylessContext(): I18nKeylessContextValue | null {
-  return useContext(I18nKeylessContext);
-}
+export { useI18nKeylessContext, type I18nKeylessContextValue } from "./context.ts";
 
 export interface I18nKeylessProviderProps {
   /**

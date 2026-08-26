@@ -87,20 +87,27 @@ I18nKeyless.init({
 
 ## Use it
 
-### React — two paths, pick per site
+### React — three paths, pick per site
 
 ```tsx
-import { I18nKeylessText as T, getTranslation } from "i18n-keyless-react";
+import { I18nKeylessText as T, useTranslation, getTranslation } from "i18n-keyless-react";
 
 // 1. Component — the default. Re-renders on its own when the translation lands.
 <h1><T>Bonjour le monde</T></h1>
 
-// 2. Function — for props that need a plain string (labels, placeholders, aria).
-<Tab label={getTranslation("Premier onglet")} />
+// 2. Hook — inside a component, for props that need a plain string (labels, placeholders,
+//    aria, a markdown source). Same options as <T>, same resolution, reactive.
+const placeholder = useTranslation("Votre email");
+<input placeholder={placeholder} />
+
+// 3. Function — OUTSIDE a component: a route loader, head(), a utility.
+export const loader = () => ({ title: getTranslation("Premier onglet") });
 ```
 
 `getTranslation` is a plain function, **not a hook**. A component that only calls it will
-not re-render when translations refresh. Subscribe explicitly:
+not re-render when translations refresh, and under TanStack Start it renders the primary
+language on the server. In a component, use `useTranslation`. If you must keep
+`getTranslation` in a component, subscribe explicitly:
 
 ```tsx
 import { useCurrentLanguage, useI18nKeyless } from "i18n-keyless-react";
@@ -129,7 +136,8 @@ const title = await awaitForTranslation("Viens voir l'application", user.lang as
 
 ## Per-translation options
 
-Available as props on `<T>` and as the options argument of `getTranslation(text, options)`:
+Available as props on `<T>` and as the options argument of `useTranslation(text, options)` and
+`getTranslation(text, options)`:
 
 - `context` — disambiguates meaning. `<T context="clock time">8 heures</T>` vs
   `<T context="duration">8 heures</T>` become two distinct translations.
@@ -173,16 +181,17 @@ await runWithI18nKeyless({ lang, translations }, async () => { /* render */ });
 // then hand the used subset to the client and call hydrateFromServer(snapshot).
 ```
 
-**The trap:** there are two paths and they resolve the language differently.
-`<T>` reads React context (`<I18nKeylessProvider lang translations>`); `getTranslation()`
-is a plain function and reads the `AsyncLocalStorage` scope set by `runWithI18nKeyless`.
+**The trap:** the paths resolve the language differently. `<T>` and `useTranslation`
+read React context (`<I18nKeylessProvider lang translations>`); `getTranslation()` is a
+plain function and reads the `AsyncLocalStorage` scope set by `runWithI18nKeyless`.
 Which pieces you need depends on the framework:
 
 - **Remix / RR7** — the tree renders inside the ALS, so both paths work from
   `runWithI18nKeyless` alone; the Provider is optional.
 - **TanStack Start** — the tree renders *outside* the ALS. You need **both** the Provider
   (fed by the root loader) and `runWithI18nKeyless`. Call `getTranslation()` only in
-  loaders and `head()`, never in a component body. Requires ≥ 2.3.2.
+  loaders and `head()`, never in a component body — a component that needs a string calls
+  `useTranslation()` (≥ 3.3.0). Requires ≥ 2.3.2.
 - **Next.js App Router / Astro islands** — use the Provider and prefer `<T>`; imperative
   `getTranslation()` in a server component renders the primary language until the client
   effect runs.

@@ -1,7 +1,7 @@
 import { init, type Lang } from "i18n-keyless-react";
 
 // Source strings are written in French → `fr` is the primary language.
-export const PRIMARY = "fr";
+export const PRIMARY: Lang = "fr";
 export const SUPPORTED_LANGUAGES = ["fr", "en", "es"] as const;
 
 function apiKey(): string | undefined {
@@ -18,8 +18,9 @@ function baseConfig() {
     // With a real key, API_URL defaults to https://api.i18n-keyless.com.
     // Without one, fall back to the local mock backend so the demo runs offline.
     ...(key ? {} : { API_URL: "http://localhost:8787" }),
-    languages: { primary: PRIMARY, supported: [...SUPPORTED_LANGUAGES] },
-  } as const;
+    // `I18nConfig.languages.supported` is a mutable `Lang[]`; the tuple above is readonly.
+    languages: { primary: PRIMARY, supported: [...SUPPORTED_LANGUAGES] as Lang[] },
+  };
 }
 
 // Server: no storage → i18n-keyless uses an in-memory store. Call once per process.

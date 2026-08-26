@@ -1,8 +1,8 @@
 # i18n-keyless · TanStack Start (SSR)
 
 The canonical **SSR** example. The page is server-rendered in the request's language (from
-`?lang=`), the client hydrates without a blink, and language switching is plain URL
-navigation.
+`?lang=`), the client hydrates without a blink, and a language switch is `setCurrentLanguage`
+plus a URL navigation.
 
 > Requires `i18n-keyless` **≥ 2.3.2** — earlier versions key the SSR request scope in a way
 > that breaks under Vite/TanStack's split module graph (server-entry vs SSR-render). See the
@@ -73,10 +73,13 @@ the body is translated; the **function path** runs `getTranslation()` inside
 
 ## Gotchas worth knowing
 
-- **The URL `?lang=` is the single source of truth.** The language switcher just
-  `navigate()`s the URL. Do **not** add an effect syncing `currentLanguage` → URL — with the
-  loader/provider already seeding the store from the URL, a reverse sync creates an infinite
-  `?lang=en ↔ ?lang=fr` navigation loop.
+- **The URL `?lang=` is the single source of truth, and the switcher makes two calls.**
+  `setCurrentLanguage(next)` fetches the language the browser has not seen yet and fills the
+  store; `navigate()` writes the URL. Both are needed: a client-side navigation never reaches
+  the server, and the root loader is a pure read of the store on the client, so navigating
+  alone keeps the previous language on screen. Do **not** add an effect syncing
+  `currentLanguage` → URL — with the loader/provider already seeding the store from the URL,
+  a reverse sync creates an infinite `?lang=en ↔ ?lang=fr` navigation loop.
 - **Don't reactively subscribe to `translations` in a provider wrapper.**
   `<I18nKeylessProvider>` seeds the store in an effect (a fresh `translations` ref each run);
   a wrapper that subscribes to `store.translations` and feeds it back as the prop will

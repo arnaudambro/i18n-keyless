@@ -229,8 +229,12 @@ Rules of thumb:
 
 Requires i18n-keyless **≥ 2.3.2** (see *One ALS per process* above). Gotchas:
 
-- **`?lang=` is the single source of truth.** The switcher only navigates the URL — don't add an
-  effect syncing `currentLanguage → URL` (it creates an infinite navigation loop).
+- **`?lang=` is the single source of truth, and the switcher makes two calls.**
+  `setCurrentLanguage(next)` fetches the language the browser has not seen yet and fills the
+  store; `navigate()` writes the URL. Both are needed: a client-side navigation never reaches
+  the server, and the root loader is a pure read of the store on the client, so navigating
+  alone keeps the previous language on screen. Don't add an effect syncing
+  `currentLanguage → URL` (it creates an infinite navigation loop).
 - **Don't reactively subscribe to `translations` in a provider wrapper** — the Provider seeds the
   store in an effect with a fresh `translations` ref each run, so re-feeding it as the prop
   re-renders forever. Read it from loader data; subscribe to `currentLanguage`/context only.

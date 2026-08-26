@@ -1,8 +1,10 @@
-import { createRouter as createTanStackRouter } from "@tanstack/react-router";
+import { createRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
 
-export function createRouter() {
-  return createTanStackRouter({
+// The TanStack Start plugin calls this to build the router on both the server and the
+// client, so the two sides always share one configuration.
+export function getRouter() {
+  return createRouter({
     routeTree,
     scrollRestoration: true,
   });
@@ -10,6 +12,6 @@ export function createRouter() {
 
 declare module "@tanstack/react-router" {
   interface Register {
-    router: ReturnType<typeof createRouter>;
+    router: ReturnType<typeof getRouter>;
   }
 }

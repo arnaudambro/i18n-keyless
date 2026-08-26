@@ -1,6 +1,5 @@
 import { hydrateRoot } from "react-dom/client";
-import { StartClient } from "@tanstack/react-start";
-import { createRouter } from "./router";
+import { StartClient } from "@tanstack/react-start/client";
 import { initI18nClient } from "./i18n";
 
 // The per-request { lang, translations } travels through the root loader (TanStack serializes
@@ -9,5 +8,5 @@ import { initI18nClient } from "./i18n";
 // store so background fetches and client-side language switches have the full language set.
 initI18nClient();
 
-const router = createRouter();
-hydrateRoot(document, <StartClient router={router} />);
+// The router comes from `getRouter()` in src/router.tsx; the Start plugin wires it in.
+hydrateRoot(document, <StartClient />);

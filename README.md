@@ -8,6 +8,7 @@ Welcome to **i18n-keyless**! 🚀 This package provides a seamless way to handle
 
 ## 📜 **Table of Contents**
 
+- [Using an AI coding agent?](#-using-an-ai-coding-agent)
 - [How it works](#-how-it-works)
 - [Installation](#-installation)
 - [Usage](#-usage)
@@ -21,6 +22,22 @@ Welcome to **i18n-keyless**! 🚀 This package provides a seamless way to handle
 - [Custom Component Example](#️-custom-component-example)
 - [What pains does it solve?](#-what-pains-does-it-solve)
 - [Contact](#-contact)
+
+---
+
+## 🤖 **Using an AI coding agent?**
+
+i18n-keyless is built to be installed by an agent in one step. Point yours at whichever of
+these fits your tool:
+
+| What | Where | For |
+| --- | --- | --- |
+| **Agent Skill** | [`skills/i18n-keyless/SKILL.md`](./skills/i18n-keyless/SKILL.md) | Claude Code, Claude.ai, and any tool that reads `SKILL.md`. Copy the folder into `.claude/skills/` of your project. |
+| **llms.txt** | [`llms.txt`](./llms.txt), also served at [docs.i18n-keyless.com/llms.txt](https://docs.i18n-keyless.com/llms.txt) | The whole documentation as one pasteable Markdown file — Cursor, ChatGPT, Windsurf, Copilot. |
+| **Context7** | `use context7` in your prompt | Live docs injected into the context window through the Context7 MCP server. |
+
+The skill is short on purpose: install, initialise, the two ways to render a string, the
+per-translation options, the SSR traps, and the gotchas. It links to `llms.txt` for the rest.
 
 ---
 

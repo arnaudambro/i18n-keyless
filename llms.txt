@@ -1,0 +1,677 @@
+# i18n-keyless
+
+> Ultimate DX for i18n. A keyless internationalization SaaS: write strings in your source language, get AI-powered translations at runtime — no JSON files, no translation keys, no manual upkeep.
+
+i18n-keyless lets you ship multi-language apps without managing translation keys or files. You write text in your primary language, wrap it in a component or call, and the SDK fetches AI-generated translations on the fly, caches them locally, and lets you override them from a dashboard or directly in code.
+
+Official SDKs: React, React Native (`i18n-keyless-react`), and Node.js (`i18n-keyless-node`).
+
+This file is a single-page Markdown summary of the documentation, intended to be pasted into an LLM context window so the assistant has full coverage of the API surface and conventions.
+
+## Core concepts
+
+- **Keyless**: the source string itself is the translation key — no IDs to manage.
+- **Primary language**: the language you write your code in. Since v3 it can be **any** of the supported languages; before v3 it had to be `fr` or `en`.
+- **Supported target languages** (48, the App Store localizations):
+<!-- fact:langs-inline -->
+`ar`, `bn`, `ca`, `zh-Hans`, `zh-Hant`, `hr`, `cs`, `da`, `nl`, `en`, `en-GB`, `fi`, `fr`,
+`fr-CA`, `de`, `el`, `gu`, `he`, `hi`, `hu`, `id`, `it`, `ja`, `kn`, `ko`, `ms`, `ml`, `mr`,
+`no`, `or`, `pl`, `pt`, `pt-BR`, `pa`, `ro`, `ru`, `sk`, `sl`, `es`, `es-MX`, `sv`, `ta`, `te`,
+`th`, `tr`, `uk`, `ur`, `vi`
+<!-- /fact -->
+  Also exported as the runtime const `AVAILABLE_LANGS` from `i18n-keyless-react` and `i18n-keyless-node` (see Type reference below).
+- **Version**: this file describes **v3** (`i18n-keyless-*@3.x`). v3 renamed two codes — `cn` became `zh-Hans` and `cz` became `cs` — and lifted the restriction on the primary language. See the upgrade guide: https://docs.i18n-keyless.com/docs/guides/upgrade-v3.
+- **Storage** (React / React Native only): required, used to cache translations locally. Must implement `getItem`, `setItem`, `removeItem` (sync or async).
+- **AI translations**: on cache miss, the server generates a translation with Mistral, stores it server-side and pushes it to the client cache.
+- **Overrides**: edit a translation in the dashboard at https://i18n-keyless.com/dashboard, or use `forceTemporary` from code.
+- **Namespaces**: an optional string per translation (e.g. `"checkout"`) that partitions a project's translations so a client fetches and stores only the slice it renders — the fix for the browser storage quota error. It's a fetch/storage partition, **not** a semantic key (use `context` to disambiguate meaning). The reserved default namespace is the literal string `"default"`; with no namespace set anywhere, behavior is identical to legacy. See "Partition translations with namespaces" below.
+- **User generated content (UGC)**: text written by users in *their* language (a comment, a review, a bio). Pass `originLanguage` to tell i18n-keyless what language it's written in — the text itself is still the key. See "Translate user generated content (UGC)" below (`>= 2.5.0`).
+- **API key**: get one at https://i18n-keyless.com/#get-api-key.
+
+## Installation
+
+### React (web)
+
+```bash
+npm install i18n-keyless-react
+```
+
+Initialize once in `main.tsx` / `index.tsx` before rendering the app:
+
+```ts
+import * as I18nKeyless from "i18n-keyless-react";
+
+I18nKeyless.init({
+  API_KEY: "YOUR_API_KEY",
+  storage: window.localStorage, // or any get/set/del-compatible adapter
+  languages: {
+    primary: "fr",       // any supported language
+    supported: ["en", "fr"],
+    fallback: "en",      // optional
+    initWithDefault: "fr", // optional
+  },
+});
+```
+
+For IndexedDB, wrap `idb-keyval` in a `{ getItem, setItem, removeItem }` adapter.
+
+### React Native
+
+```bash
+npx expo install i18n-keyless-react react-native-mmkv
+npx expo prebuild
+```
+
+```ts
+import * as I18nKeyless from "i18n-keyless-react";
+import { MMKV } from "react-native-mmkv";
+
+I18nKeyless.init({
+  API_KEY: "YOUR_API_KEY",
+  storage: new MMKV(),
+  languages: { primary: "fr", supported: ["en", "fr"] },
+});
+```
+
+`AsyncStorage` (`@react-native-async-storage/async-storage`) is also supported.
+
+### Node.js
+
+```bash
+npm install i18n-keyless-node
+```
+
+```ts
+import * as I18nKeyless from "i18n-keyless-node";
+
+I18nKeyless.init({
+  API_KEY: "YOUR_API_KEY",
+  languages: { primary: "fr", supported: ["en", "fr"] },
+});
+```
+
+No storage parameter on Node.
+
+## React / React Native API (`i18n-keyless-react`)
+
+### `I18nKeylessText` — translation component
+
+Use it inline to wrap any text. The text content is also the translation key.
+
+```tsx
+import { I18nKeylessText } from "i18n-keyless-react";
+
+<h1><I18nKeylessText>Bonjour le monde</I18nKeylessText></h1>
+```
+
+Props:
+- `children: ReactNode` — the source text.
+- `context?: string` — disambiguation hint (e.g. `"This is a back button"`).
+- `namespace?: string` — fetch/storage partition for this translation. Defaults to `defaultNamespace` from `init()`, or `"default"`.
+- `unpersistedNamespace?: boolean` — when `true`, the `namespace`'s translations live in memory only (never written to storage, never reloaded at boot). For high-cardinality/transient namespaces.
+- `replace?: Record<string, string>` — placeholder substitution (e.g. `{ "{name}": user.name }`).
+- `forceTemporary?: Record<string, string>` — override per language, e.g. `{ en: "Back" }`.
+- `originLanguage?: Lang` — the language the text is written in when it differs from your primary language (user generated content). See "Translate user generated content (UGC)" below.
+- `debug?: boolean` — log internals for this call.
+
+### `getTranslation(text, options?)` — string-returning function
+
+Use when you need a translated string in a prop (placeholder, `aria-label`, tab label, etc.) instead of as JSX.
+
+```tsx
+import { getTranslation } from "i18n-keyless-react";
+
+<input placeholder={getTranslation("Votre email")} />
+<Tab label={getTranslation("Premier onglet", { context: "navigation" })} />
+```
+
+Same options as `I18nKeylessText`. Returns `string`. It is a **plain function, not a hook** — it reads the store at call time, so it also works outside components (route loaders, utilities) once `init` has run. The flip side: it is **not reactive**. A component that only calls `getTranslation` won't re-render when the translation arrives or the language changes — subscribe in that component with `useCurrentLanguage()` and/or `useI18nKeyless((s) => s.translations)`.
+
+### `useCurrentLanguage()` — current language hook
+
+Returns `Lang | null` (null until set).
+
+```ts
+const current = useCurrentLanguage(); // "fr" | "en" | ... | null
+```
+
+### `setCurrentLanguage(lang)` — switch language
+
+```ts
+import { setCurrentLanguage } from "i18n-keyless-react";
+setCurrentLanguage("es");
+```
+
+Triggers re-render of all consumers. Can be called from anywhere (not a hook).
+
+### `getSupportedLanguages()` — configured languages
+
+Returns the `Lang[]` you passed to `init`. Useful for building a language selector.
+
+### `useI18nKeyless(selector)` — Zustand store accessor
+
+Low-level access to the store. Common selectors:
+
+```ts
+const primary = useI18nKeyless((s) => s.config.languages.primary);
+const supported = useI18nKeyless((s) => s.config.languages.supported);
+const translations = useI18nKeyless((s) => s.translations); // subscribe → re-render whenever translations arrive/refresh
+```
+
+To make a component that calls the non-reactive `getTranslation` re-render on refresh, subscribe to `s.translations` (a fresh object on every merge — including boot hydration and multi-namespace refreshes, which `s.lastRefresh` can miss).
+
+## Node.js API (`i18n-keyless-node`)
+
+### `awaitForTranslation(text, language, options?)`
+
+Returns a `Promise<string>`. **Must be awaited** — calling without `await` will trigger 429 rate limit errors.
+
+```ts
+import { awaitForTranslation, type Lang } from "i18n-keyless-node";
+
+const title = await awaitForTranslation("Viens voir l'application", user.lang as Lang);
+const body  = await awaitForTranslation(
+  "Bonjour {name} !",
+  user.lang as Lang,
+  { replace: { "{name}": user.name }, context: "push notification" }
+);
+```
+
+Options:
+- `context?: string`
+- `namespace?: string` — fetch partition; the backend returns only the requested namespace. Defaults to `defaultNamespace` from `init()`, or `"default"`.
+- `unpersistedNamespace?: boolean` — marks the namespace as transient (mainly a client-storage flag; harmless on Node).
+- `replace?: Record<string, string>`
+- `forceTemporary?: string` — note: a single string here, not a record (target language is already known).
+- `originLanguage?: Lang` — the language the text is written in when it differs from your primary language (user generated content). See "Translate user generated content (UGC)" below.
+- `debug?: boolean`
+
+### `getSupportedLanguages()`
+
+Same as in the React SDK.
+
+## Common patterns
+
+### Disambiguate ambiguous words
+
+```tsx
+<I18nKeylessText context="back button in navigation">Retour</I18nKeylessText>
+<I18nKeylessText context="distance / proximity">Proche</I18nKeylessText>
+```
+
+### Replace dynamic values
+
+Any pattern can be a placeholder: `{name}`, `{{name}}`, `[name]`, `%name%`, `<name>`, plain `name`, `{user_name}`, etc.
+
+```tsx
+<I18nKeylessText replace={{ "{name}": user.name }}>Hello {name} !</I18nKeylessText>
+```
+
+### Partition translations with namespaces
+
+Attach a `namespace` per call so each screen fetches/stores only its own slice (fixes the
+`Setting the value of 'i18n-keyless-translations' exceeded the quota` storage error):
+
+```tsx
+<I18nKeylessText namespace="checkout">Pay now</I18nKeylessText>
+getTranslation("Pay now", { namespace: "checkout" });
+await awaitForTranslation("Pay now", user.lang as Lang, { namespace: "checkout" });
+```
+
+Set a global default in `init` (per-call `namespace` always overrides it):
+
+```ts
+I18nKeyless.init({
+  API_KEY: "YOUR_API_KEY",
+  storage: window.localStorage,
+  defaultNamespace: "app-ui", // optional; falls back to the reserved "default"
+  languages: { primary: "en", supported: ["en", "fr", "es"] },
+});
+```
+
+For high-cardinality or short-lived namespaces (e.g. one per discussion or document), add
+`unpersistedNamespace` so the namespace's translations stay in memory only — never written
+to storage, never reloaded at boot:
+
+```tsx
+<I18nKeylessText namespace={`discussion-${id}`} unpersistedNamespace>{message}</I18nKeylessText>
+getTranslation(message, { namespace: `discussion-${id}`, unpersistedNamespace: true });
+```
+
+Notes:
+- Namespaces and `context` are independent: namespace = fetch/storage partition, context = meaning disambiguation. The same source text can live in several namespaces with identical translations.
+- Reusing a source text across namespaces never costs an extra AI translation — the backend copies the existing translation into the new namespace.
+
+### Translate user generated content (UGC) — `>= 2.5.0`
+
+Your UI strings are written in your primary language, but users write in *their* language. Pass `originLanguage` to say what language the text is written in — everything else stays the same, the text itself is the key:
+
+```tsx
+<I18nKeylessText originLanguage={comment.lang}>{comment.text}</I18nKeylessText>
+getTranslation(comment.text, { originLanguage: comment.lang });
+await awaitForTranslation(comment.text, viewer.lang as Lang, { originLanguage: comment.lang as Lang });
+```
+
+What happens (say your primary language is `en` and a user posts `"Hola mundo"` with `originLanguage="es"`):
+1. The backend AI-translates it once into the primary language (`"Hello world"`), which becomes the translation key server-side.
+2. The original text is kept **verbatim** for viewers in the origin language — Spanish readers always see exactly what the author wrote, never an AI rewrite. When the viewer's language **is** the origin language, the text renders as-is with no API call.
+3. Every other supported language is AI-translated from the primary version. Lookups by the original text resolve in every viewer language — including the primary one.
+
+Notes:
+- `originLanguage` omitted or equal to the primary language → the regular flow, unchanged.
+- Combine with a namespace — ideally an unpersisted one (e.g. one per discussion) — so high-cardinality user content never bloats local storage or the UI-strings bundle.
+- Billing: a never-seen UGC string costs one extra AI call (origin → primary) on top of the regular translation call. Re-posting the same text is free.
+
+### Force a translation from code
+
+When the AI gets it wrong and you can't (or won't) fix it from the dashboard:
+
+```tsx
+<I18nKeylessText forceTemporary={{ en: "Back" }}>Retour</I18nKeylessText>
+```
+
+### Build a language selector
+
+```tsx
+import { useCurrentLanguage, setCurrentLanguage, useI18nKeyless } from "i18n-keyless-react";
+
+const current = useCurrentLanguage();
+const primary = useI18nKeyless((s) => s.config.languages.primary);
+
+<select value={current || primary} onChange={(e) => setCurrentLanguage(e.target.value as Lang)}>
+  {/* ...options... */}
+</select>
+```
+
+### Translate Markdown
+
+`i18n-keyless` only translates strings, so use Markdown for inline styling. `getTranslation` is not reactive, so subscribe to `s.translations` to re-render when translations arrive, and key `react-markdown` by the resolved text (it prevents re-rendering otherwise):
+
+```tsx
+import { useI18nKeyless, getTranslation } from "i18n-keyless-react";
+import ReactMarkdown from "react-markdown";
+
+useI18nKeyless((s) => s.translations); // subscribe → re-render on refresh
+const text = getTranslation(children);
+
+<ReactMarkdown key={text}>{text}</ReactMarkdown>
+```
+
+### Wrap in a `MyText` component
+
+Recommended in React Native (for fonts/styles) and useful in React too. Forward `context`, `replace`, `forceTemporary`, `debug` through an `i18nProps` prop, and add a `skipTranslation` escape hatch for already-translated content.
+
+### Debug a single call
+
+```tsx
+<I18nKeylessText debug>Hello world</I18nKeylessText>
+getTranslation("Hello world", { debug: true });
+await awaitForTranslation("Hello world", "fr", { debug: true });
+```
+
+## Server-Side Rendering (SSR)
+
+Works under SSR (TanStack Start, Next, Remix, Astro, Expo Router server output, and any
+Node/modern-edge runtime) since `i18n-keyless-react >= 2.0.0` (TanStack Start / Vite SSR
+needs `>= 2.3.2`). v2 is a **drop-in for SPAs** — no code changes. The server is **read-only**: usage analytics are never sent
+from the server, so SSR adds no API traffic (on a long-lived server it's reported once
+per process boot, not once per user — fewer calls than a SPA). Translate-on-miss is
+unchanged: a key with no translation yet is still requested once.
+
+`storage` is **optional on the server** (defaults to an in-memory store, also exported as
+`createMemoryStorage()`) and still required in the browser. Pass `ssr: true` to `init` to
+force read-only mode explicitly (useful on serverless cold starts). Runtime: Node ≥ 20.10
+or a modern bundler (Vite, esbuild, webpack 5, Rollup 3+). `runWithI18nKeyless` needs
+`AsyncLocalStorage` (Node and most edge runtimes; Cloudflare Workers needs a flag — where
+unavailable, use `<I18nKeylessProvider>` for `<T>` and the scope degrades to a no-op).
+
+The SSR additions are inert in the browser: `node:async_hooks` is loaded via a guarded
+dynamic import, so it never enters browser/React Native bundles and the browser path is a
+no-op. There are two modes.
+
+### The two translation paths (the part most people get wrong)
+
+Two paths resolve the language through two different mechanisms:
+- **Component path**: `<I18nKeylessText>` / `<T>` → `<I18nKeylessProvider lang translations>`
+  (React context). Reads context first, then the ALS, then the store.
+- **Function path**: imperative `getTranslation(key)` → the ALS scope set by
+  `runWithI18nKeyless`. `getTranslation` is a plain function and **cannot read React
+  context**, so it depends on the ALS.
+
+How much wiring you need depends on whether the component tree renders **inside** or
+**outside** the ALS scope — which is framework-specific:
+- **Remix / React Router 7** — `entry.server` renders the tree *inside* `runWithI18nKeyless`,
+  so on the server both paths work from the ALS alone — **no Provider needed**. For the
+  client, serialize a snapshot (`getUsedTranslationsSnapshot()` in a `<script>` after the
+  app) and call `hydrateFromServer` before `hydrateRoot`.
+- **TanStack Start** (requires `>= 2.3.2`) — the tree renders *outside* the ALS; only
+  `head()` and route loaders run inside it. Need **both**: `<I18nKeylessProvider>` via the
+  root loader (component path) AND `runWithI18nKeyless` wrapping the WHOLE handler (function
+  path). Call `getTranslation()` only in loaders / `head()`, never in a component body.
+- **Next.js App Router / Astro islands** — no render hook to wrap; use `<I18nKeylessProvider>`
+  for `<T>` (SSR-correct). Imperative `getTranslation()` in server output renders the
+  primary language until the client effect — prefer `<T>` for zero flash.
+
+### Primary-language SSR (default, no extra code)
+
+The server renders your **primary** language and the client's first render matches it
+exactly (no hydration mismatch); after hydration the client fills translations from cache
+and re-renders into the user's language. Just call `init` the same way, omitting
+`storage` on the server:
+
+```ts
+import { init } from "i18n-keyless-react";
+
+await init({
+  languages: { primary: "fr", supported: ["fr", "en"] },
+  API_KEY: process.env.I18N_KEYLESS_API_KEY,
+  storage: typeof window === "undefined" ? undefined : window.localStorage,
+});
+```
+
+### Localized SSR (server-render any language, for SEO)
+
+To serve translated, indexable HTML for `/{lang}/...` or `?lang=xx` URLs:
+
+1. **`getServerTranslations(lang)`** — returns the translations map for `lang`, cached
+   per server process (each language fetched at most once per boot). Requires `init` to
+   have run first. Returns `{}` for the primary language. Evict with
+   `clearServerTranslationsCache(lang?)`.
+2. **`runWithI18nKeyless({ lang, translations }, fn)`** — wrap the server render so both
+   `getTranslation(...)` (a plain function — reads the request scope via
+   `AsyncLocalStorage`) and `<T>` / `<I18nKeylessText>` (components — read the Provider)
+   resolve in `lang`. Wrap once; no per-call-site changes.
+3. **`<I18nKeylessProvider lang translations>`** — per-request React context for `<T>`,
+   and what makes client hydration flash-free. In localized SSR the language is the `lang`
+   you pass (drive it from the URL); `setCurrentLanguage` is for SPA mode only.
+
+```tsx
+import { runWithI18nKeyless, getServerTranslations, I18nKeylessProvider } from "i18n-keyless-react";
+import { renderToString } from "react-dom/server"; // or your framework's renderer
+
+const lang = langFromUrlOrHeader(request);              // e.g. "en"
+const translations = await getServerTranslations(lang);
+
+const html = await runWithI18nKeyless({ lang, translations }, () =>
+  renderToString(
+    <I18nKeylessProvider lang={lang} translations={translations}>
+      <App /> {/* every <T>…</T> and getTranslation(...) inside renders in `lang` */}
+    </I18nKeylessProvider>
+  )
+);
+```
+
+For flash-free hydration, inline the fetched `translations` into the HTML and pass the
+**same** object to the `<I18nKeylessProvider>` on the client. The Provider covers the `<T>`
+/ `<I18nKeylessText>` **component** form on the first client render (it reads React
+context).
+
+```tsx
+// server: embed the data
+<script id="i18n-data" type="application/json"
+  dangerouslySetInnerHTML={{ __html: JSON.stringify({ lang, translations }) }} />;
+
+// client: read it back and feed the same provider
+const { lang, translations } = JSON.parse(document.getElementById("i18n-data").textContent);
+<I18nKeylessProvider lang={lang} translations={translations}><App /></I18nKeylessProvider>;
+```
+
+#### `getTranslation` function form — synchronous client seed (`>= 2.2.0`)
+
+`getTranslation(key)` is a plain function that reads the store, not React context. The
+Provider seeds the store on **mount** (after the first render), so on a cold cache the
+function form renders the primary language first and re-renders → mismatch + blink. Fix:
+seed the store **synchronously before `hydrateRoot`** with `hydrateFromServer`, from a
+snapshot the server reads via `getRequestScope()`:
+
+```tsx
+// server — embed snapshot from inside the scoped render
+const html = await runWithI18nKeyless({ lang, translations }, () => {
+  const body = renderToString(
+    <I18nKeylessProvider lang={lang} translations={translations}><App /></I18nKeylessProvider>
+  );
+  return `${body}<script id="i18n-keyless" type="application/json">${JSON.stringify(getRequestScope())}</script>`;
+});
+
+// client — seed synchronously, then init, then hydrate
+import { hydrateFromServer, init } from "i18n-keyless-react";
+const el = document.getElementById("i18n-keyless");
+if (el) hydrateFromServer(JSON.parse(el.textContent)); // { lang, translations } — BEFORE first render
+init({ languages: { primary: "fr", supported: ["fr", "en"] }, API_KEY, storage: window.localStorage });
+hydrateRoot(document, <App />);
+```
+
+`init`'s async hydrate treats the seed as authoritative (won't reset to primary on a cold
+cache). `hydrateFromServer` is SSR-only and opt-in — SPA/non-SSR apps never call it.
+Separately (`>= 2.2.0`), `getTranslation` defers its usage-analytics write to a
+`queueMicrotask`, so calling it during render no longer triggers React's "Cannot update a
+component while rendering a different component" warning; the server records nothing.
+
+**Large translation sets (`>= 2.3.0`).** By default the snapshot embeds the full language
+set in every page's HTML — fine for small/medium sets (it doubles as a warm cache for
+instant client navigation). For thousands of keys, serialize only the keys the page
+rendered: swap `getRequestScope()` for `getUsedTranslationsSnapshot()` at the
+serialization site. During render, each `getTranslation(...)` / `<I18nKeylessText>` adds
+its key to a per-request `Set` (no store write, no re-render); the snapshot returns just
+those keys (intersected with available). The full set stays in scope so any key still
+resolves mid-render — only the serialized payload narrows; concurrent requests are
+isolated. Keep calling `init()` on the client: its background fetch loads the full set so
+post-hydration navigation has every key (until then, misses resolve via translate-on-miss).
+Measure first: `JSON.stringify(getRequestScope().translations).length`. **Not compatible
+with TanStack Start** (or any setup whose body renders outside the ALS / uses code-split
+routes): keys aren't recorded, so the subset misses body keys → mismatch. Use the full map
+there.
+
+### SSR exports
+
+- `getServerTranslations(lang) => Promise<Translations>` — fetch a language's
+  translations on the server, cached per process.
+- `clearServerTranslationsCache(lang?) => void` — evict one/all languages from that cache.
+- `runWithI18nKeyless(scope, fn) => Promise<R>` — run a server render with
+  `{ lang, translations }` active so `getTranslation` and `<T>` resolve in `lang`.
+- `getRequestScope() => { lang, translations } | undefined` — read the active request
+  scope (advanced) — serialize for the client (full set).
+- `getUsedTranslationsSnapshot() => { lang, translations } | undefined` (`>= 2.3.0`) — like
+  `getRequestScope` but `translations` is narrowed to only the keys this render touched —
+  for large sets. **Render-inside-ALS only** — incompatible with TanStack Start (and any
+  setup whose body renders outside the ALS or uses code-split routes): keys aren't recorded,
+  so the subset misses body keys → hydration mismatch; serialize the full map there.
+  `undefined` outside a `runWithI18nKeyless` render.
+- `I18nKeylessProvider({ lang, translations, children })` — per-request context for `<T>`;
+  seeds the store on the client for flash-free hydration of the component form.
+- `hydrateFromServer({ lang, translations }) => void` (`>= 2.2.0`) — client-only; seed the
+  store *synchronously* before `hydrateRoot` so the `getTranslation` function form is
+  correct on first render. No-op without `lang`.
+- `createMemoryStorage() => Storage` — in-memory storage adapter (server default).
+- `init({ …, ssr? })` — `storage` optional on the server; `ssr: true` forces read-only.
+
+### Migrating from an SSR workaround
+
+- Remove `ssr: { noExternal: ['i18n-keyless-*'] }` from your bundler config — v2's build
+  is valid native Node ESM and externalizes cleanly.
+- Remove any no-op server storage — omit `storage` on the server; it defaults to
+  in-memory.
+- To render non-primary languages, adopt the localized-SSR flow above
+  (`getServerTranslations` + `runWithI18nKeyless` + `<I18nKeylessProvider>`).
+
+### Framework recipes
+
+Copy-paste integration guides per meta-framework live at:
+- TanStack Start (**requires `>= 2.3.2`**) — https://i18n-keyless.com/docs/ssr/tanstack-start
+  (in `src/server.ts`: `createStartHandler(defaultStreamHandler)` + wrap the WHOLE `fetch`
+  in `runWithI18nKeyless`, export via `createServerEntry({ fetch })` — not just
+  `defaultStreamHandler`; `<I18nKeylessProvider>` from the root-route loader; call
+  `getTranslation` only in loaders/`head()`, never in a component body; client just
+  `initI18nClient()` — no `hydrateFromServer`; `?lang=` is the single source of truth;
+  serialize the full map, not `getUsedTranslationsSnapshot()`).
+- Remix / React Router 7 framework mode — https://i18n-keyless.com/docs/ssr/remix (wrap
+  `renderToPipeableStream` in `runWithI18nKeyless` in `app/entry.server.tsx`; tree renders
+  inside the ALS so both paths resolve from it — **no Provider**; serialize via a tiny
+  `<I18nKeylessSnapshot>` (uses `getUsedTranslationsSnapshot()`) rendered after the app in
+  `root.tsx`; `entry.client.tsx` calls `hydrateFromServer(snapshot)` before `hydrateRoot`,
+  then `initI18nClient()`).
+- Next.js App Router — https://i18n-keyless.com/docs/ssr/nextjs (no render hook to wrap, so
+  no `runWithI18nKeyless`: `app/[lang]/layout.tsx` (server) fetches `getServerTranslations`
+  → a `"use client"` `Providers` boundary rendering `<I18nKeylessProvider>` and calling
+  `hydrateFromServer` + `initI18nClient` in an effect; imperative `getTranslation` renders
+  the primary language until that effect — prefer `<T>`).
+- Astro (React islands) — https://i18n-keyless.com/docs/ssr/astro (`.astro` page fetches
+  `getServerTranslations`, passes `lang` + `translations` as island props; island renders
+  `<I18nKeylessProvider>` and runs `hydrateFromServer` + `initI18nClient` in an effect;
+  prefer `<T>` over imperative `getTranslation` for zero flash).
+
+### Example apps
+
+Runnable examples (one per framework), each with a passing test suite, running offline
+against a bundled mock backend (no API key needed):
+https://github.com/arnaudambro/i18n-keyless/tree/main/examples — docs at
+https://i18n-keyless.com/docs/examples. Covers `vite-react` (SPA), `tanstack-start`
+(SSR+SPA, needs `>= 2.3.2`), `remix-rr7` (SSR), `nextjs` (App Router SSR), `astro` (SSR
+islands), `node` (`i18n-keyless-node` + `awaitForTranslation`), `react-native` (MMKV /
+AsyncStorage), and `expo`. Run: `cd examples/<name> && cp .env.example .env && npm install
+&& npm run dev` (leave the API key empty + run `examples/_mock-server` to try offline).
+
+### Changelog
+
+- `2.5.0` — `originLanguage` (UGC): translate user-written text arriving in any supported
+  language; the raw text is kept verbatim for origin-language viewers, everything else is
+  AI-translated via the primary language.
+- `2.4.0` — namespaces (`namespace`, `unpersistedNamespace`, init's `defaultNamespace`):
+  per-slice fetch/storage partitioning (fixes the browser storage quota error).
+- `2.3.2` — fix SSR request scope under TanStack Start / Vite: the per-request
+  AsyncLocalStorage is now pinned to a single `globalThis` slot shared across V8 realms /
+  module graphs (was duplicated, so `?lang=en` rendered the primary language with a
+  hydration mismatch). SPA, Next.js, Remix, Astro, and Node were unaffected. No API change.
+- `2.3.0` — `getUsedTranslationsSnapshot()` for per-page key subsets on large translation
+  sets.
+- `2.2.0` — `hydrateFromServer()` synchronous client seed for the `getTranslation` function
+  form; `getTranslation` defers usage recording to a microtask (no setState-during-render
+  warning).
+- `2.1.0` — AsyncLocalStorage request scope (`runWithI18nKeyless`, `getRequestScope`).
+- `2.0.0` — SSR support (`getServerTranslations`, `<I18nKeylessProvider>`, read-only server,
+  optional server `storage`).
+
+## Type reference
+
+```ts
+// Importable runtime const — exported from i18n-keyless-react and i18n-keyless-node
+// (re-exported from i18n-keyless-core). Use it to support every available language
+// without hardcoding the list, or to build language selectors / validation.
+const AVAILABLE_LANGS = [
+// fact:langs-array
+"ar", "bn", "ca", "zh-Hans", "zh-Hant", "hr", "cs", "da", "nl", "en", "en-GB", "fi", "fr",
+"fr-CA", "de", "el", "gu", "he", "hi", "hu", "id", "it", "ja", "kn", "ko", "ms", "ml", "mr",
+"no", "or", "pl", "pt", "pt-BR", "pa", "ro", "ru", "sk", "sl", "es", "es-MX", "sv", "ta",
+"te", "th", "tr", "uk", "ur", "vi",
+// /fact
+] as const;
+
+type Lang = (typeof AVAILABLE_LANGS)[number];
+// fact:langs-union
+// "ar" | "bn" | "ca" | "zh-Hans" | "zh-Hant" | "hr" | "cs" | "da" | "nl" | "en"
+// | "en-GB" | "fi" | "fr" | "fr-CA" | "de" | "el" | "gu" | "he" | "hi" | "hu" | "id"
+// | "it" | "ja" | "kn" | "ko" | "ms" | "ml" | "mr" | "no" | "or" | "pl" | "pt" | "pt-BR"
+// | "pa" | "ro" | "ru" | "sk" | "sl" | "es" | "es-MX" | "sv" | "ta" | "te" | "th" | "tr"
+// | "uk" | "ur" | "vi"
+// /fact
+
+// Any supported language can be the one you write your app in (v3; it was "fr" | "en" before).
+type PrimaryLang = Lang;
+
+type LanguagesConfig = {
+  primary: PrimaryLang;
+  supported: Lang[];
+  fallback?: Lang;
+  initWithDefault?: Lang;
+};
+
+type TranslationOptions = {
+  context?: string;
+  debug?: boolean;
+  forceTemporary?: Partial<Record<Lang, string>>; // Node: string
+  namespace?: string; // defaults to init()'s defaultNamespace, else "default"
+  originLanguage?: Lang; // UGC: the language the text is written in, when ≠ primary
+  replace?: Record<string, string>;
+  unpersistedNamespace?: boolean; // memory-only namespace, never persisted
+};
+
+// init() also accepts:
+//   defaultNamespace?: string — namespace applied to every call that doesn't set its own
+```
+
+### Using `AVAILABLE_LANGS`
+
+```ts
+import { AVAILABLE_LANGS } from "i18n-keyless-react"; // or "i18n-keyless-node"
+
+// Support every available language without hardcoding the list
+I18nKeyless.init({
+  API_KEY: "YOUR_API_KEY",
+  storage: window.localStorage,
+  languages: {
+    primary: "fr",
+    supported: [...AVAILABLE_LANGS],
+  },
+});
+
+// Validate a user-provided language code at runtime
+const isLang = (l: string): l is Lang => (AVAILABLE_LANGS as readonly string[]).includes(l);
+```
+
+## Gotchas
+
+- `awaitForTranslation` **must** be awaited. Fire-and-forget calls will hit rate limits.
+- `init` must run before any translation call; in React, do it in your entry file before rendering.
+- Storage adapter methods can be sync or async, but must all be present (`getItem`, `setItem`, `removeItem`).
+- Source strings must be written in the `primary` language. Since v3 that can be any supported language.
+- Translations are cached on-device — if you change a translation in the dashboard, cached clients pick it up via the next refresh, not instantly.
+- `getTranslation` is a plain function, not a hook — components that rely on it must subscribe to the store (`useCurrentLanguage()` / `useI18nKeyless((s) => s.translations)`) to re-render when translations refresh.
+- For `react-markdown` (and similar renderers that block re-renders), key the renderer by the resolved translated text (see "Translate Markdown" above).
+
+## Resources
+
+- Website: https://i18n-keyless.com
+- Docs: https://docs.i18n-keyless.com
+- Dashboard: https://i18n-keyless.com/dashboard
+- Get an API key: https://i18n-keyless.com/#get-api-key
+- GitHub: https://github.com/arnaudambro/i18n-keyless
+- Agent Skill (`SKILL.md`, for Claude Code and any tool that reads skills): https://github.com/arnaudambro/i18n-keyless/blob/main/skills/i18n-keyless/SKILL.md
+
+### Every page of the documentation
+
+Generated from the site — run `npm run docs:sync` in `docs/` after adding a page.
+
+<!-- fact:docs-index -->
+- Add context — https://docs.i18n-keyless.com/docs/guides/add-context
+- Astro — https://docs.i18n-keyless.com/docs/ssr/astro
+- Change language — https://docs.i18n-keyless.com/docs/guides/react/change-language
+- Debug — https://docs.i18n-keyless.com/docs/guides/debug
+- Examples — https://docs.i18n-keyless.com/docs/examples
+- Force temporary translation — https://docs.i18n-keyless.com/docs/guides/force-temporary
+- I18nKeyless.init() — https://docs.i18n-keyless.com/docs/api/node/I18nKeyless.init
+- I18nKeyless.init() — https://docs.i18n-keyless.com/docs/api/react/I18nKeyless.init
+- I18nKeylessText — https://docs.i18n-keyless.com/docs/api/react/I18nKeylessText
+- Namespaces — https://docs.i18n-keyless.com/docs/guides/namespaces
+- Next.js — https://docs.i18n-keyless.com/docs/ssr/nextjs
+- Proxy through your backend — https://docs.i18n-keyless.com/docs/guides/proxy-mode
+- Quick setup — https://docs.i18n-keyless.com/docs/quick-setup
+- Reliability & scale — https://docs.i18n-keyless.com/docs/guides/reliability-and-scale
+- Remix / React Router 7 — https://docs.i18n-keyless.com/docs/ssr/remix
+- Replace values — https://docs.i18n-keyless.com/docs/guides/replace-values
+- Server-Side Rendering — https://docs.i18n-keyless.com/docs/ssr
+- TanStack Start — https://docs.i18n-keyless.com/docs/ssr/tanstack-start
+- Translate user content (UGC) — https://docs.i18n-keyless.com/docs/guides/user-generated-content
+- Types — https://docs.i18n-keyless.com/docs/api/types
+- Upgrading to v3 — https://docs.i18n-keyless.com/docs/guides/upgrade-v3
+- Use a custom component — https://docs.i18n-keyless.com/docs/guides/react/my-text
+- Utilities — https://docs.i18n-keyless.com/docs/api/react/utilities
+- With markdown — https://docs.i18n-keyless.com/docs/guides/react/with-markdown
+- awaitForTranslation() — https://docs.i18n-keyless.com/docs/api/node/awaitForTranslation
+- getAllTranslationsForAllLanguages — https://docs.i18n-keyless.com/docs/api/node/getAllTranslationsForAllLanguages
+- getSupportedLanguages() — https://docs.i18n-keyless.com/docs/api/node/getSupportedLanguages
+- getSupportedLanguages() — https://docs.i18n-keyless.com/docs/api/react/getSupportedLanguages
+- getTranslation() — https://docs.i18n-keyless.com/docs/api/react/getTranslation
+- setCurrentLanguage() — https://docs.i18n-keyless.com/docs/api/react/setCurrentLanguage
+- useCurrentLanguage() — https://docs.i18n-keyless.com/docs/api/react/useCurrentLanguage
+- useI18nKeyless() — https://docs.i18n-keyless.com/docs/api/react/useI18nKeyless
+<!-- /fact -->

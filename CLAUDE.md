@@ -6,6 +6,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 i18n-keyless is a translation library that eliminates manual key management. Developers write text in their primary language directly, and translations are handled automatically via AI-powered APIs. The library supports React (browser) and Node.js.
 
+## Generated files — do not edit here
+
+`llms.txt` at the root is **a mirror, not a source**. It is written by
+`npm run docs:sync` in the *other* repository (`i18n-keyless-saas/docs`), whose
+`static/llms.txt` decides the content. Edit it there; a `mirrors.test.ts` in that repo
+fails the moment the two differ.
+
+It lives here because this is the only public repository of the two: it is the copy
+Context7 indexes (see `context7.json`) and the copy an agent reaches after cloning the SDK.
+
+`skills/i18n-keyless/SKILL.md` **is** a source and is edited here. It is copied into
+`packages/react/` and `packages/node/` by `prepublishOnly`, removed by `postpublish`, and
+`packages/.gitignore` keeps the copies out of git. Its prose is held to the SDK by the
+documentation suite in the other repository, so run that suite after changing it.
+
 ## Commands
 
 ```bash

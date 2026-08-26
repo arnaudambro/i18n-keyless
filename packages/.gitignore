@@ -32,3 +32,7 @@ dist-ssr
 
 # Tgz
 *.tgz
+
+# SKILL.md is copied into each package at publish time.
+# Source of truth: skills/i18n-keyless/SKILL.md
+*/SKILL.md

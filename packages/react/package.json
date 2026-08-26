@@ -14,14 +14,15 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "SKILL.md"
   ],
   "scripts": {
-    "prepublishOnly": "rm -rf ./dist && tsc --project tsconfig.json && npm run test && npm pack",
+    "prepublishOnly": "rm -rf ./dist && cp ../../skills/i18n-keyless/SKILL.md ./SKILL.md && tsc --project tsconfig.json && npm run test && npm pack",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "postpublish": "rm -rf ./dist && rm *.tgz"
+    "postpublish": "rm -rf ./dist && rm -f SKILL.md && rm *.tgz"
   },
   "dependencies": {
     "i18n-keyless-core": "3.2.0",

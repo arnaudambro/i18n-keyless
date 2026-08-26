@@ -1,0 +1,34 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "i18n-keyless",
+  "description": "Keyless i18n SDK for React, React Native and Node: the source string is the key, translations are AI-generated at runtime.",
+  "branch": "main",
+  "excludeFolders": [
+    "node_modules",
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/coverage/**",
+    "**/__tests__/**",
+    "packages"
+  ],
+  "excludeFiles": [
+    "CHANGELOG.md",
+    "LICENSE.md",
+    "package-lock.json"
+  ],
+  "rules": [
+    "Always import the component as I18nKeylessText (aliased T), never as I18nKeyless.",
+    "Call init() once in the entry file before any translation call and before rendering.",
+    "storage is required in the browser and in React Native, and optional on the server.",
+    "A storage adapter must expose all three of getItem, setItem and removeItem.",
+    "Source strings must be written in the primary language; since v3 that can be any of the 48 supported languages.",
+    "v3 renamed two language codes: cn became zh-Hans and cz became cs.",
+    "Never hardcode the language list; import AVAILABLE_LANGS and the Lang type from the SDK.",
+    "getTranslation is a plain function, not a hook: subscribe with useCurrentLanguage() or useI18nKeyless() to re-render.",
+    "Keys of the replace map include the literal delimiters, for example { '{name}': user.name }.",
+    "In Node, always await awaitForTranslation; fire-and-forget calls hit the 429 rate limit.",
+    "Use context to disambiguate meaning and namespace to partition fetch and storage; they are not interchangeable.",
+    "Do not leave leading or trailing whitespace inside I18nKeylessText: it changes the translation key.",
+    "Under SSR, <T> resolves the language from I18nKeylessProvider while getTranslation resolves it from the runWithI18nKeyless AsyncLocalStorage scope."
+  ]
+}

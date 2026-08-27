@@ -65,12 +65,20 @@ function step(title) {
   console.log(`\n${"=".repeat(80)}\n${title}\n${"=".repeat(80)}`);
 }
 
-let rl;
+/**
+ * One readline interface per question, closed right after the answer: a long-lived one
+ * keeps stdin open, so the child processes that inherit stdio (`flutter pub publish`,
+ * `git`) cannot read their own prompts, and the script never exits on its own.
+ */
 async function confirm(question) {
   if (yes || dryRun) return true;
-  rl ??= createInterface({ input: process.stdin, output: process.stdout });
-  const answer = (await rl.question(`${question} [y/N] `)).trim().toLowerCase();
-  return answer === "y" || answer === "yes";
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    const answer = (await rl.question(`${question} [y/N] `)).trim().toLowerCase();
+    return answer === "y" || answer === "yes";
+  } finally {
+    rl.close();
+  }
 }
 
 function fail(message) {
@@ -285,4 +293,3 @@ for (const name of NPM_PACKAGES) {
 console.log(`i18n_keyless (pub.dev)   ${(await publishedOnPubDev(version)) ? version : dryRun ? "(dry run)" : `<-- NOT ${version}`}`);
 console.log("\nhttps://pub.dev/packages/i18n_keyless\nhttps://packagist.org/packages/i18n-keyless/laravel");
 console.log("\nThen in i18n-keyless-saas/docs: bump i18n-keyless-* to the new version, npm install, npm test.");
-rl?.close();

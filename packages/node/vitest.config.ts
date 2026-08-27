@@ -13,6 +13,8 @@ export default defineConfig({
       reporter: ["text", "html", "json-summary"],
       all: true,
       include: ["service.ts"],
+      // The suite covers service.ts fully; these floors keep a regression from shipping.
+      thresholds: { lines: 95, functions: 95, branches: 90, statements: 95 },
     },
   },
   resolve: {

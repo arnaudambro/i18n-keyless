@@ -1,0 +1,30 @@
+{
+  "description": "The translate-on-miss queue: one process-wide priority queue, at most 30 requests in flight, every translate task added with priority 1, deduplicated by an id made of the namespace and the source text (the context and the origin language are NOT part of the id), and an `empty` event when the queue drains that triggers the bulk fetch. `cases` check the id. `scenarios` replay a batch of misses against a store (primary `fr`, current language `en`) and count the `POST /translate` requests that leave.",
+  "source": "packages/core/service.ts: queue, queueIdFor(namespace, key), translateKey; packages/core/my-pqueue.ts",
+  "concurrency": 30,
+  "priority": 1,
+  "idRule": "namespace + ':' + key",
+  "rules": [
+    "a task added with the id of a task still waiting in the queue is not added again; the caller receives the waiting task's promise",
+    "a task whose id is already in flight returns at once without a request (the in-flight flag is per id and is cleared when the request settles, on success and on failure)",
+    "tasks are ordered by descending priority; ties keep insertion order",
+    "the `empty` event fires when nothing is waiting and nothing is in flight; the wrapper then bulk-fetches every namespace that had a miss since the previous bulk fetch",
+    "a task never throws: a failed request is logged and the task resolves"
+  ],
+  "cases": [
+    { "name": "default namespace", "input": { "namespace": "default", "key": "Bonjour" }, "expected": "default:Bonjour" },
+    { "name": "explicit namespace", "input": { "namespace": "checkout", "key": "Payer" }, "expected": "checkout:Payer" },
+    { "name": "the key is not escaped", "input": { "namespace": "ns", "key": "a:b" }, "expected": "ns:a:b" }
+  ],
+  "scenarios": [
+    { "name": "the same key twice in one batch: one request", "calls": [{ "key": "Bonjour" }, { "key": "Bonjour" }], "expected": { "requests": 1 } },
+    { "name": "the same key under two namespaces: two requests", "calls": [{ "key": "Payer", "options": { "namespace": "checkout" } }, { "key": "Payer", "options": { "namespace": "cart" } }], "expected": { "requests": 2 } },
+    { "name": "the same key with two contexts in one batch: one request (the id ignores the context)", "calls": [{ "key": "8 heures", "options": { "context": "time" } }, { "key": "8 heures", "options": { "context": "duration" } }], "expected": { "requests": 1 } },
+    { "name": "the same key with two origin languages in one batch: one request (the id ignores the origin language)", "calls": [{ "key": "Hola", "options": { "originLanguage": "es" } }, { "key": "Hola", "options": { "originLanguage": "pt" } }], "expected": { "requests": 1 } },
+    { "name": "two different keys: two requests", "calls": [{ "key": "Un" }, { "key": "Deux" }], "expected": { "requests": 2 } },
+    { "name": "an empty key: no request", "calls": [{ "key": "" }], "expected": { "requests": 0 } },
+    { "name": "a key already in the store: no request", "translations": { "Bonjour": "Hello" }, "calls": [{ "key": "Bonjour" }], "expected": { "requests": 0 } },
+    { "name": "a key already in the store with forceTemporary for the current language: one request", "translations": { "Bonjour": "Hello" }, "calls": [{ "key": "Bonjour", "options": { "forceTemporary": { "en": "Hi" } } }], "expected": { "requests": 1 } },
+    { "name": "31 distinct keys: at most 30 in flight, 31 requests in total", "calls": "31 distinct keys", "expected": { "peakInFlight": 30, "requests": 31 } }
+  ]
+}

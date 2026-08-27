@@ -1,0 +1,35 @@
+{
+  "description": "The persistent storage contract of a device SDK (what the react package writes). Every value is a string. Replayed by the wrapper packages, not by the core suite: packages/react/__tests__/utils.test.ts asserts the same values. A port with its own storage MUST use these keys and serialisations so a user can upgrade from one SDK to another on the same device without losing the cache or the device id.",
+  "source": "packages/react/utils.ts: storeKeys, translationsKeyFor(namespace), lastRefreshKeyFor(namespace), clearI18nKeylessStorage; packages/react/store.ts: hydrate()",
+  "fixedKeys": {
+    "uniqueId": { "key": "i18n-keyless-user-id", "value": "the device id, raw string", "clearedByClear": false },
+    "currentLanguage": { "key": "i18n-keyless-current-language", "value": "a language code, raw string", "clearedByClear": true },
+    "lastRefresh": { "key": "i18n-keyless-last-refresh", "value": "the delta cursor of the default namespace, raw string; set to the empty string on a language switch", "clearedByClear": true },
+    "translations": { "key": "i18n-keyless-translations", "value": "JSON object: the default namespace's dictionary for the current language", "clearedByClear": true },
+    "translationsUsage": { "key": "i18n-keyless-translations-usage", "value": "JSON object keyed by namespace: { namespace: { storageKey: 'YYYY-MM-DD' } }; set to the empty string after a successful usage POST", "clearedByClear": true },
+    "namespaces": { "key": "i18n-keyless-namespaces", "value": "JSON array of the persisted namespaces (unpersisted ones excluded)", "clearedByClear": true },
+    "originNamespaces": { "key": "i18n-keyless-origin-namespaces", "value": "JSON array of the namespaces that hold user-generated-content keys (unpersisted ones excluded)", "clearedByClear": true }
+  },
+  "hydrationOrder": [
+    "i18n-keyless-user-id (device runtime only; an invalid or missing value is replaced by a fresh id, persisted at once); every outbound request is held until this step is done",
+    "i18n-keyless-namespaces, else ['default']; then for each namespace: its translations key, then its last-refresh key",
+    "i18n-keyless-origin-namespaces",
+    "i18n-keyless-translations-usage (a legacy flat map whose values are strings is discarded)",
+    "i18n-keyless-current-language (kept as stored; validated against `supported` by the language switch that follows)",
+    "i18n-keyless-last-refresh"
+  ],
+  "adapterMethodResolution": {
+    "read": ["getItem", "get", "getString"],
+    "write": ["setItem", "set"],
+    "delete": ["delete", "del", "removeItem", "remove"],
+    "notes": "The first method present is used; sync or async. A failing read yields null and is logged. A failing write is logged and rethrown."
+  },
+  "cases": [
+    { "name": "translations key, default namespace", "fn": "translationsKeyFor", "input": "default", "expected": "i18n-keyless-translations" },
+    { "name": "translations key, other namespace", "fn": "translationsKeyFor", "input": "checkout", "expected": "i18n-keyless-translations__checkout" },
+    { "name": "last-refresh key, default namespace", "fn": "lastRefreshKeyFor", "input": "default", "expected": "i18n-keyless-last-refresh" },
+    { "name": "last-refresh key, other namespace", "fn": "lastRefreshKeyFor", "input": "checkout", "expected": "i18n-keyless-last-refresh__checkout" },
+    { "name": "namespace with a space is not encoded in the storage key", "fn": "translationsKeyFor", "input": "check out", "expected": "i18n-keyless-translations__check out" },
+    { "name": "clear removes every key except the device id", "fn": "clearI18nKeylessStorage", "input": { "namespacesIndex": ["default", "checkout"] }, "expected": { "deleted": ["i18n-keyless-translations", "i18n-keyless-last-refresh", "i18n-keyless-translations__checkout", "i18n-keyless-last-refresh__checkout", "i18n-keyless-current-language", "i18n-keyless-translations-usage", "i18n-keyless-namespaces", "i18n-keyless-origin-namespaces"], "kept": ["i18n-keyless-user-id"] } }
+  ]
+}

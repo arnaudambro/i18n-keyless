@@ -22,14 +22,36 @@
  * Not which package: `i18n-keyless-react` runs on a server too (SSR), and an SSR render is
  * a server, not a device. Counting it as a device would bill one "user" per render.
  *
- * - `react-client` — a browser or a React Native app. One install, one persisted id.
- * - `react-server` — the react SDK rendering on a server (SSR). Counted like `node`.
- * - `node`         — the node SDK. No id: the API counts the source IP.
+ * - `react-client`   — a browser or a React Native app. One install, one persisted id.
+ * - `react-server`   — the react SDK rendering on a server (SSR). Counted like `node`.
+ * - `vue-client` / `vue-server`, `angular-client` / `angular-server` — same split for the
+ *   vue and angular packages.
+ * - `browser`        — the framework-free browser package. Always a device.
+ * - `node`           — the node SDK. No id: the API counts the source IP.
+ *
+ * Rule the API applies: `node`, `laravel` and every label ending in `-server` are servers
+ * (counted by connection); everything else, an absent header included, is a device. The
+ * ports in other languages send `laravel` and `flutter`.
  *
  * The API treats a request with NO `sdk` header as `react-client`, which is what every
  * SDK released before 3.2.0 is, in practice.
  */
-export type SdkRuntime = "react-client" | "react-server" | "node";
+export type SdkRuntime =
+  | "react-client"
+  | "react-server"
+  | "vue-client"
+  | "vue-server"
+  | "angular-client"
+  | "angular-server"
+  | "browser"
+  | "node";
+
+export type SdkPackage = "react" | "vue" | "angular" | "browser" | "node";
+
+/** A server runtime: no `unique_id`, counted by its connection, no usage analytics. */
+export function isServerRuntime(runtime: SdkRuntime | string): boolean {
+  return runtime === "node" || runtime === "laravel" || runtime.endsWith("-server");
+}
 
 /**
  * The runtime this process reports as. Each package sets it once at init; core defaults to
@@ -46,6 +68,34 @@ export function getSdkRuntime(): SdkRuntime {
 }
 
 /**
+ * The runtime a package reports as, from what it can observe at init. Pure: the react
+ * store's `hydrate()` and the node `init()` apply exactly this rule, and the conformance
+ * vectors replay it (see conformance/vectors/usage-reporting.json).
+ *
+ * - the node package is always `node`, the browser package is always `browser`,
+ * - the react, vue and angular packages are `<package>-server` without a `window` or with
+ *   `ssr: true`, and `<package>-client` otherwise.
+ */
+export function resolveSdkRuntime(input: { package: SdkPackage; hasWindow?: boolean; ssr?: boolean }): SdkRuntime {
+  if (input.package === "node" || input.package === "browser") {
+    return input.package;
+  }
+  const side = !input.hasWindow || input.ssr ? "server" : "client";
+  return `${input.package}-${side}` as SdkRuntime;
+}
+
+/**
+ * Whether usage analytics (`POST /translate/last-used-translations`, and the per-render
+ * usage recording that feeds it) are active for a runtime. A server render may be a
+ * crawler hit and a serverless init would POST per request, so `react-server` is read-only.
+ * The node package reports usage (debounced), see packages/node/service.ts.
+ */
+export function isUsageReportingEnabled(runtime: SdkRuntime = sdkRuntime): boolean {
+  // Every `*-server` render is read-only; the node package is the one server that reports.
+  return runtime === "node" || !isServerRuntime(runtime);
+}
+
+/**
  * The identity headers for one request: what kind of client this is, and — for a device
  * only — which device.
  *
@@ -55,15 +105,17 @@ export function getSdkRuntime(): SdkRuntime {
  * shape.
  */
 export function identityHeaders(storeUniqueId?: string | null): Record<string, string> {
-  if (sdkRuntime !== "react-client") {
+  if (isServerRuntime(sdkRuntime)) {
     return { sdk: sdkRuntime };
   }
   return { sdk: sdkRuntime, unique_id: resolveUniqueIdForRequest(storeUniqueId) };
 }
 
 /** The API's own alphabet and length — see `customAlphabet(alphabet, 16)` server-side. */
-const ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz";
-const ID_LENGTH = 16;
+export const UNIQUE_ID_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz";
+export const UNIQUE_ID_LENGTH = 16;
+const ALPHABET = UNIQUE_ID_ALPHABET;
+const ID_LENGTH = UNIQUE_ID_LENGTH;
 
 /**
  * Random bytes from the best source the runtime offers. React Native's Hermes has no

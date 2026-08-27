@@ -23,6 +23,10 @@ the same feature set so you can compare integrations side by side:
 | [`react-native`](./react-native) | React Native (CLI) | native | MMKV / AsyncStorage adapter |
 | [`expo`](./expo) | Expo Router | native | Expo storage + router |
 | [`node`](./node) | Node.js (no React) | server | `i18n-keyless-node` + `awaitForTranslation` |
+| [`vue-vite`](./vue-vite) | Vite + Vue 3 | SPA | `i18n-keyless-vue`: the `I18nKeyless` plugin, `<T>`, `t()` from `useI18nKeyless()`, switcher |
+| [`angular`](./angular) | Angular (standalone, signals) | SPA | `i18n-keyless-angular`: `provideI18nKeyless()`, `<i18n-t>`, the `t` pipe, `translation()` signal (source files only: generate the workspace with the CLI) |
+| [`browser`](./browser) | plain HTML, no framework | script tag | `i18n-keyless-browser`: the `auto` script tag, `data-i18n`, `<i18n-t>`, `watchTranslation` |
+| [`laravel`](./laravel) | Laravel | server (PHP) | `i18n-keyless/laravel`: `__()` unchanged, `i18nk()` with `context`, five commands against the mock backend |
 
 Primary language is **`fr`** across all examples — you write strings in French and
 i18n-keyless translates them to `en`/`es` (and any other supported language).
@@ -72,6 +76,10 @@ build via `file:../../packages/*`:
 | node | Vitest | 2 | `awaitForTranslation` renders translated HTML |
 | react-native | Jest (RN preset) | 2 | translation + `context` in the RN runtime |
 | expo | Jest (jest-expo) | 3 | translation + `context` + primary fallback |
+| vue-vite | (library suite) | | `cd packages/vue && npx vitest run` covers the plugin, `<T>`, `t()` and SSR |
+| angular | (library suite) | | `cd packages/angular && npx vitest run` covers the component, the pipe, the service and the SSR provider |
+| browser | (library suite) | | `cd packages/browser && npx vitest run` covers the store, `data-i18n`, `<i18n-t>` and the `auto` entry |
+| laravel | (port suite) | | `cd ports/laravel && vendor/bin/phpunit`; the example itself is a throwaway app driven by `artisan tinker` |
 
 Notes:
 - The web/Vitest configs `dedupe` React and inline the linked lib + zustand so the
@@ -80,3 +88,9 @@ Notes:
   peer matrix), pin React 18.3, and their tests assert the translation **logic** in the
   native runtime — the visual `<I18nKeylessText>` render is the same component the web
   examples cover, so it isn't re-rendered through `react-test-renderer`.
+- **browser** has no bundler: `npm run build` runs `tsc` on `packages/browser` (build
+  `packages/core` first) and `npm run dev` serves the repo root, because a module script
+  cannot load from `file://`.
+- **laravel** is a Composer package, not an npm workspace: the example README creates a
+  throwaway Laravel app next to it with `composer create-project` and requires the port by
+  path. The Flutter port carries its own example in `ports/flutter/example`.

@@ -147,13 +147,11 @@ describe("debug logging", () => {
 });
 
 describe("the queue's bulk refetch handler", () => {
-  // DEAD CODE, recorded so removing it is a deliberate decision.
-  //
-  // `service.ts` subscribes to the shared queue's "empty" event and refetches every
-  // namespace returned by `getNamespacesToFetchAfterTranslationFinished()`. But that map is
+  // `service.ts` used to subscribe to the shared queue's "empty" event and refetch every
+  // namespace returned by `getNamespacesToFetchAfterTranslationFinished()`. That map is
   // only ever populated by core's `translateKey`, and the node package never calls it:
-  // `awaitForTranslation` fetches directly. So the handler always iterates an empty list,
-  // and the queue it listens to never has anything added to it either.
+  // `awaitForTranslation` fetches directly. The handler was dead code and is gone; this
+  // test pins the contract that an "empty" event triggers no bulk refetch from node.
   it("never refetches, because node never registers a namespace on the shared queue", async () => {
     const { service, api, queue } = await load();
     vi.spyOn(api, "fetchTranslation").mockResolvedValue(okOne({ en: "Hello" }) as never);

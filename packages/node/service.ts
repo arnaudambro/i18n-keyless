@@ -2,8 +2,6 @@ import {
   type Lang,
   type TranslationOptions,
   type I18nKeylessRequestBody,
-  queue,
-  getNamespacesToFetchAfterTranslationFinished,
   resolveOriginLanguage,
   AVAILABLE_LANGS,
   DEFAULT_NAMESPACE,
@@ -207,7 +205,9 @@ function knownLanguagesOnly(
   }
   for (const lang of Object.keys(translationByLang) as Lang[]) {
     const value = translationByLang[lang];
-    if (!value || !AVAILABLE_LANGS.includes(lang)) {
+    // The API answers with the stored row: its flat `id` is the numeric row id, not the
+    // Indonesian cell. Anything that is not a non-empty string is not a translation.
+    if (typeof value !== "string" || !value || !AVAILABLE_LANGS.includes(lang)) {
       continue;
     }
     known[lang] = value;
@@ -224,7 +224,8 @@ function knownLanguagesOnly(
 function cacheTranslation(translationKey: string, translationByLang?: Partial<Record<Lang, string>>) {
   const normalized = knownLanguagesOnly(translationByLang);
   for (const lang of Object.keys(normalized) as Lang[]) {
-    store.translations[lang] = { ...(store.translations[lang] ?? {}), [translationKey]: normalized[lang]! };
+    // Every known language has a bucket from boot, and `knownLanguagesOnly` keeps only those.
+    store.translations[lang] = { ...store.translations[lang], [translationKey]: normalized[lang]! };
   }
 }
 
@@ -248,24 +249,8 @@ function scheduleTranslationsUsageFlush() {
   (usageFlushTimeout as unknown as { unref?: () => void }).unref?.();
 }
 
-queue.on("empty", () => {
-  // When a batch of missing words finishes, refetch — but only the namespaces that had a
-  // miss this round, and merge per language so other namespaces aren't clobbered.
-  // `unpersistedNamespace` is a client-storage concern; the node store is in-memory only, so
-  // it has no effect here — we just need the namespace string.
-  for (const { namespace } of getNamespacesToFetchAfterTranslationFinished()) {
-    getAllTranslationsForAllLanguages(namespace).then((res) => {
-      if (res?.ok) {
-        for (const lang of Object.keys(res.data.translations) as Lang[]) {
-          if (!AVAILABLE_LANGS.includes(lang)) {
-            continue;
-          }
-          store.translations[lang] = { ...store.translations[lang], ...res.data.translations[lang] };
-        }
-      }
-    });
-  }
-});
+// No `queue.on("empty")` refetch here: that map is only fed by core's `translateKey`, which
+// this package never calls (`awaitForTranslation` POSTs directly and caches the answer).
 
 export async function init(newConfig: I18nKeylessNodeConfig): Promise<I18nKeylessNodeConfig> {
   if (!newConfig.languages) {
@@ -502,11 +487,8 @@ async function awaitForTranslationFn(
       return key;
     }
 
-    // Proceed with API call if no custom handler
-    if (!config.API_KEY) {
-      // This should technically be caught earlier, but belt-and-suspenders
-      throw new Error("i18n-keyless: API_KEY is required for API translation but missing.");
-    }
+    // No custom handler, so `config.API_KEY` is set: the guard at the top of this try block
+    // already threw when both were missing, and nothing awaited in between.
 
     // Collapse concurrent misses of the same key: a server handling N simultaneous requests
     // would otherwise fire N identical POSTs before the first one comes back and fills the

@@ -1,0 +1,25 @@
+{
+  "description": "What one HTTP status does to one attempt. `parse-body`: the JSON body is the result (an `ETag` response header is copied into the result as `etag`). `not-modified`: the result is `{ok: true, notModified: true}` and nothing is merged. `fail`: the attempt ends the call now with `{ok: false, error}`. `retry`: the attempt failed and the next one follows the backoff schedule; after the last attempt the result is `{ok: false, error}`. `error` is the status text when non-empty, else `HTTP <code>`. Only 200 parses a body: every other 2xx and every 3xx other than 304 is a failure.",
+  "source": "packages/core/api.ts: isRetryableStatus(status), httpErrorMessage(status, statusText), fetchWithRetry",
+  "cases": [
+    { "input": { "status": 200, "statusText": "OK" }, "expected": { "action": "parse-body" } },
+    { "input": { "status": 304, "statusText": "Not Modified" }, "expected": { "action": "not-modified" } },
+    { "input": { "status": 201, "statusText": "Created" }, "expected": { "action": "fail", "error": "Created" } },
+    { "input": { "status": 204, "statusText": "" }, "expected": { "action": "fail", "error": "HTTP 204" } },
+    { "input": { "status": 301, "statusText": "Moved Permanently" }, "expected": { "action": "fail", "error": "Moved Permanently" } },
+    { "input": { "status": 302, "statusText": "Found" }, "expected": { "action": "fail", "error": "Found" } },
+    { "input": { "status": 400, "statusText": "Bad Request" }, "expected": { "action": "fail", "error": "Bad Request" } },
+    { "input": { "status": 401, "statusText": "Unauthorized" }, "expected": { "action": "fail", "error": "Unauthorized" } },
+    { "input": { "status": 403, "statusText": "Forbidden" }, "expected": { "action": "fail", "error": "Forbidden" } },
+    { "input": { "status": 404, "statusText": "Not Found" }, "expected": { "action": "fail", "error": "Not Found" } },
+    { "input": { "status": 408, "statusText": "Request Timeout" }, "expected": { "action": "fail", "error": "Request Timeout" } },
+    { "input": { "status": 410, "statusText": "Gone" }, "expected": { "action": "fail", "error": "Gone" } },
+    { "input": { "status": 422, "statusText": "Unprocessable Entity" }, "expected": { "action": "fail", "error": "Unprocessable Entity" } },
+    { "input": { "status": 429, "statusText": "Too Many Requests" }, "expected": { "action": "retry", "error": "Too Many Requests" } },
+    { "input": { "status": 500, "statusText": "Internal Server Error" }, "expected": { "action": "retry", "error": "Internal Server Error" } },
+    { "input": { "status": 502, "statusText": "Bad Gateway" }, "expected": { "action": "retry", "error": "Bad Gateway" } },
+    { "input": { "status": 503, "statusText": "Service Unavailable" }, "expected": { "action": "retry", "error": "Service Unavailable" } },
+    { "input": { "status": 504, "statusText": "Gateway Timeout" }, "expected": { "action": "retry", "error": "Gateway Timeout" } },
+    { "input": { "status": 599, "statusText": "" }, "expected": { "action": "retry", "error": "HTTP 599" } }
+  ]
+}

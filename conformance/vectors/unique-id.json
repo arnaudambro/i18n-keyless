@@ -1,0 +1,33 @@
+{
+  "description": "The device id sent as the `unique_id` header by a device runtime (`react-client`). Generation: 16 characters drawn from a 63-character alphabet with rejection sampling (a random byte >= 252 is discarded, otherwise `alphabet[byte % 63]`). Validity (`isUniqueId`): a string of 1 to 64 characters, every character in the range 0x21..0x7E (printable ASCII, no space, no control character). An invalid persisted value is replaced by a fresh id. The id is persisted under the storage key `i18n-keyless-user-id` and is NOT removed when the translation cache is cleared. A server runtime sends no id.",
+  "source": "packages/core/unique-id.ts: generateUniqueId(), isUniqueId(value), resolveUniqueIdForRequest(storeUniqueId)",
+  "alphabet": "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz",
+  "alphabetLength": 63,
+  "idLength": 16,
+  "largestUsableByteExclusive": 252,
+  "idPattern": "^[0-9A-Z_a-z]{16}$",
+  "storageKey": "i18n-keyless-user-id",
+  "keptOnClear": true,
+  "resolutionRules": [
+    "the process-level id, once set, wins over any store snapshot",
+    "else a valid id from the store snapshot is adopted and becomes the process-level id",
+    "else a fresh id is generated and becomes the process-level id",
+    "an empty header is never sent"
+  ],
+  "cases": [
+    { "name": "plain id", "input": "abc123", "expected": true },
+    { "name": "16 chars from the alphabet", "input": "deviceIdABCDEF12", "expected": true },
+    { "name": "64 chars is the maximum", "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "expected": true },
+    { "name": "65 chars is too long", "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "expected": false },
+    { "name": "boundary characters 0x21 and 0x7E are allowed", "input": "!~", "expected": true },
+    { "name": "empty string", "input": "", "expected": false },
+    { "name": "null", "input": null, "expected": false },
+    { "name": "a number", "input": 42, "expected": false },
+    { "name": "an object", "input": {}, "expected": false },
+    { "name": "newline", "input": "abc\ndef", "expected": false },
+    { "name": "space", "input": "abc def", "expected": false },
+    { "name": "tab", "input": "abc\tdef", "expected": false },
+    { "name": "DEL 0x7F", "input": "abc\u007f", "expected": false },
+    { "name": "non-ASCII", "input": "idé", "expected": false }
+  ]
+}

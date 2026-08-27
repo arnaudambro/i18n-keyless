@@ -1,0 +1,14 @@
+{
+  "description": "How a source text and an optional context form the key a translation is stored under, looked up by, and reported under in usage analytics. The same key is what `POST /translate` bodies split back into `key` and `context`.",
+  "source": "packages/core/service.ts: storageKeyFor(key, context)",
+  "rule": "context ? key + '__' + context : key",
+  "cases": [
+    { "name": "no context", "input": { "key": "Bonjour" }, "expected": "Bonjour" },
+    { "name": "with context", "input": { "key": "8 heures", "context": "time" }, "expected": "8 heures__time" },
+    { "name": "empty context is no context", "input": { "key": "Bonjour", "context": "" }, "expected": "Bonjour" },
+    { "name": "context is copied verbatim, spaces and punctuation included", "input": { "key": "Back", "context": "this is a back button" }, "expected": "Back__this is a back button" },
+    { "name": "a key that already contains a double underscore is not escaped", "input": { "key": "a__b", "context": "c" }, "expected": "a__b__c" },
+    { "name": "unicode text", "input": { "key": "Привет, мир", "context": "greeting" }, "expected": "Привет, мир__greeting" },
+    { "name": "the key function does not trim (the component path trims before calling it)", "input": { "key": " Bonjour ", "context": "x" }, "expected": " Bonjour __x" }
+  ]
+}

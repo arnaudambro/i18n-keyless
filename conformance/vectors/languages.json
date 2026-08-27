@@ -1,0 +1,16 @@
+{
+  "description": "The language codes of protocol v3: the 48 codes in the reference order, the two codes renamed from v2, the 17 v2 codes that did not move, and the structural rules (no bare `zh`; exactly six regionalised codes).",
+  "source": "packages/core/types.ts: AVAILABLE_LANGS",
+  "cases": [
+    {
+      "name": "the 48 codes, in the reference order",
+      "check": "availableLangs",
+      "expected": ["ar", "bn", "ca", "zh-Hans", "zh-Hant", "hr", "cs", "da", "nl", "en", "en-GB", "fi", "fr", "fr-CA", "de", "el", "gu", "he", "hi", "hu", "id", "it", "ja", "kn", "ko", "ms", "ml", "mr", "no", "or", "pl", "pt", "pt-BR", "pa", "ro", "ru", "sk", "sl", "es", "es-MX", "sv", "ta", "te", "th", "tr", "uk", "ur", "vi"]
+    },
+    { "name": "v2 `cn` is v3 `zh-Hans`", "check": "rename", "input": "cn", "expected": "zh-Hans" },
+    { "name": "v2 `cz` is v3 `cs`", "check": "rename", "input": "cz", "expected": "cs" },
+    { "name": "the 17 other v2 codes travel unchanged", "check": "stillAvailable", "input": ["fr", "en", "nl", "it", "de", "es", "pl", "pt", "ro", "hu", "sv", "tr", "ja", "ru", "ko", "ar", "el"] },
+    { "name": "no bare zh", "check": "absent", "input": "zh" },
+    { "name": "exactly six regionalised codes", "check": "regionalized", "expected": ["en-GB", "es-MX", "fr-CA", "pt-BR", "zh-Hans", "zh-Hant"] }
+  ]
+}

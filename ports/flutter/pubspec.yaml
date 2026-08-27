@@ -1,0 +1,30 @@
+name: i18n_keyless
+description: Keyless i18n for Flutter. No ARB files, no gen-l10n, no keys. Write T('Bonjour') and ship 48 languages at runtime with AI translations.
+version: 3.4.0
+homepage: https://i18n-keyless.com
+repository: https://github.com/arnaudambro/i18n-keyless
+issue_tracker: https://github.com/arnaudambro/i18n-keyless/issues
+documentation: https://docs.i18n-keyless.com
+topics:
+  - i18n
+  - localization
+  - translation
+  - internationalization
+
+environment:
+  sdk: ^3.6.0
+  flutter: ">=3.27.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.0
+  shared_preferences: ^2.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  shared_preferences_platform_interface: ^2.4.1
+
+flutter:

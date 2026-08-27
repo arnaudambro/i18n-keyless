@@ -228,6 +228,50 @@ const isLang = (l: string): l is Lang => (AVAILABLE_LANGS as readonly string[]).
   resolved translated text.
 - The component is `I18nKeylessText` (aliased `T`) — not `I18nKeyless`.
 
+## Operate it from your agent (MCP)
+
+Anything a human can do in the dashboard, you can do through the MCP server — no key to
+paste, OAuth gives you your own login:
+
+```bash
+claude mcp add --transport http i18n-keyless https://api.i18n-keyless.com/mcp
+```
+
+Other clients: an HTTP MCP server at `https://api.i18n-keyless.com/mcp`
+(`{ "mcpServers": { "i18n-keyless": { "type": "http", "url": "https://api.i18n-keyless.com/mcp" } } }`).
+
+On the first call the browser opens once: sign in or sign up (plan and payment included),
+pick the project, approve. The token is bound to that one project — add the server once per
+app. Then call `get_started` first: it returns the install steps with the project's key and
+languages already filled in.
+
+- `i18n:read` — `get_started`, `search_docs`, `list_languages`, `get_project`,
+  `list_projects`, `list_translations`, `get_translation`
+- `i18n:write` — `translate`, `override_translation`, `delete_translation`,
+  `set_project_languages`
+- `i18n:account` — `create_project`, `invite_member`, `remove_member`,
+  `cancel_subscription` (at period end), `resume_subscription`
+
+Guide: https://docs.i18n-keyless.com/docs/guides/mcp
+
+## Other frameworks
+
+This skill covers React, React Native, Expo, the React SSR frameworks and Node. The other
+SDKs speak the same protocol, take the same per-translation options and share the same
+dashboard, but each has its own skill. Read the one for the project's stack instead of
+adapting this file:
+
+| Stack | Package | Skill |
+| --- | --- | --- |
+| Vue 3, Nuxt, Vite SSR | `i18n-keyless-vue` | `packages/vue/SKILL.md` |
+| Angular >= 17.1 | `i18n-keyless-angular` | `packages/angular/SKILL.md` |
+| Plain HTML, Svelte, Alpine, htmx, jQuery, legacy sites | `i18n-keyless-browser` | `packages/browser/SKILL.md` |
+| Laravel 11, 12, 13 | `i18n-keyless/laravel` (Composer) | `ports/laravel/SKILL.md` |
+| Flutter, Dart | `i18n_keyless` (pub.dev) | `ports/flutter/SKILL.md` |
+
+Paths are relative to the repository root (https://github.com/arnaudambro/i18n-keyless).
+The wire protocol they all implement is `docs/PROTOCOL.md`.
+
 ## Go deeper
 
 The entire documentation is one pasteable Markdown file: **https://docs.i18n-keyless.com/llms.txt**

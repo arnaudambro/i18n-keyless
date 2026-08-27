@@ -1,10 +1,93 @@
 # Changelog
 
-All notable changes to i18n-keyless are documented here. The three packages
-(`i18n-keyless-core`, `i18n-keyless-react`, `i18n-keyless-node`) share one version.
+All notable changes to i18n-keyless are documented here. The npm packages
+(`i18n-keyless-core`, `i18n-keyless-react`, `i18n-keyless-node`, `i18n-keyless-vue`,
+`i18n-keyless-angular`, `i18n-keyless-browser`) and the ports (`i18n-keyless/laravel`,
+`i18n_keyless`) share one version.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
+
+## [3.4.0] — 2026-08-27
+
+### Added: four new SDKs, all on the same protocol
+
+Same wire format, same `context` / `replace` / `namespace` / `unpersistedNamespace` /
+`forceTemporary` / `originLanguage` options, same storage keys (an app that migrates keeps
+its cache and its device id), same dashboard and API key.
+
+- **`i18n-keyless-vue`** (`packages/vue`): Vue 3 (>= 3.3). The `I18nKeyless` plugin
+  registers `<T>` / `<I18nKeylessText>` and `<I18nKeylessProvider>`; `useI18nKeyless()`
+  gives `t()` for attributes, `useTranslation()` a computed string, `getTranslation()` the
+  plain function. Localized SSR through the plugin options `{ lang, translations }`,
+  `getServerTranslations`, `runWithI18nKeyless`, `getUsedTranslationsSnapshot`; a Nuxt
+  plugin file is documented, no Nuxt module. Runtime labels `vue-client` / `vue-server`.
+- **`i18n-keyless-angular`** (`packages/angular`): Angular >= 17.1, standalone APIs, signals,
+  works zoneless. `provideI18nKeyless(config)`, the `<i18n-t>` component, the impure `t`
+  pipe, `I18nKeylessService` (`translate()`, `translation()` signal, `currentLanguage`,
+  rxjs bridges), `provideI18nKeylessServer()` for localized Angular SSR. Built with `ngc`
+  (`@angular/compiler-cli` devDependency) in `prepublishOnly`, so the published `dist` is
+  Ivy partial and AOT-ready. `storage` defaults to `localStorage` in the browser. Runtime
+  labels `angular-client` / `angular-server`.
+- **`i18n-keyless-browser`** (`packages/browser`): framework-free. A plain store
+  (`subscribe`, `getState`), `getTranslation` / `resolveTranslation` / `watchTranslation`,
+  `translateDom()` for `data-i18n` elements, the `<i18n-t>` web component
+  (`defineI18nT()`), and an `./auto` entry that reads its config from the `data-*`
+  attributes of one script tag and exposes `window.i18nKeyless`. Covers Svelte, Alpine,
+  htmx, jQuery, plain HTML. Runtime label `browser`. Supersedes `packages/web-component`.
+- **`i18n-keyless/laravel`** (`ports/laravel`, Composer, PHP >= 8.2, Laravel 11 to 13): the
+  existing `__('...')` calls (JSON keyless mode) resolve through the API via
+  `Lang::handleMissingKeysUsing`, dictionaries in Laravel's cache with ETag revalidation,
+  misses sent after the response (or as a `TranslateMissingKeys` job with
+  `I18N_KEYLESS_QUEUE`), usage analytics on the node rules, `i18nk()` for a `context`.
+  Two required `.env` lines: `I18N_KEYLESS_API_KEY` and `I18N_KEYLESS_LANGUAGES`. Runtime
+  label `laravel` (a server). PHPUnit suite on Orchestra Testbench.
+- **`i18n_keyless`** (`ports/flutter`, pub.dev, Dart >= 3.6, Flutter >= 3.27):
+  `I18nKeylessClient`, `I18nKeylessScope`, the `T('...')` widget and `context.t('...')`,
+  `Lang` as an enum, `SharedPreferencesStorage` / `MemoryStorage`, a pure-Dart entry
+  (`i18n_keyless_core.dart`) for CLIs and servers. Runtime label `flutter` (a device).
+
+Examples: `examples/vue-vite`, `examples/angular`, `examples/browser`, `examples/laravel`.
+Each new package ships its own `SKILL.md`; the root skill lists them under "Other
+frameworks".
+
+### Added: the protocol specification and the conformance suite
+
+- `docs/PROTOCOL.md`: the language-neutral wire protocol (configuration, headers, timeout
+  and retry, the four endpoints, resolution, the queue, bulk fetch and ETag replay, usage
+  analytics, identity, storage keys, SSR rules, the 48 codes). Every client statement is
+  derived from the reference code and every server statement was verified against the API
+  source (section 16).
+- `conformance/vectors/*.json`: seventeen self-describing vector files, replayed by
+  `packages/core/__tests__/conformance.test.ts`, by the Laravel suite
+  (`tests/Conformance/VectorsTest.php`) and by the Flutter suite.
+- `docs/PORT_CHECKLIST.md`: what a new port must ship before it is called conformant.
+
+### Added: `sdk` runtime labels for the new SDKs (`i18n-keyless-core`)
+
+`SdkRuntime` gains `vue-client`, `vue-server`, `angular-client`, `angular-server` and
+`browser`; the ports send `laravel` and `flutter`. The rule, shared with the API and
+exported as `isServerRuntime(runtime)`: `node`, `laravel` and every `*-server` label are
+servers (no `unique_id`, counted by connection, read-only usage except `node`); everything
+else is a device. `identityHeaders` now applies that rule instead of comparing with
+`react-client`, so a new client label sends its device id.
+
+### Added: pure protocol helpers exported by `i18n-keyless-core`
+
+Additive, for the conformance suite and for ports written on top of core:
+`DEFAULT_API_URL`, `storageKeyFor`, `queueIdFor`, `applyReplace`, `buildDictionaryUrl`,
+`etagCacheKey`, `TIMEOUT_MS`, `RETRY_DELAYS_MS`, `MAX_ATTEMPTS`, `isRetryableStatus`,
+`httpErrorMessage`, `resolveSdkRuntime`, `isUsageReportingEnabled`, `isServerRuntime`,
+`UNIQUE_ID_ALPHABET`, `UNIQUE_ID_LENGTH`, and the `SdkPackage` type. No behaviour change
+for existing callers.
+
+### Fixed: the translate response's row `id` was cached as Indonesian (`i18n-keyless-node`)
+
+`POST /translate` answers with the stored row, whose flat `id` field is the numeric row
+id. The node SDK filtered the answer by language code only, and `id` is the code of
+Indonesian, so the row id was stored as the Indonesian translation of every key translated
+through the node SDK. The filter now also requires a non-empty string
+(`packages/node/__tests__/translate-row-id.test.ts`).
 
 ## [3.3.0] — 2026-08-26
 

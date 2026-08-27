@@ -1,0 +1,44 @@
+{
+  "description": "The usage analytics POST (`POST /translate/last-used-translations`). The body carries the primary language and the usage map keyed by namespace, each entry mapping a storage key (`key__context`) to the UTC date (YYYY-MM-DD) of its last use. An empty map is never sent. A custom `sendTranslationsUsage` handler receives the default-namespace bucket only (or an empty object). The API answers `{ok, error, message}` with no `data`; a non-empty message is logged as a warning.",
+  "source": "packages/core/service.ts: sendTranslationsUsageToI18nKeyless(usageByNamespace, store); packages/react/store.ts: setTranslationUsage, sendTranslationsUsage; packages/node/service.ts",
+  "dateRule": "new Date().toISOString().slice(0, 10)  (UTC calendar date)",
+  "usageKeyRule": "storageKeyFor(key, context)",
+  "responseShape": { "ok": true, "error": "", "message": "" },
+  "cases": [
+    {
+      "name": "usage under two namespaces from a device",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "k-usage", "languages": { "primary": "fr", "supported": ["fr", "en"] } }, "usage": { "default": { "Bonjour": "2026-08-04", "8 heures__time": "2026-08-04" }, "checkout": { "Payer": "2026-08-05" } } },
+      "expected": { "url": "https://api.i18n-keyless.com/translate/last-used-translations", "method": "POST", "headers": { "Content-Type": "application/json", "Authorization": "Bearer k-usage", "sdk": "react-client", "unique_id": "$DEVICE_ID", "Version": "$SDK_VERSION" }, "body": { "primaryLanguage": "fr", "translationsUsageByNamespace": { "default": { "Bonjour": "2026-08-04", "8 heures__time": "2026-08-04" }, "checkout": { "Payer": "2026-08-05" } } } }
+    },
+    {
+      "name": "the node runtime sends no device id",
+      "input": { "runtime": "node", "config": { "API_KEY": "k-usage-node", "languages": { "primary": "en", "supported": ["en", "fr"] } }, "usage": { "default": { "Hello": "2026-08-25" } } },
+      "expected": { "url": "https://api.i18n-keyless.com/translate/last-used-translations", "method": "POST", "headers": { "Content-Type": "application/json", "Authorization": "Bearer k-usage-node", "sdk": "node", "Version": "$SDK_VERSION" }, "body": { "primaryLanguage": "en", "translationsUsageByNamespace": { "default": { "Hello": "2026-08-25" } } } }
+    },
+    {
+      "name": "self-hosted API_URL",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "k-usage-self", "API_URL": "https://self.hosted", "languages": { "primary": "fr", "supported": ["fr", "en"] } }, "usage": { "default": { "Bonjour": "2026-08-04" } } },
+      "expected": { "url": "https://self.hosted/translate/last-used-translations", "method": "POST", "headers": { "Content-Type": "application/json", "Authorization": "Bearer k-usage-self", "sdk": "react-client", "unique_id": "$DEVICE_ID", "Version": "$SDK_VERSION" }, "body": { "primaryLanguage": "fr", "translationsUsageByNamespace": { "default": { "Bonjour": "2026-08-04" } } } }
+    },
+    {
+      "name": "an empty map is not sent",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "k-usage-empty", "languages": { "primary": "fr", "supported": ["fr", "en"] } }, "usage": {} },
+      "expected": { "http": false }
+    },
+    {
+      "name": "no API key: nothing is sent",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "", "languages": { "primary": "fr", "supported": ["fr", "en"] } }, "usage": { "default": { "Bonjour": "2026-08-04" } } },
+      "expected": { "http": false }
+    },
+    {
+      "name": "a custom handler receives the default bucket only",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "k-usage-handler", "sendTranslationsUsage": true, "languages": { "primary": "fr", "supported": ["fr", "en"] } }, "usage": { "default": { "Bonjour": "2026-08-04" }, "checkout": { "Payer": "2026-08-05" } } },
+      "expected": { "handler": "sendTranslationsUsage", "handlerArgs": [{ "Bonjour": "2026-08-04" }], "http": false }
+    },
+    {
+      "name": "a custom handler receives an empty object when there is no default bucket",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "k-usage-handler-2", "sendTranslationsUsage": true, "languages": { "primary": "fr", "supported": ["fr", "en"] } }, "usage": { "checkout": { "Payer": "2026-08-05" } } },
+      "expected": { "handler": "sendTranslationsUsage", "handlerArgs": [{}], "http": false }
+    }
+  ]
+}

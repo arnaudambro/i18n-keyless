@@ -1,0 +1,16 @@
+{
+  "description": "Namespace and origin-language resolution. `resolveNamespace`: per-call `namespace`, else config `defaultNamespace`, else the literal `default`. `resolveOriginLanguage`: the per-call `originLanguage` when present and different from the primary language, else absent (null). On the wire the default namespace is always omitted (no `namespace` body field, no `namespace` query parameter).",
+  "source": "packages/core/service.ts: resolveNamespace(options, config), resolveOriginLanguage(options, config)",
+  "defaultNamespace": "default",
+  "cases": [
+    { "name": "per-call namespace wins", "fn": "resolveNamespace", "input": { "options": { "namespace": "checkout" }, "config": { "defaultNamespace": "app" } }, "expected": "checkout" },
+    { "name": "config defaultNamespace when the call has none", "fn": "resolveNamespace", "input": { "options": {}, "config": { "defaultNamespace": "app" } }, "expected": "app" },
+    { "name": "the literal default when nothing is set", "fn": "resolveNamespace", "input": { "options": null, "config": {} }, "expected": "default" },
+    { "name": "an empty per-call namespace falls through", "fn": "resolveNamespace", "input": { "options": { "namespace": "" }, "config": { "defaultNamespace": "app" } }, "expected": "app" },
+    { "name": "an empty defaultNamespace falls through", "fn": "resolveNamespace", "input": { "options": {}, "config": { "defaultNamespace": "" } }, "expected": "default" },
+    { "name": "origin differs from primary", "fn": "resolveOriginLanguage", "input": { "options": { "originLanguage": "es" }, "primary": "fr" }, "expected": "es" },
+    { "name": "origin equal to primary is absent", "fn": "resolveOriginLanguage", "input": { "options": { "originLanguage": "fr" }, "primary": "fr" }, "expected": null },
+    { "name": "no origin is absent", "fn": "resolveOriginLanguage", "input": { "options": {}, "primary": "fr" }, "expected": null },
+    { "name": "no options is absent", "fn": "resolveOriginLanguage", "input": { "options": null, "primary": "fr" }, "expected": null }
+  ]
+}

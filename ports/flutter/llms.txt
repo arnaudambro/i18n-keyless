@@ -1,0 +1,157 @@
+# i18n_keyless (Flutter)
+
+> Keyless i18n for Flutter. Write the string in your primary language, wrap it in `T(...)`, and ship 48 languages at runtime with AI translations. No ARB files, no `flutter gen-l10n`, no translation keys. Add a language without a release.
+
+This file is the whole documentation of the Flutter package in one Markdown file, meant to be pasted into an LLM context window. Version 3.3.0, protocol v3. The same API key, dashboard and protocol serve the React, React Native and Node SDKs (see https://docs.i18n-keyless.com/llms.txt).
+
+## Core concepts
+
+- **Keyless**: the source string itself is the translation key. A context (`8 heures` + `durée`) is stored as `8 heures__durée`.
+- **Primary language**: the language the source strings are written in. Any of the 48 codes.
+- **Supported languages** (48, the App Store localizations), as the `Lang` enum: `ar bn ca zh-Hans zh-Hant hr cs da nl en en-GB fi fr fr-CA de el gu he hi hu id it ja kn ko ms ml mr no or pl pt pt-BR pa ro ru sk sl es es-MX sv ta te th tr uk ur vi`. Enum names drop the hyphen: `Lang.ptBR`, `Lang.zhHans`, `Lang.enGB`. `lang.code` is the wire string.
+- **Storage**: `I18nKeylessStorage` (three async methods). `SharedPreferencesStorage()` on a device, `MemoryStorage()` by default.
+- **AI translations**: on a cache miss the server generates the translation, stores it, and the next dictionary fetch brings it to the device.
+- **Overrides**: edit a translation in the dashboard (https://i18n-keyless.com/dashboard) or use `forceTemporary` from code.
+- **Namespaces**: an optional per-call partition (`namespace: 'checkout'`) so a device fetches and stores only the slice it renders. Not a semantic key. Reserved default: `default`.
+- **User generated content**: pass `originLanguage` for a string written by a user in another language.
+- **API key**: https://i18n-keyless.com/#get-api-key. Required in every mode.
+
+## Installation
+
+```bash
+flutter pub add i18n_keyless
+```
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:i18n_keyless/i18n_keyless.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final i18n = I18nKeylessClient();
+  await i18n.init(I18nKeylessConfig(
+    apiKey: 'YOUR_API_KEY',
+    languages: const LanguagesConfig(primary: Lang.fr, supported: [Lang.fr, Lang.en]),
+    storage: SharedPreferencesStorage(),
+  ));
+  runApp(I18nKeylessScope(client: i18n, child: const MyApp()));
+}
+```
+
+`init` returns once the cache is hydrated from storage; the bulk fetch and the usage POST run in the background. `await i18n.waitForIdle()` waits for them (splash screen, tests).
+
+## Usage
+
+```dart
+// Widget: a Text that rebuilds when the translation lands or the language changes.
+T('Bonjour le monde', style: Theme.of(context).textTheme.titleLarge)
+
+// String: hint texts, tooltips, snack bars. Rebuilds the calling widget.
+TextField(decoration: InputDecoration(hintText: context.t('Votre email')))
+
+// Plain function, outside the widget tree: does not trim, subscribes nothing.
+i18n.getTranslation('Bonjour');
+
+// Language.
+final i18n = I18nKeyless.of(context);   // or context.i18n
+i18n.setCurrentLanguage(Lang.en);
+i18n.currentLanguage;                    // Lang.en
+i18n.supportedLanguages;
+```
+
+`T` accepts every `Text` layout parameter (`style`, `textAlign`, `maxLines`, `overflow`, ...). `T` and `context.t()` trim the source text and warn once, in a debug build, when it carried surrounding whitespace.
+
+### Per-translation options
+
+Named parameters of `T(...)`, `context.t(...)` and `getTranslation(...)`:
+
+| Option | Meaning |
+| --- | --- |
+| `context: 'durée'` | disambiguates meaning; two contexts are two translations |
+| `replace: {'{name}': user.name}` | interpolation; keys include the delimiters; regex-special characters are literal; an empty replacement keeps the placeholder |
+| `namespace: 'checkout'` | fetch/storage partition |
+| `unpersistedNamespace: true` | memory-only namespace, never persisted, never reported |
+| `forceTemporary: {Lang.en: 'Hi'}` | your own translation, sent to the API, arrives with the next fetch |
+| `originLanguage: Lang.es` | the language a user-written string is in |
+| `debug: true` | logs the resolution of this string |
+
+### Config (`I18nKeylessConfig`)
+
+| Field | Default |
+| --- | --- |
+| `apiKey` | required |
+| `apiUrl` | `https://api.i18n-keyless.com` (self-hosted backend, no trailing slash) |
+| `languages` | required: `LanguagesConfig(primary, supported, fallback, initWithDefault, skipCurrentLanguageHydration)` |
+| `storage` | `MemoryStorage()` |
+| `defaultNamespace` | `default` |
+| `sendUsage` | `true`; `false` records and sends no usage analytics |
+| `handleTranslate`, `getAllTranslations`, `sendTranslationsUsage` | custom handlers replacing the HTTP calls |
+| `onInit`, `onSetLanguage` | callbacks |
+| `httpClient` | `http.Client()`; a `MockClient` in tests |
+| `debug`, `logger` | `false`, `print` |
+
+### Device language at first launch
+
+```dart
+final tag = WidgetsBinding.instance.platformDispatcher.locale.toLanguageTag(); // "pt-BR"
+final lang = resolveLang(tag, supported: [Lang.fr, Lang.en], fallback: Lang.en);
+// LanguagesConfig(..., initWithDefault: lang)
+```
+
+`resolveLang` maps any BCP-47 tag most specific first (`pt-BR`, then `pt`; `zh-TW` is `zh-Hant`; `es-419` is `es-MX`). `Lang.fromCode('pt-BR')` is the exact match. `toAppStoreLocale(Lang.fr)` is `fr-FR`.
+
+## How it works
+
+1. `T('Bonjour')` looks the key up in the flat cache of the current language, synchronously. Miss: the source text renders and the key is queued (30 in flight at most, deduplicated by `namespace:key`).
+2. The queue posts `POST /translate` per missing key. When it drains, `GET /translate/:lang` fetches the dictionary of every namespace that had a miss, with `If-None-Match` when an ETag is known (a `304` keeps the cache). The answer is merged and persisted per namespace.
+3. Transport: 10 s timeout, 3 attempts, 500 ms then 1500 ms backoff on network errors, 429 and 5xx; no retry on other 4xx; never throws; never clears a stored translation.
+4. Identity: a 16-character device id is generated before the first request, persisted under `i18n-keyless-user-id`, and sent as `unique_id` with `sdk: flutter` and `Version: 3.3.0`. It is what the API counts as one user. `clearStorageAndStore()` keeps it.
+5. Usage analytics: every render records `key__context` with the UTC date under its namespace; the map is POSTed once per `init` and cleared on success. `sendUsage: false` disables both.
+
+## Storage adapters
+
+```dart
+abstract class I18nKeylessStorage {
+  Future<String?> getItem(String key);
+  Future<void> setItem(String key, String value);
+  Future<void> removeItem(String key);
+}
+```
+
+Keys (identical to the JavaScript SDKs): `i18n-keyless-user-id`, `i18n-keyless-current-language`, `i18n-keyless-translations` (default namespace, JSON), `i18n-keyless-translations__<ns>`, `i18n-keyless-last-refresh`, `i18n-keyless-last-refresh__<ns>`, `i18n-keyless-translations-usage`, `i18n-keyless-namespaces`, `i18n-keyless-origin-namespaces`.
+
+## Pure Dart
+
+`package:i18n_keyless/i18n_keyless_core.dart` has no Flutter import: `I18nKeylessClient`, `PQueue`, `I18nKeylessApi`, `MemoryStorage`, `Lang`, `resolveLang`, `applyReplace`, `storageKeyFor`, `buildDictionaryUrl`. On a server use `sendUsage: false`.
+
+## Testing
+
+```dart
+final client = I18nKeylessClient();
+await client.init(I18nKeylessConfig(
+  apiKey: 'test', apiUrl: 'https://api.test',
+  languages: const LanguagesConfig(primary: Lang.fr, supported: [Lang.fr, Lang.en]),
+  httpClient: MockClient((request) async => http.Response(jsonEncode({...}), 200)),
+));
+await client.waitForIdle();
+```
+
+Widget tests: `tester.runAsync(() => client.init(...))`, `pumpWidget(I18nKeylessScope(client: client, child: MaterialApp(...)))`, `tester.runAsync(() => client.waitForIdle())`, `pump()`.
+
+## Gotchas
+
+- Every `T` and `context.t()` needs an `I18nKeylessScope` above it.
+- Source strings must be written in the primary language.
+- No leading or trailing whitespace inside `T(...)`.
+- `const T('...')` is valid and preferred.
+- A dashboard edit reaches cached devices at the next refresh, not instantly.
+- Every `T` below the scope rebuilds on every cache change: fine for a screen, not for thousands of widgets at once.
+- After a language switch, a string with no entry in the new language shows the previous language's text until its translation arrives.
+- Two contexts of the same string in one batch make one `POST /translate`; the second is translated on a later render.
+
+## Links
+
+- Docs: https://docs.i18n-keyless.com
+- Dashboard: https://i18n-keyless.com/dashboard
+- MCP server: `claude mcp add --transport http i18n-keyless https://api.i18n-keyless.com/mcp`
+- Repository, protocol and conformance vectors: https://github.com/arnaudambro/i18n-keyless (`docs/PROTOCOL.md`, `conformance/`)

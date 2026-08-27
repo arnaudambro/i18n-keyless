@@ -1,0 +1,72 @@
+{
+  "description": "The per-language bulk fetch `GET /translate/:lang` (the client path). URL rules: the default namespace never appears in the query; another namespace travels URL-encoded as `namespace=`; without a known ETag the delta cursor travels as `last_refresh=<lastRefresh>` where a null cursor is written literally as `null`; with a known ETag the cursor leaves the URL and the ETag travels as `If-None-Match`. ETags are remembered in memory only, keyed by (API key, language, namespace). Placeholders as in translate-request.json. `knownEtag` seeds the in-memory ETag for that (API key, language, namespace) before the request.",
+  "source": "packages/core/service.ts: buildDictionaryUrl(params), etagCacheKey(apiKey, lang, namespace), getAllTranslationsFromLanguage(lang, store, namespace)",
+  "etagCacheKeyRule": "apiKey + '|' + lang + '|' + (namespace || 'default')",
+  "cases": [
+    {
+      "name": "first fetch of a language: null cursor written literally",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "k-first", "languages": { "primary": "fr", "supported": ["fr", "en"] } }, "targetLanguage": "en", "lastRefresh": null },
+      "expected": { "url": "https://api.i18n-keyless.com/translate/en?last_refresh=null", "method": "GET", "headers": { "Content-Type": "application/json", "Authorization": "Bearer k-first", "sdk": "react-client", "unique_id": "$DEVICE_ID", "Version": "$SDK_VERSION" }, "etagCacheKey": "k-first|en|default" }
+    },
+    {
+      "name": "delta fetch with a cursor",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "k-cursor", "languages": { "primary": "fr", "supported": ["fr", "en"] } }, "targetLanguage": "en", "lastRefresh": "1700000000" },
+      "expected": { "url": "https://api.i18n-keyless.com/translate/en?last_refresh=1700000000", "method": "GET", "headers": { "Content-Type": "application/json", "Authorization": "Bearer k-cursor", "sdk": "react-client", "unique_id": "$DEVICE_ID", "Version": "$SDK_VERSION" }, "etagCacheKey": "k-cursor|en|default" }
+    },
+    {
+      "name": "an empty-string cursor is written as empty",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "k-empty", "languages": { "primary": "fr", "supported": ["fr", "en"] } }, "targetLanguage": "en", "lastRefresh": "" },
+      "expected": { "url": "https://api.i18n-keyless.com/translate/en?last_refresh=", "method": "GET", "headers": { "Content-Type": "application/json", "Authorization": "Bearer k-empty", "sdk": "react-client", "unique_id": "$DEVICE_ID", "Version": "$SDK_VERSION" }, "etagCacheKey": "k-empty|en|default" }
+    },
+    {
+      "name": "explicit namespace",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "k-ns", "languages": { "primary": "fr", "supported": ["fr", "en"] } }, "targetLanguage": "en", "lastRefresh": null, "namespace": "checkout" },
+      "expected": { "url": "https://api.i18n-keyless.com/translate/en?last_refresh=null&namespace=checkout", "method": "GET", "headers": { "Content-Type": "application/json", "Authorization": "Bearer k-ns", "sdk": "react-client", "unique_id": "$DEVICE_ID", "Version": "$SDK_VERSION" }, "etagCacheKey": "k-ns|en|checkout" }
+    },
+    {
+      "name": "namespace is URL-encoded",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "k-enc", "languages": { "primary": "fr", "supported": ["fr", "en"] } }, "targetLanguage": "en", "lastRefresh": "123", "namespace": "check out/1" },
+      "expected": { "url": "https://api.i18n-keyless.com/translate/en?last_refresh=123&namespace=check%20out%2F1", "method": "GET", "headers": { "Content-Type": "application/json", "Authorization": "Bearer k-enc", "sdk": "react-client", "unique_id": "$DEVICE_ID", "Version": "$SDK_VERSION" }, "etagCacheKey": "k-enc|en|check out/1" }
+    },
+    {
+      "name": "the default namespace, passed explicitly, is omitted",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "k-default", "languages": { "primary": "fr", "supported": ["fr", "en"] } }, "targetLanguage": "en", "lastRefresh": null, "namespace": "default" },
+      "expected": { "url": "https://api.i18n-keyless.com/translate/en?last_refresh=null", "method": "GET", "headers": { "Content-Type": "application/json", "Authorization": "Bearer k-default", "sdk": "react-client", "unique_id": "$DEVICE_ID", "Version": "$SDK_VERSION" }, "etagCacheKey": "k-default|en|default" }
+    },
+    {
+      "name": "a regionalised language code travels as is",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "k-region", "languages": { "primary": "fr", "supported": ["fr", "zh-Hans"] } }, "targetLanguage": "zh-Hans", "lastRefresh": null },
+      "expected": { "url": "https://api.i18n-keyless.com/translate/zh-Hans?last_refresh=null", "method": "GET", "headers": { "Content-Type": "application/json", "Authorization": "Bearer k-region", "sdk": "react-client", "unique_id": "$DEVICE_ID", "Version": "$SDK_VERSION" }, "etagCacheKey": "k-region|zh-Hans|default" }
+    },
+    {
+      "name": "with a known ETag the cursor leaves the URL and If-None-Match is sent",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "k-etag", "languages": { "primary": "fr", "supported": ["fr", "en"] } }, "targetLanguage": "en", "lastRefresh": "1700000000", "knownEtag": "W/\"abc123\"" },
+      "expected": { "url": "https://api.i18n-keyless.com/translate/en", "method": "GET", "headers": { "Content-Type": "application/json", "Authorization": "Bearer k-etag", "sdk": "react-client", "unique_id": "$DEVICE_ID", "Version": "$SDK_VERSION", "If-None-Match": "W/\"abc123\"" }, "etagCacheKey": "k-etag|en|default" }
+    },
+    {
+      "name": "with a known ETag and a namespace only the namespace stays in the query",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "k-etag-ns", "languages": { "primary": "fr", "supported": ["fr", "en"] } }, "targetLanguage": "en", "lastRefresh": "1700000000", "namespace": "checkout", "knownEtag": "\"v7\"" },
+      "expected": { "url": "https://api.i18n-keyless.com/translate/en?namespace=checkout", "method": "GET", "headers": { "Content-Type": "application/json", "Authorization": "Bearer k-etag-ns", "sdk": "react-client", "unique_id": "$DEVICE_ID", "Version": "$SDK_VERSION", "If-None-Match": "\"v7\"" }, "etagCacheKey": "k-etag-ns|en|checkout" }
+    },
+    {
+      "name": "the ETag is remembered per language: another language has none",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "k-etag-other", "languages": { "primary": "fr", "supported": ["fr", "en", "es"] } }, "targetLanguage": "es", "lastRefresh": null, "knownEtagFor": { "lang": "en", "etag": "\"only-en\"" } },
+      "expected": { "url": "https://api.i18n-keyless.com/translate/es?last_refresh=null", "method": "GET", "headers": { "Content-Type": "application/json", "Authorization": "Bearer k-etag-other", "sdk": "react-client", "unique_id": "$DEVICE_ID", "Version": "$SDK_VERSION" }, "etagCacheKey": "k-etag-other|es|default" }
+    },
+    {
+      "name": "self-hosted API_URL",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "k-self", "API_URL": "https://self.hosted", "languages": { "primary": "fr", "supported": ["fr", "en"] } }, "targetLanguage": "en", "lastRefresh": null },
+      "expected": { "url": "https://self.hosted/translate/en?last_refresh=null", "method": "GET", "headers": { "Content-Type": "application/json", "Authorization": "Bearer k-self", "sdk": "react-client", "unique_id": "$DEVICE_ID", "Version": "$SDK_VERSION" }, "etagCacheKey": "k-self|en|default" }
+    },
+    {
+      "name": "a server runtime sends no device id",
+      "input": { "runtime": "react-server", "config": { "API_KEY": "k-ssr", "languages": { "primary": "fr", "supported": ["fr", "en"] } }, "targetLanguage": "en", "lastRefresh": null },
+      "expected": { "url": "https://api.i18n-keyless.com/translate/en?last_refresh=null", "method": "GET", "headers": { "Content-Type": "application/json", "Authorization": "Bearer k-ssr", "sdk": "react-server", "Version": "$SDK_VERSION" }, "etagCacheKey": "k-ssr|en|default" }
+    },
+    {
+      "name": "a custom getAllTranslations replaces the request and receives no argument",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "k-handler", "getAllTranslations": true, "languages": { "primary": "fr", "supported": ["fr", "en"] } }, "targetLanguage": "en", "lastRefresh": null, "namespace": "checkout" },
+      "expected": { "handler": "getAllTranslations", "handlerArgs": [], "http": false }
+    }
+  ]
+}

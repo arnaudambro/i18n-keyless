@@ -1,7 +1,7 @@
 {
   "$schema": "https://context7.com/schema/context7.json",
   "projectTitle": "i18n-keyless",
-  "description": "Keyless i18n SDK for React, React Native and Node: the source string is the key, translations are AI-generated at runtime.",
+  "description": "Keyless i18n SDK for React, React Native, Node, Vue, Angular, plain browser (script tag and <i18n-t> web component), Laravel and Flutter: the source string is the key, translations are AI-generated at runtime.",
   "branch": "main",
   "excludeFolders": [
     "node_modules",
@@ -29,6 +29,17 @@
     "In Node, always await awaitForTranslation; fire-and-forget calls hit the 429 rate limit.",
     "Use context to disambiguate meaning and namespace to partition fetch and storage; they are not interchangeable.",
     "Do not leave leading or trailing whitespace inside I18nKeylessText: it changes the translation key.",
-    "Under SSR, <T> resolves the language from I18nKeylessProvider while getTranslation resolves it from the runWithI18nKeyless AsyncLocalStorage scope."
+    "Under SSR, <T> resolves the language from I18nKeylessProvider while getTranslation resolves it from the runWithI18nKeyless AsyncLocalStorage scope.",
+    "Vue: install the I18nKeyless plugin (createApp(App).use(I18nKeyless)) to register <T>; the plugin is I18nKeyless, the component is I18nKeylessText aliased T.",
+    "Vue: write replace keys with single braces ({name}); Vue's template compiler owns {{ }}.",
+    "Vue: inside a component use t() from useI18nKeyless() or useTranslation(); getTranslation() does not see the plugin or provider scope under SSR.",
+    "Angular: add provideI18nKeyless(config) to the root providers; import I18nKeylessTextComponent and I18nKeylessTranslatePipe in each standalone component that uses <i18n-t> or the t pipe.",
+    "Angular: the t pipe is impure on purpose so the translation can land; do not add markForCheck calls around it. Wrap a source containing { in an interpolation ({{ 'Bonjour {name}' }}) because Angular reads a bare { as an ICU block.",
+    "Angular: storage is optional in the browser (defaults to localStorage); <i18n-t> keeps the source in a hidden span, so use the pipe inside <option>, <title> and attributes.",
+    "Browser package: mark text with the data-i18n attribute or the <i18n-t> element; data-i18n replaces the whole text content of the element, so mark leaf elements only, and content inserted later needs translateDom(newNode).",
+    "Browser package: the auto script tag needs data-api-key and data-primary; self-hosted files need an import map for the bare i18n-keyless-core specifier.",
+    "Laravel: I18N_KEYLESS_API_KEY and I18N_KEYLESS_LANGUAGES are both required in .env; without the languages list, missing strings are never sent.",
+    "Laravel: keep Laravel's :name placeholders (__('Bienvenue :name', ['name' => $name])); there is no replace option. Use i18nk('text', context: '...') for a context.",
+    "Flutter: init the I18nKeylessClient before runApp and wrap the app in I18nKeylessScope; the widget is T, the string form is context.t(), and Lang is an enum (Lang.zhHans, not 'zh-Hans')."
   ]
 }

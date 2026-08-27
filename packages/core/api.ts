@@ -9,8 +9,26 @@
  * falls back to its stored translations — the app must never show empty text because the
  * API answered slowly.
  */
-const TIMEOUT_MS = 10_000;
-const RETRY_DELAYS_MS = [500, 1500];
+/** Per-attempt timeout. The whole call is bounded by MAX_ATTEMPTS * TIMEOUT_MS + backoff. */
+export const TIMEOUT_MS = 10_000;
+/** Backoff before attempt 2 and attempt 3. Nothing is waited after the last attempt. */
+export const RETRY_DELAYS_MS: readonly number[] = [500, 1500];
+/** Total attempts for one call: the first try plus one per backoff delay. */
+export const MAX_ATTEMPTS = RETRY_DELAYS_MS.length + 1;
+
+/**
+ * Whether a non-200, non-304 HTTP status is retried. Only 429 and 5xx are transient; every
+ * other status (including 2xx other than 200, 3xx other than 304, and 4xx) answers now.
+ * Pure, so a port can replay the conformance vectors against it.
+ */
+export function isRetryableStatus(status: number): boolean {
+  return status === 429 || status >= 500;
+}
+
+/** The `error` string reported for a failed HTTP status: the status text, else `HTTP <code>`. */
+export function httpErrorMessage(status: number, statusText?: string | null): string {
+  return statusText || `HTTP ${status}`;
+}
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -30,9 +48,9 @@ async function fetchWithRetry(url: string, options: RequestInit): Promise<any> {
         if (etag && json && typeof json === "object") json.etag = etag;
         return json;
       }
-      lastError = res.statusText || `HTTP ${res.status}`;
+      lastError = httpErrorMessage(res.status, res.statusText);
       // 4xx (except 429) is not transient: answer now, do not hammer the API.
-      if (res.status < 500 && res.status !== 429) return { ok: false, error: lastError };
+      if (!isRetryableStatus(res.status)) return { ok: false, error: lastError };
     } catch (err) {
       lastError = err instanceof Error ? (err.name === "AbortError" ? "timeout" : err.message) : String(err);
     } finally {

@@ -1,7 +1,7 @@
 {
   "name": "i18n-keyless-react",
   "private": false,
-  "version": "3.3.0",
+  "version": "3.4.0",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -25,7 +25,7 @@
     "postpublish": "rm -rf ./dist && rm -f SKILL.md && rm *.tgz"
   },
   "dependencies": {
-    "i18n-keyless-core": "3.3.0",
+    "i18n-keyless-core": "3.4.0",
     "zustand": "^5.0.3"
   },
   "peerDependencies": {

@@ -11,6 +11,8 @@ Welcome to **i18n-keyless**! 🚀 This package provides a seamless way to handle
 - [Using an AI coding agent?](#-using-an-ai-coding-agent)
 - [How it works](#-how-it-works)
 - [Installation](#-installation)
+- [Quick Start](#-quick-start)
+  - [React](#react-quick-start), [Node](#node-quick-start), [Vue](#vue-quick-start), [Angular](#angular-quick-start), [Browser](#browser-quick-start), [Laravel](#laravel-quick-start), [Flutter](#flutter-quick-start)
 - [Usage](#-usage)
   - [React](#-react-usage-i18n-keyless-react)
   - [Node](#-node-usage-i18n-keyless-node)
@@ -19,6 +21,7 @@ Welcome to **i18n-keyless**! 🚀 This package provides a seamless way to handle
 - [Server-Side Rendering](#-server-side-rendering)
 - [Supported Languages](#-supported-languages)
 - [Setup](#️-setup-with-i18n-keyless-service)
+- [Protocol and ports](#-protocol-and-ports)
 - [Custom Component Example](#️-custom-component-example)
 - [What pains does it solve?](#-what-pains-does-it-solve)
 - [Contact](#-contact)
@@ -35,6 +38,7 @@ these fits your tool:
 | **Agent Skill** | [`skills/i18n-keyless/SKILL.md`](./skills/i18n-keyless/SKILL.md) | Claude Code, Claude.ai, and any tool that reads `SKILL.md`. Copy the folder into `.claude/skills/` of your project. |
 | **llms.txt** | [`llms.txt`](./llms.txt), also served at [docs.i18n-keyless.com/llms.txt](https://docs.i18n-keyless.com/llms.txt) | The whole documentation as one pasteable Markdown file — Cursor, ChatGPT, Windsurf, Copilot. |
 | **Context7** | `use context7` in your prompt | Live docs injected into the context window through the Context7 MCP server. |
+| **MCP server** | `claude mcp add --transport http i18n-keyless https://api.i18n-keyless.com/mcp` | Your agent operates the project: list missing translations, fix one, change languages, create a project. OAuth, no key to paste. [Guide](https://docs.i18n-keyless.com/docs/guides/mcp). |
 
 The skill is short on purpose: install, initialise, the two ways to render a string, the
 per-translation options, the SSR traps, and the gotchas. It links to `llms.txt` for the rest.
@@ -85,6 +89,8 @@ also show `getServerTranslations` + `runWithI18nKeyless` + `getUsedTranslationsS
 | [tanstack-start](./examples/tanstack-start) | SSR | | [react-native](./examples/react-native) | native |
 | [remix-rr7](./examples/remix-rr7) | SSR | | [expo](./examples/expo) | native |
 | [nextjs](./examples/nextjs) | SSR | | [node](./examples/node) | server |
+| [vue-vite](./examples/vue-vite) | SPA (Vue) | | [angular](./examples/angular) | SPA (Angular) |
+| [browser](./examples/browser) | script tag, no framework | | [laravel](./examples/laravel) | server (PHP) |
 
 See [`examples/README.md`](./examples/README.md) to run them (real service via an API key, or
 offline against the bundled mock backend). Primary language is `fr` throughout.
@@ -106,6 +112,22 @@ Install the package via npm or yarn:
 ```bash
 npm install i18n-keyless-node
 ```
+
+### **Every package and port**
+
+One protocol, one dashboard, one API key. Pick the package for your stack; each README is
+the full reference for that package.
+
+| Target | Package | Install | README |
+| --- | --- | --- | --- |
+| React, React Native, Expo, Next.js, Remix, TanStack Start, Astro | `i18n-keyless-react` | `npm install i18n-keyless-react` | [React usage](#-react-usage-i18n-keyless-react) below |
+| Node.js backend (emails, push, cron) | `i18n-keyless-node` | `npm install i18n-keyless-node` | [Node usage](#-node-usage-i18n-keyless-node) below |
+| Vue 3, Nuxt, Vite SSR | `i18n-keyless-vue` | `npm install i18n-keyless-vue` | [packages/vue](./packages/vue/README.md) |
+| Angular >= 17.1 (standalone, signals, Angular SSR) | `i18n-keyless-angular` | `npm install i18n-keyless-angular` | [packages/angular](./packages/angular/README.md) |
+| Plain HTML, Svelte, Alpine, htmx, jQuery, legacy sites | `i18n-keyless-browser` | `npm install i18n-keyless-browser`, or one script tag | [packages/browser](./packages/browser/README.md) |
+| Laravel 11, 12, 13 | `i18n-keyless/laravel` (Composer) | `composer require i18n-keyless/laravel` | [ports/laravel](./ports/laravel/README.md) |
+| Flutter, Dart | `i18n_keyless` (pub.dev) | `flutter pub add i18n_keyless` | [ports/flutter](./ports/flutter/README.md) |
+| Any stack, shared engine | `i18n-keyless-core` | `npm install i18n-keyless-core` | [packages/core](./packages/core), [docs/PROTOCOL.md](./docs/PROTOCOL.md) |
 
 ---
 
@@ -229,6 +251,149 @@ Get up and running in minutes!
 
     })();
     ```
+
+### **Vue Quick Start**
+
+1.  **Install:**
+    ```bash
+    npm install i18n-keyless-vue
+    ```
+
+2.  **Initialize:** Call `init` once before the app mounts, then install the plugin. It registers `<T>` globally.
+    ```javascript
+    import { createApp } from "vue";
+    import { init, I18nKeyless } from "i18n-keyless-vue";
+
+    init({
+      API_KEY: "<YOUR_API_KEY>",
+      storage: window.localStorage,
+      languages: { primary: "en", supported: ["en", "fr", "es"] },
+    });
+    createApp(App).use(I18nKeyless).mount("#app");
+    ```
+
+3.  **Use:** Wrap text with `<T>`, or call `t()` for an attribute.
+    ```vue
+    <script setup>
+    import { useI18nKeyless, setCurrentLanguage } from "i18n-keyless-vue";
+    const { t } = useI18nKeyless();
+    </script>
+
+    <template>
+      <button @click="setCurrentLanguage('fr')">Set FR</button>
+      <h1><T>Welcome to our app!</T></h1>
+      <input :placeholder="t('Your email')" />
+      <button><T context="this is a back button">Back</T></button>
+    </template>
+    ```
+    Full reference, SSR and Nuxt: [packages/vue/README.md](./packages/vue/README.md).
+
+### **Angular Quick Start**
+
+1.  **Install:**
+    ```bash
+    npm install i18n-keyless-angular
+    ```
+
+2.  **Initialize:** Add the provider once, in `app.config.ts`. `storage` defaults to `localStorage` in the browser.
+    ```typescript
+    import { provideI18nKeyless } from "i18n-keyless-angular";
+
+    export const appConfig = {
+      providers: [
+        provideI18nKeyless({
+          API_KEY: "<YOUR_API_KEY>",
+          languages: { primary: "en", supported: ["en", "fr", "es"] },
+        }),
+      ],
+    };
+    ```
+
+3.  **Use:** The `<i18n-t>` component, or the `t` pipe where an element cannot go.
+    ```typescript
+    import { Component, inject } from "@angular/core";
+    import { I18nKeylessTextComponent, I18nKeylessTranslatePipe, I18nKeylessService } from "i18n-keyless-angular";
+
+    @Component({
+      standalone: true,
+      imports: [I18nKeylessTextComponent, I18nKeylessTranslatePipe],
+      template: `
+        <button (click)="i18n.setCurrentLanguage('fr')">Set FR</button>
+        <h1><i18n-t>Welcome to our app!</i18n-t></h1>
+        <input [placeholder]="'Your email' | t" />
+        <button><i18n-t context="this is a back button">Back</i18n-t></button>
+      `,
+    })
+    export class MyComponent {
+      readonly i18n = inject(I18nKeylessService);
+    }
+    ```
+    Full reference and Angular SSR: [packages/angular/README.md](./packages/angular/README.md).
+
+### **Browser Quick Start**
+
+No framework, no build step: one script tag does `init`, translates every `data-i18n`
+element and every `<i18n-t>`, and exposes the JS API as `window.i18nKeyless`.
+
+```html
+<script type="module" src="https://esm.sh/i18n-keyless-browser/auto"
+        data-api-key="<YOUR_API_KEY>" data-primary="en" data-supported="en,fr,es"></script>
+
+<button onclick="i18nKeyless.setCurrentLanguage('fr')">Set FR</button>
+<h1 data-i18n>Welcome to our app!</h1>
+<button><i18n-t context="this is a back button">Back</i18n-t></button>
+```
+
+With a bundler (Svelte, Alpine, htmx, jQuery, vanilla): `npm install i18n-keyless-browser`,
+then `init`, `defineI18nT()`, `translateDom()` and `watchTranslation()` from JS. Full
+reference: [packages/browser/README.md](./packages/browser/README.md).
+
+### **Laravel Quick Start**
+
+Your existing `__('Welcome to our app')` calls (Laravel's JSON keyless mode) resolve through
+the API. One `composer require`, two `.env` lines, zero code change.
+
+```bash
+composer require i18n-keyless/laravel
+```
+
+```dotenv
+I18N_KEYLESS_API_KEY=<YOUR_API_KEY>
+I18N_KEYLESS_LANGUAGES=en,fr,es      # every language your app serves
+```
+
+```php
+__('Welcome to our app');                        // translated for App::getLocale()
+__('Welcome :name', ['name' => $user->name]);    // placeholders stay Laravel's job
+i18nk('8 heures', context: 'duration');          // context, when one string has two meanings
+```
+
+Full reference (cache, queue, locales, limitations): [ports/laravel/README.md](./ports/laravel/README.md).
+
+### **Flutter Quick Start**
+
+No ARB files, no `flutter gen-l10n`: write `T('Welcome')` and ship 48 languages at runtime.
+
+```bash
+flutter pub add i18n_keyless
+```
+
+```dart
+final i18n = I18nKeylessClient();
+await i18n.init(I18nKeylessConfig(
+  apiKey: '<YOUR_API_KEY>',
+  languages: LanguagesConfig(primary: Lang.en, supported: [Lang.en, Lang.fr, Lang.es]),
+  storage: SharedPreferencesStorage(),
+));
+runApp(I18nKeylessScope(client: i18n, child: const MyApp()));
+
+// in a widget
+T('Welcome to our app!');
+TextField(decoration: InputDecoration(hintText: context.t('Your email')));
+I18nKeyless.of(context).setCurrentLanguage(Lang.fr);
+```
+
+Full reference: [ports/flutter/README.md](./ports/flutter/README.md).
 
 ---
 
@@ -804,6 +969,29 @@ await init({
     getAllTranslationsForAllLanguages: getAllTranslationsForAllLanguages
 });
 ```
+
+---
+
+## 🔌 **Protocol and ports**
+
+Every package and port speaks the same wire protocol to the same API, so a project can mix
+them (a Laravel backend and a Vue front end, a Flutter app and a Node cron) on one API key
+and one dashboard, and an app migrating from one package to another keeps its cache and its
+device id.
+
+- [`docs/PROTOCOL.md`](./docs/PROTOCOL.md): the language-neutral specification. Endpoints,
+  headers, timeout and retry, the `key__context` storage format, the queue, ETag replay,
+  usage analytics, identity (`sdk` and `unique_id`), the 48 language codes. Verified against
+  the API source.
+- [`conformance/`](./conformance): JSON test vectors that every SDK replays. The TypeScript
+  core, the Laravel port and the Flutter port run them in their test suites.
+- [`docs/PORT_CHECKLIST.md`](./docs/PORT_CHECKLIST.md): what a new port (Python, Ruby, ...)
+  must ship before it is called conformant.
+
+Runtime labels sent in the `sdk` header: `react-client` / `react-server`, `vue-client` /
+`vue-server`, `angular-client` / `angular-server`, `browser`, `node`, `laravel`, `flutter`.
+A `*-server` label, `node` and `laravel` are servers (counted by connection, no device id);
+everything else is a device.
 
 ---
 

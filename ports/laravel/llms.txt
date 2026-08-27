@@ -1,0 +1,92 @@
+# i18n-keyless/laravel
+
+> Keyless translations for Laravel 11, 12 and 13. The existing `__('Welcome to our app')` calls (Laravel JSON keyless mode) resolve through the i18n-keyless API: AI translation on the first miss, cached in Laravel's cache, served from there. One `composer require`, two `.env` lines, zero code change.
+
+This file is the whole package documentation as one pasteable Markdown page. The general i18n-keyless documentation (dashboard, MCP server, the JavaScript SDKs) is at https://docs.i18n-keyless.com/llms.txt.
+
+## Install
+
+```bash
+composer require i18n-keyless/laravel
+```
+
+```dotenv
+I18N_KEYLESS_API_KEY=your-key
+I18N_KEYLESS_LANGUAGES=en,fr,es   # required for translation: every language the app serves
+I18N_KEYLESS_PRIMARY_LANG=en      # optional, default config('app.locale')
+```
+
+Requirements: PHP >= 8.2, Laravel 11, 12 or 13. The provider `I18nKeyless\Laravel\I18nKeylessServiceProvider` is auto-discovered.
+
+## Use
+
+```php
+__('Welcome to our app');                                  // unchanged Laravel call
+__('Welcome :name', ['name' => $user->name]);              // Laravel placeholders
+i18nk('8 heures', context: 'duration');                    // context: stored as "8 heures__duration"
+i18nk('8 heures', context: 'clock time');
+i18nk('Payer', namespace: 'checkout');                     // an i18n-keyless namespace
+App::setLocale('pt_BR');                                   // Laravel locales are mapped (pt-BR)
+```
+
+`i18nk(string $text, array $replace = [], ?string $context = null, ?string $locale = null, ?string $namespace = null): string`
+
+## Behaviour
+
+- Primary locale: the source string is returned, no API call.
+- Other locale, first miss in the process: the locale's dictionary is read from the cache; absent, it is fetched once from `GET {api_url}/translate/{lang}?last_refresh=` and stored; then served through `Lang::handleMissingKeysUsing` (or injected with `Lang::addLines()` when `usage` is false). Laravel's loader is kept; `lang/{locale}.json` lines win.
+- Missing string: source text returned (placeholders replaced), miss recorded. After the response (`app()->terminating`), or as a `TranslateMissingKeys` job when `queue` is set, misses are sent to `POST {api_url}/translate` (body `{key, context?, namespace?, languages, primaryLanguage}`, where `languages` is the configured list plus the primary, never the locale that missed), deduplicated by key and context, 30 in flight at most. Answers are merged into the cache. With an empty `languages` config nothing is sent (the API stores the received list as the project's languages): the source text is served and one warning is logged per process.
+- Stale dictionary (older than `cache.ttl`): served, then revalidated after the response with `If-None-Match: <etag>`; `304` keeps it.
+- HTTP policy: 10 s timeout, retries with backoff 500 ms then 1500 ms on network error, timeout, 429, 5xx; no retry on other 4xx; never throws. A failed fetch is remembered 60 s.
+- Headers on every request: `Authorization: Bearer <api_key>`, `Content-Type: application/json`, `Version: 3.3.0`, `sdk: laravel` (a server label, counted like `node`). No `unique_id` (a server is counted by its connection).
+- Usage analytics (node SDK rule): the UTC date each string was last served is recorded (namespace, `key__context`), merged into a cumulative map in the cache (never cleared), and POSTed to `{api_url}/translate/last-used-translations` as `{primaryLanguage, translationsUsageByNamespace}` after the response, at most once every 10 s across processes (a `Cache::add` lock), only when the map changed. Fire and forget. `usage: false` disables it; the dictionary is then injected with `Lang::addLines()` instead of being served by the missing-key handler.
+
+## Configuration (config/i18n-keyless.php)
+
+| key | env | default |
+| --- | --- | --- |
+| enabled | I18N_KEYLESS_ENABLED | true |
+| api_key | I18N_KEYLESS_API_KEY | null |
+| api_url | I18N_KEYLESS_API_URL | https://api.i18n-keyless.com |
+| primary | I18N_KEYLESS_PRIMARY_LANG | config('app.locale') |
+| languages | I18N_KEYLESS_LANGUAGES | empty: required for translation, nothing is sent without it |
+| namespace | I18N_KEYLESS_NAMESPACE | default |
+| cache.store | I18N_KEYLESS_CACHE_STORE | default cache store |
+| cache.ttl | I18N_KEYLESS_CACHE_TTL | 3600 |
+| cache.prefix | | i18n-keyless |
+| timeout | | 10 |
+| retry | | [500, 1500] |
+| concurrency | | 30 |
+| usage | I18N_KEYLESS_USAGE | true |
+| queue | I18N_KEYLESS_QUEUE | null |
+
+Publish: `php artisan vendor:publish --tag=i18n-keyless-config`.
+
+## Locale mapping
+
+Laravel locale to i18n-keyless code: exact match first (`pt-BR`, `zh-Hans`), then Chinese by region (`zh_CN`, `zh_SG` to `zh-Hans`; `zh_TW`, `zh_HK`, `zh_MO` to `zh-Hant`), `es-419` to `es-MX`, then the bare language (`fr_FR` to `fr`, `pt-AO` to `pt`). Unknown locales are left alone. 48 codes: ar, bn, ca, zh-Hans, zh-Hant, hr, cs, da, nl, en, en-GB, fi, fr, fr-CA, de, el, gu, he, hi, hu, id, it, ja, kn, ko, ms, ml, mr, no, or, pl, pt, pt-BR, pa, ro, ru, sk, sl, es, es-MX, sv, ta, te, th, tr, uk, ur, vi.
+
+## Limitations
+
+- `trans_choice` pipe strings are sent as one source string. Use `i18nk()` with a `context` per plural form, or PHP array files for plurals.
+- Keys with a dot are served through the missing-key handler (same result).
+- The package registers `Lang::handleMissingKeysUsing`; an application callback replaces it. Call `app(\I18nKeyless\Laravel\KeylessTranslator::class)->handleMissingKey($key, $replace, $locale, $fallback)` from it.
+- Same string in two namespaces: the last injected wins for `__()`.
+- Misses are deduplicated by key and context (the SDK queue ignores the context).
+- Usage counts only the strings served by this package: a string served from `lang/{locale}.json` is not counted.
+
+## Classes
+
+- `I18nKeyless\Laravel\I18nKeylessServiceProvider`: config merge and publish, translator hook, `terminating` and `JobProcessed` flush.
+- `I18nKeyless\Laravel\KeylessTranslator`: `get()`, `handleMissingKey()`, `ensureLoaded()`, `flush()`, `translateNow()`, `pendingMisses()`.
+- `I18nKeyless\Laravel\ApiClient`: `fetchDictionary()`, `translate()`, `sendUsage()`, `dictionaryUrl()`, `translateBody()`, `decide()`, `errorFor()`; constants `VERSION`, `SDK`, `DEFAULT_URL`.
+- `I18nKeyless\Laravel\DictionaryStore`: cache entries `{translations, etag, fetched_at, failed}`, `claimMiss()` / `releaseMiss()` guard, `usage()` / `mergeUsage()` / `claimUsageSlot()`.
+- `I18nKeyless\Laravel\Locale`: `toLang()`, `isLang()`, `AVAILABLE_LANGS`.
+- `I18nKeyless\Laravel\Miss`: `key`, `context`, `namespace`, `langs`, `lookupKey()`, `id()`.
+- `I18nKeyless\Laravel\Jobs\TranslateMissingKeys`: queued misses.
+
+## Links
+
+- Get an API key: https://i18n-keyless.com/#get-api-key
+- Dashboard: https://i18n-keyless.com/dashboard
+- Docs: https://docs.i18n-keyless.com

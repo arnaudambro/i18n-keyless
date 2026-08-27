@@ -1,0 +1,26 @@
+{
+  "description": "The `replace` option: placeholders are literal strings (regex metacharacters escaped), all placeholders are matched in one left-to-right pass, every occurrence is replaced, a placeholder whose replacement is an empty string is left in place, and replacement values are inserted literally (no `$` expansion, no re-scan). Applied AFTER the translation lookup, to the translated text or to the key when no translation exists yet. `replace: null` means the option is absent.",
+  "source": "packages/core/service.ts: applyReplace(text, replace)",
+  "cases": [
+    { "name": "basic placeholder", "input": { "text": "Bonjour {{name}}", "replace": { "{{name}}": "Arnaud" } }, "expected": "Bonjour Arnaud" },
+    { "name": "every occurrence is replaced", "input": { "text": "{{x}} and {{x}}", "replace": { "{{x}}": "A" } }, "expected": "A and A" },
+    { "name": "several placeholders in one pass", "input": { "text": "{name} {date}", "replace": { "{name}": "A", "{date}": "B" } }, "expected": "A B" },
+    { "name": "a placeholder with no replacement stays", "input": { "text": "{{a}} {{b}}", "replace": { "{{a}}": "A" } }, "expected": "A {{b}}" },
+    { "name": "regex metacharacters $ . ( ) are literal", "input": { "text": "Cost: $9.99 (net)", "replace": { "$9.99 (net)": "10 EUR" } }, "expected": "Cost: 10 EUR" },
+    { "name": "square brackets are literal", "input": { "text": "Items [count]", "replace": { "[count]": "3" } }, "expected": "Items 3" },
+    { "name": "dot star is literal", "input": { "text": "a.*b", "replace": { ".*": "X" } }, "expected": "aXb" },
+    { "name": "backslash is literal", "input": { "text": "path\\to", "replace": { "\\": "/" } }, "expected": "path/to" },
+    { "name": "pipe is literal", "input": { "text": "a|b", "replace": { "|": " or " } }, "expected": "a or b" },
+    { "name": "plus and question mark are literal", "input": { "text": "x+y=z?", "replace": { "+": " plus ", "?": "!" } }, "expected": "x plus y=z!" },
+    { "name": "caret and braces are literal", "input": { "text": "^{v}", "replace": { "^": "hat ", "{v}": "value" } }, "expected": "hat value" },
+    { "name": "an empty replacement leaves the placeholder in place", "input": { "text": "Hello {{name}}", "replace": { "{{name}}": "" } }, "expected": "Hello {{name}}" },
+    { "name": "replacement values are inserted literally, no $ expansion", "input": { "text": "{{x}}", "replace": { "{{x}}": "$1$&" } }, "expected": "$1$&" },
+    { "name": "replacement values are not re-scanned", "input": { "text": "{{a}}", "replace": { "{{a}}": "{{a}}!" } }, "expected": "{{a}}!" },
+    { "name": "matches are non-overlapping, left to right", "input": { "text": "aaa", "replace": { "aa": "b" } }, "expected": "ba" },
+    { "name": "at one position the first placeholder in map order wins (prefix first)", "input": { "text": "{{a}}x", "replace": { "{{a}}": "A", "{{a}}x": "B" } }, "expected": "Ax" },
+    { "name": "at one position the first placeholder in map order wins (longer first)", "input": { "text": "{{a}}x", "replace": { "{{a}}x": "B", "{{a}}": "A" } }, "expected": "B" },
+    { "name": "empty map changes nothing", "input": { "text": "Hello", "replace": {} }, "expected": "Hello" },
+    { "name": "absent option changes nothing", "input": { "text": "Hello {{name}}", "replace": null }, "expected": "Hello {{name}}" },
+    { "name": "unicode placeholder", "input": { "text": "Prix : {{prix}} €", "replace": { "{{prix}}": "12" } }, "expected": "Prix : 12 €" }
+  ]
+}

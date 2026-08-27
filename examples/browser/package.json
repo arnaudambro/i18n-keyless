@@ -1,0 +1,10 @@
+{
+  "name": "i18n-keyless-example-browser",
+  "private": true,
+  "type": "module",
+  "description": "i18n-keyless-browser in one HTML file: the auto script tag, data-i18n, <i18n-t> and the JS API",
+  "scripts": {
+    "build": "cd ../../packages/browser && rm -rf dist && npx tsc --project tsconfig.json",
+    "dev": "node serve.mjs"
+  }
+}

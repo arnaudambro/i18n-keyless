@@ -18,6 +18,46 @@ import { identityHeaders, whenUniqueIdIsKnown } from "./unique-id.ts";
 
 export const queue = new MyPQueue({ concurrency: 30 });
 
+/** The official service. `config.API_URL` replaces it for a self-hosted backend. */
+export const DEFAULT_API_URL = "https://api.i18n-keyless.com";
+
+/**
+ * The key a translation is stored (and looked up) under: the source text, suffixed with
+ * `__<context>` when a context is given. An empty context is the same as no context.
+ */
+export function storageKeyFor(key: string, context?: string): string {
+  return context ? `${key}__${context}` : key;
+}
+
+/**
+ * The id that deduplicates translate requests in the queue: one per (namespace, source
+ * text). The context is deliberately not part of it, see docs/PROTOCOL.md.
+ */
+export function queueIdFor(namespace: string, key: string): string {
+  return `${namespace}:${key}`;
+}
+
+/**
+ * Applies the `replace` option to a text. Every placeholder is a literal (regex
+ * metacharacters are escaped), all occurrences are replaced in one pass, and a placeholder
+ * whose replacement is falsy (`""`) is left as is.
+ */
+export function applyReplace(text: string, replace?: TranslationOptions["replace"]): string {
+  if (!replace) {
+    return text;
+  }
+  // Create a regex that matches all keys to replace
+  // Escape special regex characters in keys
+  const pattern = Object.keys(replace)
+    .map((key) => key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("|");
+
+  const regex = new RegExp(pattern, "g");
+
+  // Replace all occurrences in a single pass.
+  return text.replace(regex, (matched) => replace[matched] || matched);
+}
+
 /**
  * Resolves the effective namespace for a translation call: an explicit per-call
  * `namespace` wins, then the config-level `defaultNamespace`, then `DEFAULT_NAMESPACE`.
@@ -93,28 +133,14 @@ export function getTranslationCore(key: string, store: FetchTranslationParams, o
     if (options?.forceTemporary?.[currentLanguage]) {
       translateKey(key, store, options);
     }
-    const context = options?.context;
-    translation = context ? translations[`${key}__${context}`] : translations[key];
+    translation = translations[storageKeyFor(key, options?.context)];
     if (!translation) {
       translateKey(key, store, options);
     }
   }
-  if (!options?.replace) {
-    return translation || key;
-  }
-
-  // Create a regex that matches all keys to replace
-  // Escape special regex characters in keys
-  const pattern = Object.keys(options.replace)
-    .map((key) => key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-    .join("|");
-
-  const regex = new RegExp(pattern, "g");
-
-  // Replace all occurrences in a single pass. `translation` can be undefined
-  // when the current language's translation hasn't arrived yet (translateKey
-  // was just queued above) — fall back to the key like the no-replace path.
-  return (translation || key).replace(regex, (matched) => options.replace?.[matched] || matched);
+  // `translation` can be undefined when the current language's translation hasn't arrived
+  // yet (translateKey was just queued above) — fall back to the key before interpolating.
+  return applyReplace(translation || key, options?.replace);
 }
 
 const translating: Record<string, boolean> = {};
@@ -147,7 +173,7 @@ export function translateKey(key: string, store: FetchTranslationParams, options
     console.log("translateKey", key, context, namespace, debug);
   }
   const forceTemporaryLang = options?.forceTemporary?.[currentLanguage];
-  const translation = context ? translations[`${key}__${context}`] : translations[key];
+  const translation = translations[storageKeyFor(key, context)];
   if (translation && !forceTemporaryLang) {
     if (debug) {
       console.log("translation exists", `${key}__${context}`);
@@ -159,7 +185,7 @@ export function translateKey(key: string, store: FetchTranslationParams, options
   namespacesToFetchAfterTranslationFinished.set(namespace, !!options?.unpersistedNamespace);
   // Dedup/guard per namespace so the same source text can be queued independently under
   // different namespaces.
-  const queueId = `${namespace}:${key}`;
+  const queueId = queueIdFor(namespace, key);
   queue.add(
     async () => {
       try {
@@ -189,7 +215,7 @@ export function translateKey(key: string, store: FetchTranslationParams, options
             primaryLanguage: config.languages.primary,
             originLanguage: resolveOriginLanguage(options, config),
           };
-          const apiUrl = config.API_URL || "https://api.i18n-keyless.com";
+          const apiUrl = config.API_URL || DEFAULT_API_URL;
           const url = `${apiUrl}/translate`;
           if (debug) {
             console.log("fetching translation", url, body);
@@ -243,6 +269,33 @@ export function etagCacheKey(apiKey: string, lang: string, namespace?: string): 
   return `${apiKey}|${lang}|${namespace || DEFAULT_NAMESPACE}`;
 }
 
+/**
+ * The URL of the per-language dictionary fetch (`GET /translate/:lang`).
+ *
+ * - the default namespace is omitted from the query, other namespaces travel URL-encoded,
+ * - without a known ETag the delta cursor travels as `?last_refresh=<lastRefresh>`, where
+ *   a `null` cursor is written literally (`last_refresh=null`),
+ * - with a known ETag the cursor leaves the URL (freshness travels in `If-None-Match`), so
+ *   the URL is stable for shared HTTP caches.
+ */
+export function buildDictionaryUrl(params: {
+  apiUrl?: string;
+  targetLanguage: string;
+  lastRefresh: FetchTranslationParams["lastRefresh"];
+  namespace?: string;
+  etag?: string;
+}): string {
+  const { apiUrl, targetLanguage, lastRefresh, namespace, etag } = params;
+  const namespaceQuery =
+    namespace && namespace !== DEFAULT_NAMESPACE ? `&namespace=${encodeURIComponent(namespace)}` : "";
+  const query = etag
+    ? namespaceQuery
+      ? `?${namespaceQuery.slice(1)}`
+      : ""
+    : `?last_refresh=${lastRefresh}${namespaceQuery}`;
+  return `${apiUrl || DEFAULT_API_URL}/translate/${targetLanguage}${query}`;
+}
+
 export async function getAllTranslationsFromLanguage(
   targetLanguage: Lang,
   store: FetchTranslationParams,
@@ -259,19 +312,13 @@ export async function getAllTranslationsFromLanguage(
   //   return;
   // }
 
-  // Omit the default namespace from the query so existing (non-namespaced) installs keep
-  // hitting the exact same URL.
-  const namespaceQuery =
-    namespace && namespace !== DEFAULT_NAMESPACE ? `&namespace=${encodeURIComponent(namespace)}` : "";
   const etagKey = etagCacheKey(config.API_KEY, targetLanguage, namespace);
   const etag = dictionaryEtags.get(etagKey);
-  // With an ETag in hand, freshness travels in the If-None-Match header and last_refresh
-  // leaves the URL — the URL becomes stable, so shared HTTP caches can hold it.
-  const query = etag
-    ? namespaceQuery
-      ? `?${namespaceQuery.slice(1)}`
-      : ""
-    : `?last_refresh=${lastRefresh}${namespaceQuery}`;
+  // Omit the default namespace from the query so existing (non-namespaced) installs keep
+  // hitting the exact same URL. With an ETag in hand, freshness travels in the
+  // If-None-Match header and last_refresh leaves the URL — the URL becomes stable, so
+  // shared HTTP caches can hold it.
+  const url = buildDictionaryUrl({ apiUrl: config.API_URL, targetLanguage, lastRefresh, namespace, etag });
   // Same gate as `translateKey`: never let a bulk fetch race hydration and go out
   // unidentified. See unique-id.ts.
   const uniqueIdGate = whenUniqueIdIsKnown();
@@ -283,7 +330,7 @@ export async function getAllTranslationsFromLanguage(
       ? await config.getAllTranslations()
       : await api
           .fetchTranslationsForOneLanguage(
-            `${config.API_URL || "https://api.i18n-keyless.com"}/translate/${targetLanguage}${query}`,
+            url,
             {
               method: "GET",
               headers: {
@@ -361,7 +408,7 @@ export async function sendTranslationsUsageToI18nKeyless(
         await config.sendTranslationsUsage(translationsUsageByNamespace.default ?? {})
       : await api
           .postLastUsedTranslations(
-            `${config.API_URL || "https://api.i18n-keyless.com"}/translate/last-used-translations`,
+            `${config.API_URL || DEFAULT_API_URL}/translate/last-used-translations`,
             {
               method: "POST",
               headers: {

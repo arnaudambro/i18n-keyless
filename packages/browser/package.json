@@ -1,0 +1,40 @@
+{
+  "name": "i18n-keyless-browser",
+  "private": false,
+  "version": "3.4.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": ["./dist/auto.js"],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./auto": {
+      "types": "./dist/auto.d.ts",
+      "import": "./dist/auto.js",
+      "default": "./dist/auto.js"
+    }
+  },
+  "files": ["dist", "SKILL.md"],
+  "scripts": {
+    "prepublishOnly": "rm -rf ./dist && tsc --project tsconfig.json && npm run test && npm pack",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "postpublish": "rm -rf ./dist && rm *.tgz"
+  },
+  "dependencies": {
+    "i18n-keyless-core": "3.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.5",
+    "@vitest/coverage-v8": "^3.1.1",
+    "happy-dom": "^20.0.11",
+    "typescript": "^5.9.3",
+    "vitest": "^3.1.1"
+  }
+}

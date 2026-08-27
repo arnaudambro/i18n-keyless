@@ -1,0 +1,19 @@
+name: i18n_keyless_example
+description: A two-page app showing i18n_keyless against the bundled mock backend.
+publish_to: none
+version: 1.0.0
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  i18n_keyless:
+    path: ../
+
+dev_dependencies:
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true

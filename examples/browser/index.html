@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>i18n-keyless browser example</title>
+    <!--
+      The whole integration: one script tag. It reads its own data-* attributes, calls
+      init(), defines <i18n-t>, translates every data-i18n element and exposes the JS API
+      as window.i18nKeyless.
+
+      Offline mode: data-api-url points at the mock backend (examples/_mock-server) with a
+      dummy key. Real service: remove data-api-url and set your real data-api-key.
+    -->
+    <!--
+      dist/store.js imports the bare specifier "i18n-keyless-core". A CDN like esm.sh resolves
+      it for you; a local build needs this import map. See the README.
+    -->
+    <script type="importmap">
+      { "imports": { "i18n-keyless-core": "/packages/core/dist/index.js" } }
+    </script>
+    <script
+      type="module"
+      src="/packages/browser/dist/auto.js"
+      data-api-key="demo"
+      data-api-url="http://localhost:8787"
+      data-primary="fr"
+      data-supported="fr,en,es"
+      data-lang="fr"
+    ></script>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 40rem;
+        margin: 3rem auto;
+        padding: 0 1rem;
+        line-height: 1.5;
+      }
+      nav {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+      }
+      i18n-t {
+        /* light DOM: the page CSS applies to the component like to any inline element */
+        font-style: italic;
+      }
+      .card {
+        border: 1px solid #ddd;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin: 1rem 0;
+      }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <span data-i18n>Changer de langue</span>
+      <button onclick="i18nKeyless.setCurrentLanguage('fr')">Français</button>
+      <button onclick="i18nKeyless.setCurrentLanguage('en')">English</button>
+      <button onclick="i18nKeyless.setCurrentLanguage('es')">Español</button>
+    </nav>
+
+    <h1 data-i18n>Accueil</h1>
+
+    <!-- 1. data-i18n: the element text is the source -->
+    <p class="card" data-i18n>
+      Voici une phrase disponible dans toutes vos langues, vous pouvez la modifier si vous le souhaitez.
+    </p>
+
+    <!-- 2. <i18n-t> with context: same source, two meanings, two translations -->
+    <p class="card">
+      <i18n-t context="heure">8 heures</i18n-t> / <i18n-t context="durée">8 heures</i18n-t>
+    </p>
+
+    <!-- 3. JS API: getTranslation + replace, kept in sync with subscribe -->
+    <p class="card" id="current-lang"></p>
+
+    <script type="module">
+      // window.i18nKeyless is set by auto.js, which runs before this module.
+      const { watchTranslation } = window.i18nKeyless;
+      const target = document.getElementById("current-lang");
+      let stop = () => {};
+      const bind = (lang) => {
+        stop();
+        stop = watchTranslation("Langue : {{current_lang}}", { replace: { "{{current_lang}}": lang } }, (text) => {
+          target.textContent = text;
+        });
+      };
+      bind(window.i18nKeyless.getCurrentLanguage());
+      window.i18nKeyless.subscribe((state, previous) => {
+        if (state.currentLanguage !== previous.currentLanguage) {
+          document.documentElement.lang = state.currentLanguage;
+          bind(state.currentLanguage);
+        }
+      });
+    </script>
+  </body>
+</html>

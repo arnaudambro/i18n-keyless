@@ -26,9 +26,16 @@ export {
   getNamespacesToFetchAfterTranslationFinished,
   resolveNamespace,
   resolveOriginLanguage,
-  queue
+  queue,
+  // protocol helpers, pure: what the conformance vectors replay (see docs/PROTOCOL.md)
+  DEFAULT_API_URL,
+  storageKeyFor,
+  queueIdFor,
+  applyReplace,
+  buildDictionaryUrl,
+  etagCacheKey
 } from "./service.ts";
-export { api } from "./api.ts";
+export { api, TIMEOUT_MS, RETRY_DELAYS_MS, MAX_ATTEMPTS, isRetryableStatus, httpErrorMessage } from "./api.ts";
 export {
   generateUniqueId,
   isUniqueId,
@@ -41,6 +48,11 @@ export {
   setSdkRuntime,
   getSdkRuntime,
   identityHeaders,
+  resolveSdkRuntime,
+  isUsageReportingEnabled,
+  isServerRuntime,
+  UNIQUE_ID_ALPHABET,
+  UNIQUE_ID_LENGTH,
   // exported for the SDK test suites: clears the process-level id and any held gate
   resetUniqueIdState
 } from "./unique-id.ts";

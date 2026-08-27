@@ -1,0 +1,63 @@
+{
+  "description": "The `POST /translate` request that leaves on a miss. Placeholders: `$SDK_VERSION` is the SDK's own semantic version string; `$DEVICE_ID` is the persisted device id (present only for a device runtime). A body field whose value would be absent (undefined) is not serialised. The `Content-Type` and `Authorization` headers are exact strings. The response body is not used by the client path (the store is filled by the bulk fetch that follows), except that a non-empty `message` is logged as a warning.",
+  "source": "packages/core/service.ts: translateKey(key, store, options)",
+  "responseShape": { "ok": true, "message": "", "error": "", "data": { "translation": { "fr": "Bonjour le monde", "en": "Hello world", "es": "Hola mundo", "de": null, "languages": { "fr": "Bonjour le monde", "en": "Hello world", "es": "Hola mundo", "de": null, "id": null }, "id": 4213, "api_key": "k-minimal", "namespace": "default", "context": "", "source_lang": "fr", "source_text": "Bonjour le monde", "origin_language": "", "llm_tokens": 5, "group": "", "created_at": "2026-08-26T12:00:00.000Z", "updated_at": "2026-08-26T12:00:00.000Z", "last_used_at": "2026-08-26" } } },
+  "responseShapeNote": "The API returns the whole stored row (PROTOCOL.md 4.1). `languages` holds every language code the client dialect knows (null when never translated); the flat keys repeat them except `id`, which is the numeric row id. Read translations from `languages`, never from the flat keys.",
+  "cases": [
+    {
+      "name": "minimal miss from a device",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "k-minimal", "languages": { "primary": "fr", "supported": ["fr", "en", "es"] } }, "currentLanguage": "en", "key": "Bonjour" },
+      "expected": { "url": "https://api.i18n-keyless.com/translate", "method": "POST", "headers": { "Content-Type": "application/json", "Authorization": "Bearer k-minimal", "sdk": "react-client", "unique_id": "$DEVICE_ID", "Version": "$SDK_VERSION" }, "body": { "key": "Bonjour", "languages": ["fr", "en", "es"], "primaryLanguage": "fr" } }
+    },
+    {
+      "name": "context and explicit namespace",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "k-ctx", "languages": { "primary": "fr", "supported": ["fr", "en"] } }, "currentLanguage": "en", "key": "8 heures", "options": { "context": "time", "namespace": "checkout" } },
+      "expected": { "url": "https://api.i18n-keyless.com/translate", "method": "POST", "headers": { "Content-Type": "application/json", "Authorization": "Bearer k-ctx", "sdk": "react-client", "unique_id": "$DEVICE_ID", "Version": "$SDK_VERSION" }, "body": { "key": "8 heures", "context": "time", "namespace": "checkout", "languages": ["fr", "en"], "primaryLanguage": "fr" } }
+    },
+    {
+      "name": "the config defaultNamespace travels when it is not the default",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "k-dns", "defaultNamespace": "app", "languages": { "primary": "fr", "supported": ["fr", "en"] } }, "currentLanguage": "en", "key": "Bonjour" },
+      "expected": { "url": "https://api.i18n-keyless.com/translate", "method": "POST", "headers": { "Content-Type": "application/json", "Authorization": "Bearer k-dns", "sdk": "react-client", "unique_id": "$DEVICE_ID", "Version": "$SDK_VERSION" }, "body": { "key": "Bonjour", "namespace": "app", "languages": ["fr", "en"], "primaryLanguage": "fr" } }
+    },
+    {
+      "name": "an explicit `default` namespace is omitted from the body",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "k-explicit-default", "languages": { "primary": "fr", "supported": ["fr", "en"] } }, "currentLanguage": "en", "key": "Bonjour", "options": { "namespace": "default" } },
+      "expected": { "url": "https://api.i18n-keyless.com/translate", "method": "POST", "headers": { "Content-Type": "application/json", "Authorization": "Bearer k-explicit-default", "sdk": "react-client", "unique_id": "$DEVICE_ID", "Version": "$SDK_VERSION" }, "body": { "key": "Bonjour", "languages": ["fr", "en"], "primaryLanguage": "fr" } }
+    },
+    {
+      "name": "self-hosted API_URL, no trailing slash added",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "k-self", "API_URL": "https://self.hosted", "languages": { "primary": "en", "supported": ["en", "de"] } }, "currentLanguage": "de", "key": "Hello" },
+      "expected": { "url": "https://self.hosted/translate", "method": "POST", "headers": { "Content-Type": "application/json", "Authorization": "Bearer k-self", "sdk": "react-client", "unique_id": "$DEVICE_ID", "Version": "$SDK_VERSION" }, "body": { "key": "Hello", "languages": ["en", "de"], "primaryLanguage": "en" } }
+    },
+    {
+      "name": "user generated content carries its origin language",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "k-ugc", "languages": { "primary": "fr", "supported": ["fr", "en", "es"] } }, "currentLanguage": "en", "key": "Hola mundo", "options": { "originLanguage": "es" } },
+      "expected": { "url": "https://api.i18n-keyless.com/translate", "method": "POST", "headers": { "Content-Type": "application/json", "Authorization": "Bearer k-ugc", "sdk": "react-client", "unique_id": "$DEVICE_ID", "Version": "$SDK_VERSION" }, "body": { "key": "Hola mundo", "languages": ["fr", "en", "es"], "primaryLanguage": "fr", "originLanguage": "es" } }
+    },
+    {
+      "name": "an origin language equal to the primary is omitted",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "k-ugc-primary", "languages": { "primary": "fr", "supported": ["fr", "en"] } }, "currentLanguage": "en", "key": "Bonjour", "options": { "originLanguage": "fr" } },
+      "expected": { "url": "https://api.i18n-keyless.com/translate", "method": "POST", "headers": { "Content-Type": "application/json", "Authorization": "Bearer k-ugc-primary", "sdk": "react-client", "unique_id": "$DEVICE_ID", "Version": "$SDK_VERSION" }, "body": { "key": "Bonjour", "languages": ["fr", "en"], "primaryLanguage": "fr" } }
+    },
+    {
+      "name": "forceTemporary travels as given, and re-sends an existing key",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "k-force", "languages": { "primary": "fr", "supported": ["fr", "en"] } }, "currentLanguage": "en", "translations": { "Bonjour": "Hello" }, "key": "Bonjour", "options": { "forceTemporary": { "en": "Hi there" } } },
+      "expected": { "url": "https://api.i18n-keyless.com/translate", "method": "POST", "headers": { "Content-Type": "application/json", "Authorization": "Bearer k-force", "sdk": "react-client", "unique_id": "$DEVICE_ID", "Version": "$SDK_VERSION" }, "body": { "key": "Bonjour", "forceTemporary": { "en": "Hi there" }, "languages": ["fr", "en"], "primaryLanguage": "fr" } }
+    },
+    {
+      "name": "a server runtime sends the sdk header and no device id",
+      "input": { "runtime": "node", "config": { "API_KEY": "k-node", "languages": { "primary": "fr", "supported": ["fr", "en"] } }, "currentLanguage": "en", "key": "Bonjour" },
+      "expected": { "url": "https://api.i18n-keyless.com/translate", "method": "POST", "headers": { "Content-Type": "application/json", "Authorization": "Bearer k-node", "sdk": "node", "Version": "$SDK_VERSION" }, "body": { "key": "Bonjour", "languages": ["fr", "en"], "primaryLanguage": "fr" } }
+    },
+    {
+      "name": "an SSR render sends react-server and no device id",
+      "input": { "runtime": "react-server", "config": { "API_KEY": "k-ssr", "languages": { "primary": "fr", "supported": ["fr", "en"] } }, "currentLanguage": "en", "key": "Bonjour" },
+      "expected": { "url": "https://api.i18n-keyless.com/translate", "method": "POST", "headers": { "Content-Type": "application/json", "Authorization": "Bearer k-ssr", "sdk": "react-server", "Version": "$SDK_VERSION" }, "body": { "key": "Bonjour", "languages": ["fr", "en"], "primaryLanguage": "fr" } }
+    },
+    {
+      "name": "a custom handleTranslate replaces the request and receives only the key",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "k-handler", "handleTranslate": true, "languages": { "primary": "fr", "supported": ["fr", "en"] } }, "currentLanguage": "en", "key": "Bonjour", "options": { "context": "greeting", "namespace": "ns" } },
+      "expected": { "handler": "handleTranslate", "handlerArgs": ["Bonjour"], "http": false }
+    }
+  ]
+}

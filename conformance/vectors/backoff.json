@@ -1,0 +1,26 @@
+{
+  "description": "The network policy shared by every API call: a per-attempt timeout, a fixed number of attempts, fixed backoff delays between attempts, and a result that is never thrown. `cases` give the schedule (which delay follows which failed attempt). `scenarios` are end-to-end replays: a list of transport outcomes for successive attempts, and the expected number of attempts, the sleeps between them, and the final result. A transport outcome is `{status, statusText}` (an HTTP answer), `{networkError}` (fetch rejected with that message) or `{timeout: true}` (no answer within the timeout).",
+  "source": "packages/core/api.ts: TIMEOUT_MS, RETRY_DELAYS_MS, MAX_ATTEMPTS, fetchWithRetry",
+  "timeoutMs": 10000,
+  "maxAttempts": 3,
+  "delaysMs": [500, 1500],
+  "timeoutErrorString": "timeout",
+  "cases": [
+    { "name": "attempt 1 fails: wait 500 ms, then attempt 2", "input": { "failedAttempt": 1 }, "expected": { "waitMs": 500, "nextAttempt": 2 } },
+    { "name": "attempt 2 fails: wait 1500 ms, then attempt 3", "input": { "failedAttempt": 2 }, "expected": { "waitMs": 1500, "nextAttempt": 3 } },
+    { "name": "attempt 3 fails: no wait, give up with ok:false", "input": { "failedAttempt": 3 }, "expected": { "waitMs": null, "nextAttempt": null } }
+  ],
+  "scenarios": [
+    { "name": "three 503s: three attempts, then ok:false with the last status text", "responses": [{ "status": 503, "statusText": "Service Unavailable" }, { "status": 503, "statusText": "Service Unavailable" }, { "status": 503, "statusText": "Service Unavailable" }], "expected": { "attempts": 3, "sleepsMs": [500, 1500], "result": { "ok": false, "error": "Service Unavailable" } } },
+    { "name": "503 then 200: the body of the 200 is the result", "responses": [{ "status": 503, "statusText": "Service Unavailable" }, { "status": 200, "body": { "ok": true, "message": "" } }], "expected": { "attempts": 2, "sleepsMs": [500], "result": { "ok": true, "message": "" } } },
+    { "name": "429 is retried", "responses": [{ "status": 429, "statusText": "Too Many Requests" }, { "status": 200, "body": { "ok": true } }], "expected": { "attempts": 2, "sleepsMs": [500], "result": { "ok": true } } },
+    { "name": "404 is not retried", "responses": [{ "status": 404, "statusText": "Not Found" }], "expected": { "attempts": 1, "sleepsMs": [], "result": { "ok": false, "error": "Not Found" } } },
+    { "name": "401 is not retried", "responses": [{ "status": 401, "statusText": "Unauthorized" }], "expected": { "attempts": 1, "sleepsMs": [], "result": { "ok": false, "error": "Unauthorized" } } },
+    { "name": "empty status text falls back to HTTP <code>", "responses": [{ "status": 403, "statusText": "" }], "expected": { "attempts": 1, "sleepsMs": [], "result": { "ok": false, "error": "HTTP 403" } } },
+    { "name": "network error twice, then 200", "responses": [{ "networkError": "offline" }, { "networkError": "offline" }, { "status": 200, "body": { "ok": true } }], "expected": { "attempts": 3, "sleepsMs": [500, 1500], "result": { "ok": true } } },
+    { "name": "network error three times: the last message is the error", "responses": [{ "networkError": "offline" }, { "networkError": "offline" }, { "networkError": "reset" }], "expected": { "attempts": 3, "sleepsMs": [500, 1500], "result": { "ok": false, "error": "reset" } } },
+    { "name": "timeout three times: error is the literal string timeout", "responses": [{ "timeout": true }, { "timeout": true }, { "timeout": true }], "expected": { "attempts": 3, "sleepsMs": [500, 1500], "result": { "ok": false, "error": "timeout" } } },
+    { "name": "304 ends the call at once", "responses": [{ "status": 304, "statusText": "Not Modified" }], "expected": { "attempts": 1, "sleepsMs": [], "result": { "ok": true, "notModified": true } } },
+    { "name": "a 200 with an unparsable body is treated as a failed attempt and retried", "responses": [{ "status": 200, "invalidJson": true }, { "status": 200, "body": { "ok": true } }], "expected": { "attempts": 2, "sleepsMs": [500], "result": { "ok": true } } }
+  ]
+}

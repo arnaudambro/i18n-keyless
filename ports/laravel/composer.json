@@ -1,0 +1,45 @@
+{
+    "name": "i18n-keyless/laravel",
+    "description": "Keyless translations for Laravel: your existing __('Welcome to our app') calls resolve through the i18n-keyless API. One composer require, one .env line, zero code change.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": ["laravel", "i18n", "translation", "localization", "keyless", "ai"],
+    "homepage": "https://i18n-keyless.com",
+    "authors": [
+        { "name": "Arnaud Ambroselli", "email": "arnaud.ambroselli.io@gmail.com" }
+    ],
+    "require": {
+        "php": ">=8.2",
+        "illuminate/support": "^11.0|^12.0|^13.0",
+        "illuminate/translation": "^11.0|^12.0|^13.0",
+        "illuminate/http": "^11.0|^12.0|^13.0",
+        "illuminate/cache": "^11.0|^12.0|^13.0",
+        "illuminate/contracts": "^11.0|^12.0|^13.0",
+        "guzzlehttp/guzzle": "^7.8|^8.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^9.0|^10.0|^11.0",
+        "phpunit/phpunit": "^10.5|^11.0|^12.0"
+    },
+    "autoload": {
+        "psr-4": { "I18nKeyless\\Laravel\\": "src/" },
+        "files": ["src/helpers.php"]
+    },
+    "autoload-dev": {
+        "psr-4": { "I18nKeyless\\Laravel\\Tests\\": "tests/" }
+    },
+    "extra": {
+        "laravel": {
+            "providers": ["I18nKeyless\\Laravel\\I18nKeylessServiceProvider"]
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/phpunit",
+        "test:coverage": "vendor/bin/phpunit --coverage-text"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

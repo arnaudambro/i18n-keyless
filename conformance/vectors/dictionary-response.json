@@ -1,0 +1,52 @@
+{
+  "description": "How the client handles the answer to a bulk fetch, end to end (transport + service). `response` is what the wire returns on the FIRST request; `expected.result` is what the service hands the store (`null` means nothing: the store keeps its dictionary), `expected.etagRemembered` is the ETag kept in memory afterwards, and `expected.nextRequest` describes the next fetch of the same (API key, language, namespace) with a cursor of `1700000000`. `warning` is the console warning emitted (`i18n-keyless: ` + message) when the envelope carries a non-empty `message`. `responses` (plural) lists successive transport answers for the retry case.",
+  "source": "packages/core/api.ts: fetchWithRetry; packages/core/service.ts: getAllTranslationsFromLanguage",
+  "envelopeShape": {
+    "perLanguage": { "ok": true, "data": { "translations": { "Bonjour": "Hello" }, "uniqueId": "AbCdEfGhIjKlMnOp", "lastRefresh": "1756209600000" }, "error": "", "message": "" },
+    "allLanguages": { "ok": true, "data": { "translations": { "en": { "Bonjour": "Hello" }, "es": { "Bonjour": "Hola" } }, "uniqueId": "AbCdEfGhIjKlMnOp", "lastRefresh": "1756209600000" }, "error": "", "message": "" }
+  },
+  "cases": [
+    {
+      "name": "200 with an ETag header: the body is returned, the ETag is remembered and replayed",
+      "input": { "config": { "API_KEY": "k-resp-etag" }, "targetLanguage": "en" },
+      "response": { "status": 200, "headers": { "etag": "W/\"v1\"" }, "body": { "ok": true, "data": { "translations": { "Bonjour": "Hello" }, "uniqueId": "AbCdEfGhIjKlMnOp", "lastRefresh": "1700000001" }, "error": "", "message": "" } },
+      "expected": { "result": { "ok": true, "data": { "translations": { "Bonjour": "Hello" }, "uniqueId": "AbCdEfGhIjKlMnOp", "lastRefresh": "1700000001" }, "error": "", "message": "", "etag": "W/\"v1\"" }, "etagRemembered": "W/\"v1\"", "nextRequest": { "url": "https://api.i18n-keyless.com/translate/en", "ifNoneMatch": "W/\"v1\"" } }
+    },
+    {
+      "name": "200 without an ETag header: the body is returned, nothing is remembered",
+      "input": { "config": { "API_KEY": "k-resp-noetag" }, "targetLanguage": "en" },
+      "response": { "status": 200, "headers": {}, "body": { "ok": true, "data": { "translations": { "Bonjour": "Hello" }, "uniqueId": "AbCdEfGhIjKlMnOp", "lastRefresh": "1700000001" }, "error": "", "message": "" } },
+      "expected": { "result": { "ok": true, "data": { "translations": { "Bonjour": "Hello" }, "uniqueId": "AbCdEfGhIjKlMnOp", "lastRefresh": "1700000001" }, "error": "", "message": "" }, "etagRemembered": null, "nextRequest": { "url": "https://api.i18n-keyless.com/translate/en?last_refresh=1700000000", "ifNoneMatch": null } }
+    },
+    {
+      "name": "304: nothing is returned, the stored dictionary is kept, the ETag stays",
+      "input": { "config": { "API_KEY": "k-resp-304" }, "targetLanguage": "en", "knownEtag": "W/\"v1\"" },
+      "response": { "status": 304, "headers": {} },
+      "expected": { "result": null, "etagRemembered": "W/\"v1\"", "nextRequest": { "url": "https://api.i18n-keyless.com/translate/en", "ifNoneMatch": "W/\"v1\"" } }
+    },
+    {
+      "name": "200 with ok:false: nothing is returned, the stored dictionary is kept",
+      "input": { "config": { "API_KEY": "k-resp-notok" }, "targetLanguage": "en" },
+      "response": { "status": 200, "headers": {}, "body": { "ok": false, "data": {}, "error": "invalid api key", "message": "" } },
+      "expected": { "result": null, "etagRemembered": null, "nextRequest": { "url": "https://api.i18n-keyless.com/translate/en?last_refresh=1700000000", "ifNoneMatch": null } }
+    },
+    {
+      "name": "200 with a message: the message is logged as a warning and the body is still returned",
+      "input": { "config": { "API_KEY": "k-resp-msg" }, "targetLanguage": "en" },
+      "response": { "status": 200, "headers": {}, "body": { "ok": true, "data": { "translations": {}, "uniqueId": null, "lastRefresh": "1" }, "error": "", "message": "deprecated version" } },
+      "expected": { "result": { "ok": true, "data": { "translations": {}, "uniqueId": null, "lastRefresh": "1" }, "error": "", "message": "deprecated version" }, "warning": "deprecated version", "etagRemembered": null, "nextRequest": { "url": "https://api.i18n-keyless.com/translate/en?last_refresh=1700000000", "ifNoneMatch": null } }
+    },
+    {
+      "name": "401: one attempt, nothing is returned, the stored dictionary is kept",
+      "input": { "config": { "API_KEY": "k-resp-401" }, "targetLanguage": "en" },
+      "response": { "status": 401, "statusText": "Unauthorized", "headers": {} },
+      "expected": { "attempts": 1, "result": null, "etagRemembered": null, "nextRequest": { "url": "https://api.i18n-keyless.com/translate/en?last_refresh=1700000000", "ifNoneMatch": null } }
+    },
+    {
+      "name": "500 three times: three attempts, nothing is returned, the stored dictionary is kept",
+      "input": { "config": { "API_KEY": "k-resp-500" }, "targetLanguage": "en" },
+      "responses": [{ "status": 500, "statusText": "Internal Server Error" }, { "status": 500, "statusText": "Internal Server Error" }, { "status": 500, "statusText": "Internal Server Error" }],
+      "expected": { "attempts": 3, "result": null, "etagRemembered": null, "nextRequest": { "url": "https://api.i18n-keyless.com/translate/en?last_refresh=1700000000", "ifNoneMatch": null } }
+    }
+  ]
+}

@@ -4,7 +4,7 @@
 
 i18n-keyless lets you ship multi-language apps without managing translation keys or files. You write text in your primary language, wrap it in a component or call, and the SDK fetches AI-generated translations on the fly, caches them locally, and lets you override them from a dashboard or directly in code.
 
-Official SDKs: React, React Native (`i18n-keyless-react`), and Node.js (`i18n-keyless-node`).
+Official SDKs: React, React Native (`i18n-keyless-react`), Node.js (`i18n-keyless-node`), Vue 3 / Nuxt (`i18n-keyless-vue`), Angular (`i18n-keyless-angular`), plain browser with a script tag and the `<i18n-t>` web component (`i18n-keyless-browser`), Laravel (`i18n-keyless/laravel` on Packagist) and Flutter (`i18n_keyless` on pub.dev). One protocol, one dashboard, one API key. This file documents the React and Node SDKs in depth; the other packages are listed under "Other packages and ports" with a link to their own reference.
 
 This file is a single-page Markdown summary of the documentation, intended to be pasted into an LLM context window so the assistant has full coverage of the API surface and conventions.
 
@@ -91,6 +91,17 @@ I18nKeyless.init({
 ```
 
 No storage parameter on Node.
+
+### Other packages and ports
+
+Same protocol, same options (`context`, `replace`, `namespace`, `unpersistedNamespace`, `forceTemporary`, `originLanguage`, `debug`), same storage keys, same dashboard. Each README is the complete reference for its package.
+
+- **Vue 3 / Nuxt / Vite SSR** (`npm install i18n-keyless-vue`): `init()` then `createApp(App).use(I18nKeyless)` registers `<T>`; `t()` from `useI18nKeyless()` for attributes, `useTranslation()` for a computed string; SSR through the plugin options `{ lang, translations }`. README: https://github.com/arnaudambro/i18n-keyless/blob/main/packages/vue/README.md
+- **Angular >= 17.1, standalone, signals, Angular SSR** (`npm install i18n-keyless-angular`): `provideI18nKeyless(config)` in the root providers; the `<i18n-t>` component, the impure `t` pipe and `I18nKeylessService.translation()` signals; `provideI18nKeylessServer()` for localized SSR; published AOT-ready (built with `ngc`). README: https://github.com/arnaudambro/i18n-keyless/blob/main/packages/angular/README.md
+- **Plain browser: Svelte, Alpine, htmx, jQuery, legacy sites** (`npm install i18n-keyless-browser`, or one `<script type="module" src="https://esm.sh/i18n-keyless-browser/auto" data-api-key data-primary data-supported>` tag): the `data-i18n` attribute, the `<i18n-t>` web component, and `getTranslation` / `watchTranslation` / `translateDom` from JS (`window.i18nKeyless` in script-tag mode). README: https://github.com/arnaudambro/i18n-keyless/blob/main/packages/browser/README.md
+- **Laravel 11, 12, 13** (`composer require i18n-keyless/laravel`, then `I18N_KEYLESS_API_KEY` and `I18N_KEYLESS_LANGUAGES` in `.env`): the existing `__('...')` calls (JSON keyless mode) resolve through the API, cached in Laravel's cache; `:name` placeholders stay Laravel's; `i18nk('text', context: '...')` for a context. README: https://github.com/arnaudambro/i18n-keyless/blob/main/ports/laravel/README.md
+- **Flutter / Dart** (`flutter pub add i18n_keyless`): one `I18nKeylessClient`, `init` before `runApp`, `I18nKeylessScope` around the app, the `T('...')` widget and `context.t('...')`; `Lang` is an enum; no ARB files, no `gen-l10n`. README: https://github.com/arnaudambro/i18n-keyless/blob/main/ports/flutter/README.md
+- **Protocol and ports**: the language-neutral wire protocol every SDK implements (https://github.com/arnaudambro/i18n-keyless/blob/main/docs/PROTOCOL.md), the JSON conformance vectors every port replays (https://github.com/arnaudambro/i18n-keyless/tree/main/conformance) and the checklist for a new port (https://github.com/arnaudambro/i18n-keyless/blob/main/docs/PORT_CHECKLIST.md).
 
 ## React / React Native API (`i18n-keyless-react`)
 
@@ -642,6 +653,32 @@ const isLang = (l: string): l is Lang => (AVAILABLE_LANGS as readonly string[]).
 - `getTranslation` is a plain function, not a hook — components that rely on it must subscribe to the store (`useCurrentLanguage()` / `useI18nKeyless((s) => s.translations)`) to re-render when translations refresh.
 - For `react-markdown` (and similar renderers that block re-renders), key the renderer by the resolved translated text (see "Translate Markdown" above).
 
+## Operate it from your agent (MCP)
+
+i18n-keyless ships an MCP server. Anything a human can do in the dashboard, an agent can do with a prompt — the same URL for every client, OAuth instead of a pasted key. Guide: https://docs.i18n-keyless.com/docs/guides/mcp
+
+Claude Code:
+
+```bash
+claude mcp add --transport http i18n-keyless https://api.i18n-keyless.com/mcp
+```
+
+Cursor, Windsurf, any client reading an `mcpServers` block:
+
+```json
+{ "mcpServers": { "i18n-keyless": { "type": "http", "url": "https://api.i18n-keyless.com/mcp" } } }
+```
+
+The flow, once per project: the agent calls the server and gets a `401` with OAuth metadata; the browser opens **once** on `i18n-keyless.com/oauth/consent`, where you sign in or sign up (plan and Stripe payment included), pick the project and approve; the agent then holds a token bound to you and that one project — refreshed automatically, revocable from the agent. One token, one project: add the server once per app.
+
+Tools, by the scope you grant on the consent page (a tool outside the granted scopes is not offered):
+
+- `i18n:read` — `get_started` (install + `init` with the project's public key and languages filled in), `search_docs`, `list_languages`, `get_project`, `list_projects`, `list_translations` (paginated, `missingOnly` for rows a language is still empty in), `get_translation`.
+- `i18n:write` — `translate`, `override_translation`, `delete_translation` (needs `confirm: true`), `set_project_languages` (primary only while the project has no translation).
+- `i18n:account` — `create_project` (in-band with a saved payment method, otherwise returns a `checkout_url`), `invite_member`, `remove_member`, `cancel_subscription` (at period end, reversible with `resume_subscription`) — owner only, need `confirm: true`.
+
+Not tools, on purpose: code scanning (the agent already has the code), the free trial, plan changes (not in the dashboard yet). Stateless HTTP, no sessions; language codes are v3 only; MCP traffic never counts as a monthly active user.
+
 ## Resources
 
 - Website: https://i18n-keyless.com
@@ -650,6 +687,9 @@ const isLang = (l: string): l is Lang => (AVAILABLE_LANGS as readonly string[]).
 - Get an API key: https://i18n-keyless.com/#get-api-key
 - GitHub: https://github.com/arnaudambro/i18n-keyless
 - Agent Skill (`SKILL.md`, for Claude Code and any tool that reads skills): https://github.com/arnaudambro/i18n-keyless/blob/main/skills/i18n-keyless/SKILL.md
+- Per-package skills: Vue https://github.com/arnaudambro/i18n-keyless/blob/main/packages/vue/SKILL.md, Angular https://github.com/arnaudambro/i18n-keyless/blob/main/packages/angular/SKILL.md, browser https://github.com/arnaudambro/i18n-keyless/blob/main/packages/browser/SKILL.md, Laravel https://github.com/arnaudambro/i18n-keyless/blob/main/ports/laravel/SKILL.md, Flutter https://github.com/arnaudambro/i18n-keyless/blob/main/ports/flutter/SKILL.md
+- Protocol and ports: https://github.com/arnaudambro/i18n-keyless/blob/main/docs/PROTOCOL.md, conformance vectors https://github.com/arnaudambro/i18n-keyless/tree/main/conformance, port checklist https://github.com/arnaudambro/i18n-keyless/blob/main/docs/PORT_CHECKLIST.md
+- MCP server (HTTP, OAuth): https://api.i18n-keyless.com/mcp — guide: https://docs.i18n-keyless.com/docs/guides/mcp
 
 ### Every page of the documentation
 
@@ -667,6 +707,7 @@ Generated from the site — run `npm run docs:sync` in `docs/` after adding a pa
 - I18nKeylessText — https://docs.i18n-keyless.com/docs/api/react/I18nKeylessText
 - Namespaces — https://docs.i18n-keyless.com/docs/guides/namespaces
 - Next.js — https://docs.i18n-keyless.com/docs/ssr/nextjs
+- Operate it from your agent (MCP) — https://docs.i18n-keyless.com/docs/guides/mcp
 - Proxy through your backend — https://docs.i18n-keyless.com/docs/guides/proxy-mode
 - Quick setup — https://docs.i18n-keyless.com/docs/quick-setup
 - Reliability & scale — https://docs.i18n-keyless.com/docs/guides/reliability-and-scale

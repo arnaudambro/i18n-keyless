@@ -1,0 +1,230 @@
+{
+  "description": "Which runtime a package reports in the `sdk` header, whether that runtime records and sends usage analytics, and whether it sends a `unique_id` header. `hasWindow` is `typeof window !== 'undefined'`; `ssr` is the `ssr: true` config flag of the react package. The node package has neither input. Rule: `node`, `laravel` and every label ending in `-server` are servers; everything else is a device. The vue and angular packages follow the react rule with their own labels; the browser package is always `browser`; the laravel port sends `laravel` (a server that reports usage like `node`); the flutter port sends `flutter` (a device).",
+  "source": "packages/core/unique-id.ts: resolveSdkRuntime(input), isUsageReportingEnabled(runtime), identityHeaders(uniqueId). The react store applies the same rule inline (packages/react/store.ts: hydrate(), init(), getTranslation()).",
+  "usageFlush": {
+    "react-client": "one POST per init(), right after hydration, when the usage map is not empty; the map is cleared when the API answers ok",
+    "react-server": "never: usage is neither recorded nor sent",
+    "node": "one POST at most every 10000 ms, scheduled when a key's usage date changes; the map is never cleared",
+    "vue-client / angular-client / browser": "same as react-client",
+    "vue-server / angular-server": "never, same as react-server",
+    "laravel": "same as node (at most one POST every 10000 ms, cumulative map)",
+    "flutter": "same as react-client"
+  },
+  "cases": [
+    {
+      "name": "react in a browser or a native app",
+      "input": {
+        "package": "react",
+        "hasWindow": true,
+        "ssr": false
+      },
+      "expected": {
+        "runtime": "react-client",
+        "recordsUsage": true,
+        "sendsUsage": true,
+        "sendsUniqueId": true
+      }
+    },
+    {
+      "name": "react with ssr:true in a browser",
+      "input": {
+        "package": "react",
+        "hasWindow": true,
+        "ssr": true
+      },
+      "expected": {
+        "runtime": "react-server",
+        "recordsUsage": false,
+        "sendsUsage": false,
+        "sendsUniqueId": false
+      }
+    },
+    {
+      "name": "react on a server",
+      "input": {
+        "package": "react",
+        "hasWindow": false,
+        "ssr": false
+      },
+      "expected": {
+        "runtime": "react-server",
+        "recordsUsage": false,
+        "sendsUsage": false,
+        "sendsUniqueId": false
+      }
+    },
+    {
+      "name": "react on a server with ssr:true",
+      "input": {
+        "package": "react",
+        "hasWindow": false,
+        "ssr": true
+      },
+      "expected": {
+        "runtime": "react-server",
+        "recordsUsage": false,
+        "sendsUsage": false,
+        "sendsUniqueId": false
+      }
+    },
+    {
+      "name": "react with ssr omitted in a browser",
+      "input": {
+        "package": "react",
+        "hasWindow": true
+      },
+      "expected": {
+        "runtime": "react-client",
+        "recordsUsage": true,
+        "sendsUsage": true,
+        "sendsUniqueId": true
+      }
+    },
+    {
+      "name": "node",
+      "input": {
+        "package": "node"
+      },
+      "expected": {
+        "runtime": "node",
+        "recordsUsage": true,
+        "sendsUsage": true,
+        "sendsUniqueId": false
+      }
+    },
+    {
+      "name": "vue in a browser",
+      "input": {
+        "package": "vue",
+        "hasWindow": true,
+        "ssr": false
+      },
+      "expected": {
+        "runtime": "vue-client",
+        "recordsUsage": true,
+        "sendsUsage": true,
+        "sendsUniqueId": true
+      }
+    },
+    {
+      "name": "vue on a server",
+      "input": {
+        "package": "vue",
+        "hasWindow": false
+      },
+      "expected": {
+        "runtime": "vue-server",
+        "recordsUsage": false,
+        "sendsUsage": false,
+        "sendsUniqueId": false
+      }
+    },
+    {
+      "name": "vue with ssr:true in a browser",
+      "input": {
+        "package": "vue",
+        "hasWindow": true,
+        "ssr": true
+      },
+      "expected": {
+        "runtime": "vue-server",
+        "recordsUsage": false,
+        "sendsUsage": false,
+        "sendsUniqueId": false
+      }
+    },
+    {
+      "name": "angular in a browser",
+      "input": {
+        "package": "angular",
+        "hasWindow": true,
+        "ssr": false
+      },
+      "expected": {
+        "runtime": "angular-client",
+        "recordsUsage": true,
+        "sendsUsage": true,
+        "sendsUniqueId": true
+      }
+    },
+    {
+      "name": "angular on a server",
+      "input": {
+        "package": "angular",
+        "hasWindow": false
+      },
+      "expected": {
+        "runtime": "angular-server",
+        "recordsUsage": false,
+        "sendsUsage": false,
+        "sendsUniqueId": false
+      }
+    },
+    {
+      "name": "browser package",
+      "input": {
+        "package": "browser",
+        "hasWindow": true
+      },
+      "expected": {
+        "runtime": "browser",
+        "recordsUsage": true,
+        "sendsUsage": true,
+        "sendsUniqueId": true
+      }
+    }
+  ],
+  "serverLabels": {
+    "description": "isServerRuntime(label): true for a server (no unique_id, counted by connection)",
+    "cases": [
+      {
+        "label": "node",
+        "expected": true
+      },
+      {
+        "label": "laravel",
+        "expected": true
+      },
+      {
+        "label": "react-server",
+        "expected": true
+      },
+      {
+        "label": "vue-server",
+        "expected": true
+      },
+      {
+        "label": "angular-server",
+        "expected": true
+      },
+      {
+        "label": "react-client",
+        "expected": false
+      },
+      {
+        "label": "vue-client",
+        "expected": false
+      },
+      {
+        "label": "angular-client",
+        "expected": false
+      },
+      {
+        "label": "browser",
+        "expected": false
+      },
+      {
+        "label": "flutter",
+        "expected": false
+      },
+      {
+        "label": "",
+        "expected": false
+      },
+      {
+        "label": "typo",
+        "expected": false
+      }
+    ]
+  }
+}

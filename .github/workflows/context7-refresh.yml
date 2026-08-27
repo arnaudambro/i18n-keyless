@@ -43,11 +43,14 @@ jobs:
             exit 1
           fi
 
+          # Do not send "branch": Context7 reads the branch from the library record it already
+          # holds (and from context7.json). An explicit branch is matched against the registered
+          # versions list, which is empty here, so it answers 400 branch-not-found.
           code=$(curl -sS -o /tmp/body.json -w '%{http_code}' \
             -X POST https://context7.com/api/v1/refresh \
             -H "Authorization: Bearer ${CONTEXT7_API_KEY}" \
             -H 'Content-Type: application/json' \
-            -d '{"libraryName":"/arnaudambro/i18n-keyless","branch":"main"}')
+            -d '{"libraryName":"/arnaudambro/i18n-keyless"}')
 
           echo "HTTP ${code}"
           cat /tmp/body.json

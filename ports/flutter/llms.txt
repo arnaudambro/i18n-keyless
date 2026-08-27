@@ -148,6 +148,7 @@ Widget tests: `tester.runAsync(() => client.init(...))`, `pumpWidget(I18nKeyless
 - Every `T` below the scope rebuilds on every cache change: fine for a screen, not for thousands of widgets at once.
 - After a language switch, a string with no entry in the new language shows the previous language's text until its translation arrives.
 - Two contexts of the same string in one batch make one `POST /translate`; the second is translated on a later render.
+- A source string is capped at 2000 characters (`context` and `namespace` at 200). Long-form content is allowed, but a blog post is one translation **per Markdown block**: keep the Markdown inside each block, give every block of the document the same `context` (one very short summary of it) and one `namespace` per document. https://docs.i18n-keyless.com/docs/guides/long-form-content
 
 ## Links
 

@@ -346,6 +346,42 @@ const text = getTranslation(children);
 <ReactMarkdown key={text}>{text}</ReactMarkdown>
 ```
 
+### Translate a blog post or long content
+
+A post is **not one translation, it is one translation per block**. The server refuses a source string longer than **2000 characters** (`context` and `namespace` are capped at 200), so the whole post is never a key. Blocks are also the better unit anyway: an edit re-translates one paragraph instead of the whole article, and a model asked for one paragraph does not drift, drop a list or reformat a table.
+
+The recipe:
+
+1. Split the document into Markdown blocks — a heading, a paragraph, a whole list, a quote, a table row. Never split inside a sentence.
+2. Keep the Markdown **inside** each block (`**bold**`, `[link](url)`, `` `code` ``, list markers). The translation keeps the syntax and the renderer restores the styling.
+3. Pass the **same `context` to every block: one very short summary of the post**, one sentence, 200 characters maximum. A lone paragraph does not say what the article is about; the summary does, and it is what makes that paragraph translate correctly.
+4. Pass one `namespace` per post (`blog:<slug>`), so a reader downloads only the post they open.
+5. Never send a code fence, a URL or a front-matter key to be translated.
+6. Keep the summary stable: `context` is part of the row identity `(api key, source language, source text, context, namespace)`. Rewriting it makes every block a new row, translated and billed again.
+
+The title, the description, the excerpt and every image `alt` are blocks too — same `context`, same `namespace`.
+
+```ts
+import { awaitForTranslationOrFallbackToOriginal, type Lang } from "i18n-keyless-node";
+
+const SUMMARY = "Guide: cache API responses at the edge with a Cloudflare Worker.";
+
+async function translatePost(blocks: string[], slug: string, lang: Lang): Promise<string> {
+  const out: string[] = [];
+  for (const block of blocks) {
+    out.push(
+      await awaitForTranslationOrFallbackToOriginal(block, lang, {
+        context: SUMMARY,
+        namespace: `blog:${slug}`,
+      }),
+    );
+  }
+  return out.join("\n\n");
+}
+```
+
+In React, the same shape per block: `useTranslation(block, { context: SUMMARY, namespace })`, each rendered through `react-markdown`. Full guide: https://docs.i18n-keyless.com/docs/guides/long-form-content
+
 ### Wrap in a `MyText` component
 
 Recommended in React Native (for fonts/styles) and useful in React too. Forward `context`, `replace`, `forceTemporary`, `debug` through an `i18nProps` prop, and add a `skipTranslation` escape hatch for already-translated content.
@@ -677,6 +713,7 @@ const isLang = (l: string): l is Lang => (AVAILABLE_LANGS as readonly string[]).
 - Translations are cached on-device — if you change a translation in the dashboard, cached clients pick it up via the next refresh, not instantly.
 - `getTranslation` is a plain function, not a hook — components that rely on it must subscribe to the store (`useCurrentLanguage()` / `useI18nKeyless((s) => s.translations)`) to re-render when translations refresh.
 - For `react-markdown` (and similar renderers that block re-renders), key the renderer by the resolved translated text (see "Translate Markdown" above).
+- A source string is capped at 2000 characters (`context` and `namespace` at 200); longer is a `400`. Long-form content is allowed, but it must be sent block by block — see "Translate a blog post or long content" above.
 
 ## Operate it from your agent (MCP)
 
@@ -723,6 +760,7 @@ Generated from the site — run `npm run docs:sync` in `docs/` after adding a pa
 <!-- fact:docs-index -->
 - Add context — https://docs.i18n-keyless.com/docs/guides/add-context
 - Astro — https://docs.i18n-keyless.com/docs/ssr/astro
+- Blog posts & long content — https://docs.i18n-keyless.com/docs/guides/long-form-content
 - Change language — https://docs.i18n-keyless.com/docs/guides/react/change-language
 - Debug — https://docs.i18n-keyless.com/docs/guides/debug
 - Examples — https://docs.i18n-keyless.com/docs/examples

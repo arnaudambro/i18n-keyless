@@ -156,6 +156,50 @@ Available as props on `<T>` and as the options argument of `useTranslation(text,
   the raw text verbatim for viewers of that language, and AI-translates the rest.
 - `debug` — logs the resolution of that one string.
 
+## Long content (blog posts, articles, docs)
+
+Long-form content is **allowed**, but a post is not one translation — it is **one translation
+per block**. A source string is capped at **2000 characters** (`context` and `namespace` at
+200); a longer key is a `400`.
+
+1. **Split the document into Markdown blocks** — a heading, a paragraph, a whole list, a
+   quote, a table row. Never split inside a sentence.
+2. **Keep the Markdown inside the block** (`**bold**`, `[link](url)`, `` `code` ``, list
+   markers). The translation preserves the syntax, so the formatting survives; render each
+   block with `react-markdown` (or `react-native-markdown-display`).
+3. **Give every block of the post the same `context`: a very short summary of the post.**
+   One sentence, 200 characters maximum. A lone paragraph does not say what the article is
+   about — the summary is what makes that paragraph translate correctly.
+4. **One `namespace` per post** (`blog:<slug>`), so a reader downloads only the post they open.
+5. **Never send a code fence, a URL or a front-matter key** to be translated.
+6. **Never rewrite the summary after publication.** `context` is part of the row identity, so
+   a new summary makes every block a new row — translated and billed again.
+
+The title, the description, the excerpt and every image `alt` are blocks too: same `context`,
+same `namespace`.
+
+```ts
+import { awaitForTranslationOrFallbackToOriginal, type Lang } from "i18n-keyless-node";
+
+const SUMMARY = "Guide: cache API responses at the edge with a Cloudflare Worker.";
+
+async function translatePost(blocks: string[], slug: string, lang: Lang): Promise<string> {
+  const out: string[] = [];
+  for (const block of blocks) {
+    out.push(
+      await awaitForTranslationOrFallbackToOriginal(block, lang, {
+        context: SUMMARY,
+        namespace: `blog:${slug}`,
+      }),
+    );
+  }
+  return out.join("\n\n");
+}
+```
+
+In React the shape is the same, one `useTranslation(block, { context, namespace })` per block.
+Full guide: https://docs.i18n-keyless.com/docs/guides/long-form-content
+
 ## SSR
 
 Works under TanStack Start, Next.js, Remix / React Router 7, Astro and any Node or modern
@@ -228,6 +272,8 @@ const isLang = (l: string): l is Lang => (AVAILABLE_LANGS as readonly string[]).
 - For `react-markdown` and other renderers that block re-renders, key the renderer by the
   resolved translated text.
 - The component is `I18nKeylessText` (aliased `T`) — not `I18nKeyless`.
+- A source string is capped at 2000 characters, `context` and `namespace` at 200. Long-form
+  content is fine, but send it block by block — see "Long content" above.
 
 ## Operate it from your agent (MCP)
 

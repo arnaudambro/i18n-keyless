@@ -237,7 +237,11 @@ Server-side rules (`api-express/src/controllers/translate.ts:552-564`,
   of the 48 codes or `cn` / `cz` (zod `wireLang`), else `400 Invalid request body`. The
   keys of `forceTemporary` follow the same rule.
 - An empty `key` is `400`. Limits: `key` 2000 characters, `context` 200, `namespace` 200
-  (`translate-key.ts:102-126`). A longer value is `400` with a descriptive `error`.
+  (`translate-key.ts:102-126`). A longer value is `400` with a descriptive `error`. The cap
+  is the size budget of the unique index entry, not a rule against long-form content: a
+  client that translates a blog post sends one request per Markdown block, with the Markdown
+  kept inside the block and the same `context` (a one-sentence summary of the document) on
+  every block of it. See https://docs.i18n-keyless.com/docs/guides/long-form-content
 - An absent `namespace` and an explicit `"default"` are the same bucket (`translate-key.ts:98`).
 - An `originLanguage` equal to `primaryLanguage` is ignored (`translate-key.ts:95-96`).
 - The **first** `POST /translate` of a project sets its primary language permanently

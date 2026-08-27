@@ -248,8 +248,8 @@ languages already filled in.
 
 - `i18n:read` — `get_started`, `search_docs`, `list_languages`, `get_project`,
   `list_projects`, `list_translations`, `get_translation`
-- `i18n:write` — `translate`, `override_translation`, `delete_translation`,
-  `set_project_languages`
+- `i18n:write` — `translate`, `migrate_translation`, `override_translation`,
+  `delete_translation`, `set_project_languages`
 - `i18n:account` — `create_project`, `invite_member`, `remove_member`,
   `cancel_subscription` (at period end), `resume_subscription`
 

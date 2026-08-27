@@ -187,27 +187,51 @@ To make a component that calls the non-reactive `getTranslation` re-render on re
 
 ## Node.js API (`i18n-keyless-node`)
 
-### `awaitForTranslation(text, language, options?)`
+Two functions fetch/retrieve a translation. Both **must be awaited** — calling without
+`await` will trigger 429 rate limit errors (this package POSTs directly, with no queue).
 
-Returns a `Promise<string>`. **Must be awaited** — calling without `await` will trigger 429 rate limit errors.
+### `awaitForTranslationOrFallbackToOriginal(text, language, options?)`
+
+Returns a `Promise<string>` that **never rejects**. On a failed request it resolves to the
+original text (`replace` still applied) and logs the failure with `console.error`. Use it in
+request-time code: HTTP route handlers, server components, `generateMetadata`, API
+responses, emails, push notifications — anywhere one failed translation must not fail the
+whole request.
 
 ```ts
-import { awaitForTranslation, type Lang } from "i18n-keyless-node";
+import { awaitForTranslationOrFallbackToOriginal, type Lang } from "i18n-keyless-node";
 
-const title = await awaitForTranslation("Viens voir l'application", user.lang as Lang);
-const body  = await awaitForTranslation(
+const title = await awaitForTranslationOrFallbackToOriginal("Viens voir l'application", user.lang as Lang);
+const body  = await awaitForTranslationOrFallbackToOriginal(
   "Bonjour {name} !",
   user.lang as Lang,
   { replace: { "{name}": user.name }, context: "push notification" }
 );
 ```
 
-Options:
+### `awaitForTranslationOrThrow(text, language, options?)`
+
+Same lookup, same options. Returns a `Promise<string>` that **rejects** on a failed request
+with an `Error` naming the key (the original error as `cause`). An ignored rejection crashes
+the Node process by design; a `try/catch` or `.catch()` is honoured. Use it in scripts,
+build steps, and migrations, where a failed translation should stop the run instead of
+shipping source text.
+
+```ts
+import { awaitForTranslationOrThrow, type Lang } from "i18n-keyless-node";
+
+const title = await awaitForTranslationOrThrow("Viens voir l'application", "fr" as Lang);
+```
+
+> **Deprecated:** `awaitForTranslation` is an alias of `awaitForTranslationOrThrow` (same
+> behaviour), kept since 3.5.0 for backward compatibility. Removed in 4.0.0.
+
+Options (identical for both functions):
 - `context?: string`
 - `namespace?: string` — fetch partition; the backend returns only the requested namespace. Defaults to `defaultNamespace` from `init()`, or `"default"`.
 - `unpersistedNamespace?: boolean` — marks the namespace as transient (mainly a client-storage flag; harmless on Node).
 - `replace?: Record<string, string>`
-- `forceTemporary?: string` — note: a single string here, not a record (target language is already known).
+- `forceTemporary?: Partial<Record<Lang, string>>` — keyed by target language, e.g. `{ forceTemporary: { en: "Go Back" } }`.
 - `originLanguage?: Lang` — the language the text is written in when it differs from your primary language (user generated content). See "Translate user generated content (UGC)" below.
 - `debug?: boolean`
 
@@ -240,7 +264,7 @@ Attach a `namespace` per call so each screen fetches/stores only its own slice (
 ```tsx
 <I18nKeylessText namespace="checkout">Pay now</I18nKeylessText>
 getTranslation("Pay now", { namespace: "checkout" });
-await awaitForTranslation("Pay now", user.lang as Lang, { namespace: "checkout" });
+await awaitForTranslationOrFallbackToOriginal("Pay now", user.lang as Lang, { namespace: "checkout" });
 ```
 
 Set a global default in `init` (per-call `namespace` always overrides it):
@@ -274,7 +298,7 @@ Your UI strings are written in your primary language, but users write in *their*
 ```tsx
 <I18nKeylessText originLanguage={comment.lang}>{comment.text}</I18nKeylessText>
 getTranslation(comment.text, { originLanguage: comment.lang });
-await awaitForTranslation(comment.text, viewer.lang as Lang, { originLanguage: comment.lang as Lang });
+await awaitForTranslationOrFallbackToOriginal(comment.text, viewer.lang as Lang, { originLanguage: comment.lang as Lang });
 ```
 
 What happens (say your primary language is `en` and a user posts `"Hola mundo"` with `originLanguage="es"`):
@@ -331,7 +355,7 @@ Recommended in React Native (for fonts/styles) and useful in React too. Forward 
 ```tsx
 <I18nKeylessText debug>Hello world</I18nKeylessText>
 getTranslation("Hello world", { debug: true });
-await awaitForTranslation("Hello world", "fr", { debug: true });
+await awaitForTranslationOrFallbackToOriginal("Hello world", "fr", { debug: true });
 ```
 
 ## Server-Side Rendering (SSR)
@@ -552,7 +576,8 @@ against a bundled mock backend (no API key needed):
 https://github.com/arnaudambro/i18n-keyless/tree/main/examples — docs at
 https://i18n-keyless.com/docs/examples. Covers `vite-react` (SPA), `tanstack-start`
 (SSR+SPA, needs `>= 2.3.2`), `remix-rr7` (SSR), `nextjs` (App Router SSR), `astro` (SSR
-islands), `node` (`i18n-keyless-node` + `awaitForTranslation`), `react-native` (MMKV /
+islands), `node` (`i18n-keyless-node` + `awaitForTranslationOrThrow` /
+`awaitForTranslationOrFallbackToOriginal`), `react-native` (MMKV /
 AsyncStorage), and `expo`. Run: `cd examples/<name> && cp .env.example .env && npm install
 && npm run dev` (leave the API key empty + run `examples/_mock-server` to try offline).
 
@@ -613,7 +638,7 @@ type LanguagesConfig = {
 type TranslationOptions = {
   context?: string;
   debug?: boolean;
-  forceTemporary?: Partial<Record<Lang, string>>; // Node: string
+  forceTemporary?: Partial<Record<Lang, string>>;
   namespace?: string; // defaults to init()'s defaultNamespace, else "default"
   originLanguage?: Lang; // UGC: the language the text is written in, when ≠ primary
   replace?: Record<string, string>;
@@ -645,7 +670,7 @@ const isLang = (l: string): l is Lang => (AVAILABLE_LANGS as readonly string[]).
 
 ## Gotchas
 
-- `awaitForTranslation` **must** be awaited. Fire-and-forget calls will hit rate limits.
+- `awaitForTranslationOrThrow` / `awaitForTranslationOrFallbackToOriginal` **must** be awaited, always — even the fallback variant, which never rejects, still needs it for rate limiting. Fire-and-forget calls will hit rate limits.
 - `init` must run before any translation call; in React, do it in your entry file before rendering.
 - Storage adapter methods can be sync or async, but must all be present (`getItem`, `setItem`, `removeItem`).
 - Source strings must be written in the `primary` language. Since v3 that can be any supported language.
@@ -721,7 +746,9 @@ Generated from the site — run `npm run docs:sync` in `docs/` after adding a pa
 - Use a custom component — https://docs.i18n-keyless.com/docs/guides/react/my-text
 - Utilities — https://docs.i18n-keyless.com/docs/api/react/utilities
 - With markdown — https://docs.i18n-keyless.com/docs/guides/react/with-markdown
-- awaitForTranslation() — https://docs.i18n-keyless.com/docs/api/node/awaitForTranslation
+- awaitForTranslation() (deprecated) — https://docs.i18n-keyless.com/docs/api/node/awaitForTranslation
+- awaitForTranslationOrFallbackToOriginal() — https://docs.i18n-keyless.com/docs/api/node/awaitForTranslationOrFallbackToOriginal
+- awaitForTranslationOrThrow() — https://docs.i18n-keyless.com/docs/api/node/awaitForTranslationOrThrow
 - getAllTranslationsForAllLanguages — https://docs.i18n-keyless.com/docs/api/node/getAllTranslationsForAllLanguages
 - getSupportedLanguages() — https://docs.i18n-keyless.com/docs/api/node/getSupportedLanguages
 - getSupportedLanguages() — https://docs.i18n-keyless.com/docs/api/react/getSupportedLanguages

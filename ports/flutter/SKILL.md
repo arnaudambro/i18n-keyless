@@ -157,7 +157,7 @@ claude mcp add --transport http i18n-keyless https://api.i18n-keyless.com/mcp
 
 Call `get_started` first: it returns the install steps with the project's key and
 languages already filled in. Tools: `list_languages`, `get_project`, `list_translations`,
-`translate`, `override_translation`, `set_project_languages`, `create_project`, ...
+`translate`, `migrate_translation`, `override_translation`, `set_project_languages`, ...
 Guide: https://docs.i18n-keyless.com/docs/guides/mcp
 
 ## Go deeper

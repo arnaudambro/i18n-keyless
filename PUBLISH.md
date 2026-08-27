@@ -1,7 +1,7 @@
 # Publishing
 
 One version for everything: the six npm packages, the Flutter port and the Laravel port.
-Today it is `3.3.0`. Every release bumps all of them, even a package with no change:
+Today it is `3.4.0`. Every release bumps all of them, even a package with no change:
 the wire `Version` header and the `i18n-keyless-core` pin must agree.
 
 ## What publishes where
@@ -106,11 +106,20 @@ Packagist versions are git tags on the mirror repo. Push the subtree, then the t
 # from the repo root, after the release commit exists on main
 git subtree push --prefix=ports/laravel laravel main
 SPLIT=$(git subtree split --prefix=ports/laravel main)
-git push laravel "$SPLIT:refs/tags/v3.4.0"
+test -n "$SPLIT" && git push laravel "$SPLIT":refs/tags/v3.4.0
 ```
 
 `git subtree split` prints a commit hash; it creates no branch. Packagist picks the tag up
 through the GitHub hook (or press "Update" on the package page).
+
+Two traps in the last line, both of which have already happened once:
+
+- Keep `refs/tags/...` OUTSIDE the quotes. In zsh, `"$SPLIT:refs/tags/v3.4.0"` applies the
+  history modifier `:r` to the variable, so the refspec becomes `<hash>efs/tags/v3.4.0`
+  and the push fails with `src refspec ... does not match any`.
+- Keep the `test -n "$SPLIT"` guard, and run the three lines in the SAME shell. With an
+  empty `SPLIT`, the refspec reads `:refs/tags/v3.4.0`, which **deletes** the tag on the
+  mirror. Recover with `git push laravel <hash>:refs/tags/v3.4.0`.
 
 ### 7. Commit and tag the monorepo
 

@@ -1,16 +1,16 @@
 # Changelog
 
-## 3.3.0
+## 3.4.0
 
 First release of the Flutter port. The version tracks the JavaScript SDKs and the protocol
-revision it implements: `docs/PROTOCOL.md` reference 3.3.0 (i18n-keyless-core 3.3.0).
+revision it implements: `docs/PROTOCOL.md` reference 3.4.0 (i18n-keyless-core 3.4.0).
 
 - `I18nKeylessClient`: pure-Dart port of the core and of the react store. Synchronous
   lookup, translate-on-miss queue (30 concurrent, deduplicated by `namespace:key`), bulk
   fetch with `ETag` / `If-None-Match` replay, 10 s timeout, 3 attempts with 500 ms and
   1500 ms backoff, no retry on 4xx, never throws, never clears a stored translation.
 - Device id: generated before the first request, persisted under `i18n-keyless-user-id`,
-  sent as `unique_id` with `sdk: flutter` and `Version: 3.3.0`.
+  sent as `unique_id` with `sdk: flutter` and `Version: 3.4.0`.
 - Usage analytics recorded per render and sent once per `init`; `sendUsage: false` to
   disable (the `ssr: true` of the JavaScript SDKs).
 - Storage: `I18nKeylessStorage` (three async methods), `MemoryStorage`,

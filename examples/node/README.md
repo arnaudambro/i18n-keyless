@@ -4,10 +4,12 @@ A plain Node HTTP server using **`i18n-keyless-node`** — translate strings ser
 no React involved. Renders an HTML page in the requested language (`/?lang=en`).
 
 - `init()` ([`src/i18n.ts`](./src/i18n.ts)) — the Node SDK bulk-loads every language up front.
-- `awaitForTranslation(key, lang, options?)` ([`src/render.ts`](./src/render.ts)) — the
-  imperative async API. **Always `await` it** (it intentionally crashes the process on an
-  unhandled rejection, to surface translation errors). Supports the same `context` option
-  (`8 heures` → "8 AM" / "8 hours").
+- `awaitForTranslationOrFallbackToOriginal(key, lang, options?)` ([`src/render.ts`](./src/render.ts))
+  — the imperative async API for a request handler. **Always `await` it** (rate limiting);
+  it never rejects, and falls back to the French source on a failed POST instead of failing
+  the whole page. Supports the same `context` option (`8 heures` → "8 AM" / "8 hours"). For
+  a script or a build step, use `awaitForTranslationOrThrow` instead — it intentionally
+  crashes the process on an unhandled rejection, to surface translation errors.
 
 Primary language is **`fr`**.
 

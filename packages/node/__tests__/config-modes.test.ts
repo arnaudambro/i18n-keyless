@@ -256,7 +256,7 @@ describe("the unhandled-rejection Proxy with a non-Error rejection", () => {
     const error = await service.awaitForTranslation("Bonjour", "en").catch((e: Error) => e);
 
     expect(error).toBeInstanceOf(Error);
-    expect(error.message).toMatch(/FATAL: awaitForTranslation failed for key "Bonjour"/);
+    expect(error.message).toMatch(/FATAL: awaitForTranslationOrThrow failed for key "Bonjour"/);
     expect(error.message).toMatch(/Original error: boom$/);
     expect((error as Error & { cause?: unknown }).cause).toBe("boom");
   });

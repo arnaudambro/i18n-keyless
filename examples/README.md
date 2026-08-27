@@ -22,7 +22,7 @@ the same feature set so you can compare integrations side by side:
 | [`astro`](./astro) | Astro + React islands | SSR | island + `<I18nKeylessProvider>` (serialized props) |
 | [`react-native`](./react-native) | React Native (CLI) | native | MMKV / AsyncStorage adapter |
 | [`expo`](./expo) | Expo Router | native | Expo storage + router |
-| [`node`](./node) | Node.js (no React) | server | `i18n-keyless-node` + `awaitForTranslation` |
+| [`node`](./node) | Node.js (no React) | server | `i18n-keyless-node` + `awaitForTranslationOrFallbackToOriginal` |
 | [`vue-vite`](./vue-vite) | Vite + Vue 3 | SPA | `i18n-keyless-vue`: the `I18nKeyless` plugin, `<T>`, `t()` from `useI18nKeyless()`, switcher |
 | [`angular`](./angular) | Angular (standalone, signals) | SPA | `i18n-keyless-angular`: `provideI18nKeyless()`, `<i18n-t>`, the `t` pipe, `translation()` signal (source files only: generate the workspace with the CLI) |
 | [`browser`](./browser) | plain HTML, no framework | script tag | `i18n-keyless-browser`: the `auto` script tag, `data-i18n`, `<i18n-t>`, `watchTranslation` |
@@ -73,7 +73,7 @@ build via `file:../../packages/*`:
 | remix-rr7 | Vitest | 2 | same SSR assertion |
 | nextjs | Vitest | 2 | `<T>` via provider, `getTranslation` after seed |
 | astro | Vitest | 2 | island provider + `getTranslation` |
-| node | Vitest | 2 | `awaitForTranslation` renders translated HTML |
+| node | Vitest | 2 | `awaitForTranslationOrFallbackToOriginal` renders translated HTML |
 | react-native | Jest (RN preset) | 2 | translation + `context` in the RN runtime |
 | expo | Jest (jest-expo) | 3 | translation + `context` + primary fallback |
 | vue-vite | (library suite) | | `cd packages/vue && npx vitest run` covers the plugin, `<T>`, `t()` and SSR |

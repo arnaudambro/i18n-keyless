@@ -250,7 +250,8 @@ function scheduleTranslationsUsageFlush() {
 }
 
 // No `queue.on("empty")` refetch here: that map is only fed by core's `translateKey`, which
-// this package never calls (`awaitForTranslation` POSTs directly and caches the answer).
+// this package never calls (the awaitForTranslation* functions POST directly and cache the
+// answer).
 
 export async function init(newConfig: I18nKeylessNodeConfig): Promise<I18nKeylessNodeConfig> {
   if (!newConfig.languages) {
@@ -552,7 +553,7 @@ async function awaitForTranslationFn(
  * @throws An Error naming the key, with the underlying failure as its `cause`. Ignore it
  *         and the process crashes; catch it and you own the fallback.
  */
-export const awaitForTranslation = new Proxy(
+export const awaitForTranslationOrThrow = new Proxy(
   awaitForTranslationFn, // Target the named async function
   {
     apply(target, thisArg, args) {
@@ -576,7 +577,7 @@ export const awaitForTranslation = new Proxy(
       return (Reflect.apply(target, thisArg, args) as Promise<string>).catch((error: unknown) => {
         const original = error instanceof Error ? error.message : String(error);
         const guided = new Error(
-          `i18n-keyless: FATAL: awaitForTranslation failed for key "${String(args[0])}". ` +
+          `i18n-keyless: FATAL: awaitForTranslationOrThrow failed for key "${String(args[0])}". ` +
             `Wrap the call in try/catch (or attach a .catch()) to handle it yourself, ` +
             `or leave it unhandled on purpose to crash this process. ` +
             `Original error: ${original}`
@@ -588,6 +589,46 @@ export const awaitForTranslation = new Proxy(
     }
   }
 );
+
+/**
+ * Same lookup and the same POST as `awaitForTranslationOrThrow`, but never rejects.
+ *
+ * On a failed POST (network error, a not-ok API answer, or a custom `handleTranslate`
+ * throw) it resolves to the key with `replace` applied — exactly what a miss already
+ * returns when the API answers with no text for the current language. "Original" here
+ * means the key as written: the primary-language text, or the origin-language text for a
+ * UGC call carrying `originLanguage`.
+ *
+ * The failure is still logged: `awaitForTranslationFn` prints a `console.error` naming the
+ * key before it re-throws, so wrong-language output stays visible even though nothing
+ * rejects.
+ *
+ * It still has to be awaited, exactly like `awaitForTranslationOrThrow`: this package POSTs
+ * directly, without a queue, so fire-and-forget calls hit the API's 429 rate limit.
+ *
+ * @param key - The text to translate
+ * @param currentLanguage - The language to translate to
+ * @param options - Optional parameters for the translation process
+ * @returns A Promise resolving to the translated string, or the original key (with
+ *          `replace` applied) when translation failed or no translation exists.
+ */
+export async function awaitForTranslationOrFallbackToOriginal(
+  key: string,
+  currentLanguage: Lang,
+  options?: TranslationOptions
+): Promise<string> {
+  try {
+    return await awaitForTranslationFn(key, currentLanguage, options);
+  } catch {
+    return applyReplace(key, options?.replace);
+  }
+}
+
+/**
+ * @deprecated since 3.5.0: use `awaitForTranslationOrThrow` (same behaviour) or
+ * `awaitForTranslationOrFallbackToOriginal`. Removed in 4.0.0.
+ */
+export const awaitForTranslation = awaitForTranslationOrThrow;
 
 export function getSupportedLanguages() {
   return store.config.languages.supported;

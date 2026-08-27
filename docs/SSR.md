@@ -347,7 +347,7 @@ const translations = await getServerTranslations(lang); // cached per process
 ## Escape hatch available today (no lib change)
 
 For SEO-critical pages that need real server-side translation *now*, skip `<T>` on
-those pages and use the **node package's `awaitForTranslation`** in the route
-loader, passing the resolved strings down as plain props. Clunky for a whole app,
-fine for a landing page + a few blog routes. This is the supported pattern until the
-provider ships.
+those pages and use the **node package's `awaitForTranslationOrFallbackToOriginal`**
+in the route loader, passing the resolved strings down as plain props. Clunky for a
+whole app, fine for a landing page + a few blog routes. This is the supported pattern
+until the provider ships.

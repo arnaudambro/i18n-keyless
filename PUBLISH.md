@@ -1,8 +1,24 @@
 # Publishing
 
 One version for everything: the six npm packages, the Flutter port and the Laravel port.
-Today it is `3.4.0`. Every release bumps all of them, even a package with no change:
+Today it is `3.5.0`. Every release bumps all of them, even a package with no change:
 the wire `Version` header and the `i18n-keyless-core` pin must agree.
+
+## The script
+
+```bash
+node scripts/set-version.mjs 3.5.0     # 1. the version, in 10 files
+# 2. CHANGELOG.md: rename "## [Unreleased]"; ports/flutter/CHANGELOG.md: add "## 3.5.0"
+node scripts/publish.mjs --dry-run     # 3. preflight, build, every test suite, publish dry runs
+node scripts/publish.mjs               # 4. the release, one confirmation per step
+```
+
+`scripts/publish.mjs` runs the steps below in order and asks before each upload. It skips
+what is already done (a package at this version on npm or pub.dev, an existing tag), so
+after a failure you fix the cause and run it again. Flags: `--yes` (no questions),
+`--skip-tests`, `--skip-npm`, `--skip-flutter`, `--skip-laravel`, `--skip-git`.
+
+The rest of this file is the same procedure by hand, and the reasons behind each step.
 
 ## What publishes where
 

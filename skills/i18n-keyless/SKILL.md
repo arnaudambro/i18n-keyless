@@ -128,10 +128,11 @@ getSupportedLanguages(); // [{ label: "English", value: "en" }, …] for a picke
 ### Node
 
 ```ts
-import { awaitForTranslation, type Lang } from "i18n-keyless-node";
+import { awaitForTranslationOrFallbackToOriginal, awaitForTranslationOrThrow, type Lang } from "i18n-keyless-node";
 
 // MUST be awaited — fire-and-forget calls hit the rate limit (429).
-const title = await awaitForTranslation("Viens voir l'application", user.lang as Lang);
+const title = await awaitForTranslationOrFallbackToOriginal("Viens voir l'application", user.lang as Lang);
+const title2 = await awaitForTranslationOrThrow("Viens voir l'application", user.lang as Lang); // rejects on failure; for scripts and build steps
 ```
 
 ## Per-translation options
@@ -218,7 +219,7 @@ const isLang = (l: string): l is Lang => (AVAILABLE_LANGS as readonly string[]).
 
 - `init` must run before any translation call.
 - Source strings must be written in the `primary` language.
-- `awaitForTranslation` must be awaited, always.
+- `awaitForTranslationOrThrow` / `awaitForTranslationOrFallbackToOriginal` must be awaited, always. `awaitForTranslation` is a deprecated alias of the `OrThrow` one.
 - A storage adapter must expose all three of `getItem` / `setItem` / `removeItem`.
 - Do not leave leading or trailing whitespace inside `<T>` — it changes the key. The SDK
   warns about it in development.

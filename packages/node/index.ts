@@ -1,4 +1,11 @@
-export { init, getAllTranslationsForAllLanguages, getSupportedLanguages, awaitForTranslation } from "./service.ts";
+export {
+  init,
+  getAllTranslationsForAllLanguages,
+  getSupportedLanguages,
+  awaitForTranslation,
+  awaitForTranslationOrThrow,
+  awaitForTranslationOrFallbackToOriginal
+} from "./service.ts";
 export type {
   Translations,
   I18nKeylessNodeConfig,

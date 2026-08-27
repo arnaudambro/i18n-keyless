@@ -23,7 +23,7 @@ documentation suite in the other repository, so run that suite after changing it
 
 ## Commands
 
-Release procedure: `PUBLISH.md` (one shared version, `node scripts/set-version.mjs x.y.z`,
+Release procedure: `PUBLISH.md`, automated by `node scripts/publish.mjs [--dry-run]` (one shared version, `node scripts/set-version.mjs x.y.z`,
 core `dist` built before `npm publish`, then pub.dev and the Packagist mirror).
 
 ```bash
@@ -109,7 +109,7 @@ Text goes through this pipeline:
 - `react/store.ts` — Zustand store, `init()`, `setCurrentLanguage`, hydration logic
 - `react/I18nKeylessText.tsx` — The `<T>` / `<I18nKeylessText>` component
 - `react/utils.ts` — Storage adapter (supports localStorage, AsyncStorage, MMKV, etc.)
-- `node/service.ts` — Node-specific init and `awaitForTranslation` with Proxy-based error enforcement
+- `node/service.ts` — Node-specific init and `awaitForTranslationOrThrow` / `awaitForTranslationOrFallbackToOriginal` (`awaitForTranslation` is a deprecated alias of `awaitForTranslationOrThrow`), with Proxy-based error enforcement on the `OrThrow` variant
 
 ### SSR / Server Rendering
 

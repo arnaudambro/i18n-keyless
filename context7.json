@@ -26,7 +26,7 @@
     "Never hardcode the language list; import AVAILABLE_LANGS and the Lang type from the SDK.",
     "getTranslation is a plain function, not a hook: subscribe with useCurrentLanguage() or useI18nKeyless() to re-render.",
     "Keys of the replace map include the literal delimiters, for example { '{name}': user.name }.",
-    "In Node, always await awaitForTranslation; fire-and-forget calls hit the 429 rate limit.",
+    "In Node, always await awaitForTranslationOrThrow or awaitForTranslationOrFallbackToOriginal; fire-and-forget calls hit the 429 rate limit. awaitForTranslation is a deprecated alias of awaitForTranslationOrThrow.",
     "Use context to disambiguate meaning and namespace to partition fetch and storage; they are not interchangeable.",
     "Do not leave leading or trailing whitespace inside I18nKeylessText: it changes the translation key.",
     "Under SSR, <T> resolves the language from I18nKeylessProvider while getTranslation resolves it from the runWithI18nKeyless AsyncLocalStorage scope.",

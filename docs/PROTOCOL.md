@@ -551,7 +551,7 @@ in-memory. The stored cursor is only used by the in-session `empty` refetch.
 
 | Aspect | Client SDK (`react-client`) | Node SDK |
 | --- | --- | --- |
-| Recorded when | every `getTranslation` / `<T>` render, on a microtask after render | every `awaitForTranslation` call, including primary-language calls |
+| Recorded when | every `getTranslation` / `<T>` render, on a microtask after render | every `awaitForTranslationOrThrow` / `awaitForTranslationOrFallbackToOriginal` call, including primary-language calls |
 | Skipped for | `unpersistedNamespace` calls; any server runtime | `unpersistedNamespace` calls |
 | Key / value | `storageKeyFor(key, context)` → UTC date `YYYY-MM-DD`, under `resolveNamespace(...)` | same |
 | Persisted | yes, JSON under `i18n-keyless-translations-usage` | no |
@@ -714,10 +714,10 @@ Vectors: `storage-keys.json` (replayed by the wrapper packages).
 | --- | --- |
 | Store | in memory: `translations[lang][storageKey]`, one flat map per language, no namespace dimension |
 | Boot | `init` awaits `GET /translate/` for `config.defaultNamespace`, merges every known language; never stores the cursor |
-| Resolution | `awaitForTranslation(key, lang, options)`: async. Empty key returns `""`. Primary (or origin) language returns `applyReplace(key)` unless `forceTemporary[lang]` is set. Hit returns `applyReplace(translation)`. Miss: `handleTranslate(key)` when configured, else `POST /translate`, then returns `applyReplace(data.translation[lang] || key)` |
+| Resolution | `awaitForTranslationOrThrow(key, lang, options)`: async. Empty key returns `""`. Primary (or origin) language returns `applyReplace(key)` unless `forceTemporary[lang]` is set. Hit returns `applyReplace(translation)`. Miss: `handleTranslate(key)` when configured, else `POST /translate`, then returns `applyReplace(data.translation[lang] || key)`. `awaitForTranslationOrFallbackToOriginal` is the same resolution but never rejects: a failed POST returns `applyReplace(key)`. `awaitForTranslation` is a deprecated alias of `awaitForTranslationOrThrow`. |
 | Dedupe | in-flight map keyed by `namespace + ":" + storageKey + ":" + (originLanguage ?? "")`, never for `forceTemporary` calls; plus the shared queue's `empty` event refetches `GET /translate/` per recorded namespace |
 | Cache after POST | the flat keys of `data.translation` are merged into the store for every known language (unknown keys and empty values dropped). The flat key `id` is the numeric row id, not Indonesian (section 4.1): see section 15, item 9 |
-| Errors | a failed POST **rejects** with `i18n-keyless: FATAL: awaitForTranslation failed for key "<key>". ...` and the original error as `cause`; an unhandled rejection terminates the process by design |
+| Errors | a failed POST **rejects** with `i18n-keyless: FATAL: awaitForTranslationOrThrow failed for key "<key>". ...` and the original error as `cause`; an unhandled rejection terminates the process by design. `awaitForTranslationOrFallbackToOriginal` swallows the same error after logging it and returns the key |
 | Usage | recorded on every call, flushed on a 10000 ms debounce, never cleared |
 | Identity | `sdk: node`, no `unique_id`; the echoed `uniqueId` is ignored |
 | `unpersistedNamespace` | no effect except that usage is not recorded |

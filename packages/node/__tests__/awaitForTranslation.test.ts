@@ -28,7 +28,12 @@ async function boot(translations: Record<string, Record<string, string>> = {}, e
     API_KEY: "k",
     ...extra,
   } as never);
-  return { awaitForTranslation: service.awaitForTranslation, api: core.api };
+  return {
+    awaitForTranslationOrThrow: service.awaitForTranslationOrThrow,
+    awaitForTranslationOrFallbackToOriginal: service.awaitForTranslationOrFallbackToOriginal,
+    awaitForTranslation: service.awaitForTranslation,
+    api: core.api,
+  };
 }
 
 beforeEach(() => {
@@ -38,89 +43,89 @@ beforeEach(() => {
   vi.spyOn(console, "log").mockImplementation(() => {});
 });
 
-describe("awaitForTranslation", () => {
+describe("awaitForTranslationOrThrow", () => {
   it("returns an empty string for an empty key", async () => {
-    const { awaitForTranslation, api } = await boot();
-    await expect(awaitForTranslation("", "en")).resolves.toBe("");
+    const { awaitForTranslationOrThrow, api } = await boot();
+    await expect(awaitForTranslationOrThrow("", "en")).resolves.toBe("");
   });
 
   it("returns the key as-is when the target IS the primary language", async () => {
-    const { awaitForTranslation, api } = await boot();
+    const { awaitForTranslationOrThrow, api } = await boot();
     const spy = vi.spyOn(api, "fetchTranslation");
-    await expect(awaitForTranslation("Bonjour", "fr")).resolves.toBe("Bonjour");
+    await expect(awaitForTranslationOrThrow("Bonjour", "fr")).resolves.toBe("Bonjour");
     expect(spy).not.toHaveBeenCalled();
   });
 
   it("returns a translation already in the store, without calling the API", async () => {
-    const { awaitForTranslation, api } = await boot({ en: { Bonjour: "Hello" } });
+    const { awaitForTranslationOrThrow, api } = await boot({ en: { Bonjour: "Hello" } });
     const spy = vi.spyOn(api, "fetchTranslation");
-    await expect(awaitForTranslation("Bonjour", "en")).resolves.toBe("Hello");
+    await expect(awaitForTranslationOrThrow("Bonjour", "en")).resolves.toBe("Hello");
     expect(spy).not.toHaveBeenCalled();
   });
 
   it("fetches a missing translation and caches it for next time", async () => {
-    const { awaitForTranslation, api } = await boot();
+    const { awaitForTranslationOrThrow, api } = await boot();
     const spy = vi.spyOn(api, "fetchTranslation").mockResolvedValue(okOne({ en: "Hello" }));
 
-    await expect(awaitForTranslation("Bonjour", "en")).resolves.toBe("Hello");
-    await expect(awaitForTranslation("Bonjour", "en")).resolves.toBe("Hello");
+    await expect(awaitForTranslationOrThrow("Bonjour", "en")).resolves.toBe("Hello");
+    await expect(awaitForTranslationOrThrow("Bonjour", "en")).resolves.toBe("Hello");
 
     expect(spy).toHaveBeenCalledTimes(1); // cached, never re-fetched
   });
 
   it("looks a key up under its context", async () => {
-    const { awaitForTranslation, api } = await boot({ en: { "8 heures__time": "8 AM" } });
-    await expect(awaitForTranslation("8 heures", "en", { context: "time" })).resolves.toBe("8 AM");
+    const { awaitForTranslationOrThrow, api } = await boot({ en: { "8 heures__time": "8 AM" } });
+    await expect(awaitForTranslationOrThrow("8 heures", "en", { context: "time" })).resolves.toBe("8 AM");
   });
 
   it("applies `replace` to a stored translation", async () => {
-    const { awaitForTranslation, api } = await boot({ en: { "Hello {{name}}": "Bonjour {{name}}" } });
+    const { awaitForTranslationOrThrow, api } = await boot({ en: { "Hello {{name}}": "Bonjour {{name}}" } });
     await expect(
-      awaitForTranslation("Hello {{name}}", "en", { replace: { "{{name}}": "Arnaud" } })
+      awaitForTranslationOrThrow("Hello {{name}}", "en", { replace: { "{{name}}": "Arnaud" } })
     ).resolves.toBe("Bonjour Arnaud");
   });
 
   it("applies `replace` to the key when the target is the primary language", async () => {
-    const { awaitForTranslation, api } = await boot();
+    const { awaitForTranslationOrThrow, api } = await boot();
     await expect(
-      awaitForTranslation("Hello {{name}}", "fr", { replace: { "{{name}}": "Arnaud" } })
+      awaitForTranslationOrThrow("Hello {{name}}", "fr", { replace: { "{{name}}": "Arnaud" } })
     ).resolves.toBe("Hello Arnaud");
   });
 
   it("treats regex metacharacters in a placeholder literally", async () => {
-    const { awaitForTranslation, api } = await boot();
+    const { awaitForTranslationOrThrow, api } = await boot();
     await expect(
-      awaitForTranslation("Cost: $9.99 (net)", "fr", { replace: { "$9.99 (net)": "10 EUR" } })
+      awaitForTranslationOrThrow("Cost: $9.99 (net)", "fr", { replace: { "$9.99 (net)": "10 EUR" } })
     ).resolves.toBe("Cost: 10 EUR");
   });
 
   it("uses a custom handleTranslate instead of the API", async () => {
     const handleTranslate = vi.fn().mockResolvedValue(okOne({ en: "Hello" }));
-    const { awaitForTranslation, api } = await boot({}, { handleTranslate });
+    const { awaitForTranslationOrThrow, api } = await boot({}, { handleTranslate });
     const spy = vi.spyOn(api, "fetchTranslation");
 
-    await expect(awaitForTranslation("Bonjour", "en")).resolves.toBe("Hello");
+    await expect(awaitForTranslationOrThrow("Bonjour", "en")).resolves.toBe("Hello");
     expect(handleTranslate).toHaveBeenCalledWith("Bonjour");
     expect(spy).not.toHaveBeenCalled();
   });
 
   it("returns the key when a custom handler produces nothing", async () => {
     const handleTranslate = vi.fn().mockResolvedValue(okOne({}));
-    const { awaitForTranslation, api } = await boot({}, { handleTranslate });
-    await expect(awaitForTranslation("Bonjour", "en")).resolves.toBe("Bonjour");
+    const { awaitForTranslationOrThrow, api } = await boot({}, { handleTranslate });
+    await expect(awaitForTranslationOrThrow("Bonjour", "en")).resolves.toBe("Bonjour");
   });
 
   it("honours forceTemporary over what is in the store", async () => {
-    const { awaitForTranslation, api } = await boot({ en: { Bonjour: "Hello" } });
+    const { awaitForTranslationOrThrow, api } = await boot({ en: { Bonjour: "Hello" } });
     vi.spyOn(api, "fetchTranslation").mockResolvedValue(okOne({ en: "MY OWN" }));
 
     await expect(
-      awaitForTranslation("Bonjour", "en", { forceTemporary: { en: "MY OWN" } })
+      awaitForTranslationOrThrow("Bonjour", "en", { forceTemporary: { en: "MY OWN" } })
     ).resolves.toBe("MY OWN");
   });
 
   it("rejects when the API answers not-ok", async () => {
-    const { awaitForTranslation, api } = await boot();
+    const { awaitForTranslationOrThrow, api } = await boot();
     vi.spyOn(api, "fetchTranslation").mockResolvedValue({
       ok: false,
       error: "quota exceeded",
@@ -128,39 +133,39 @@ describe("awaitForTranslation", () => {
       message: "",
     });
 
-    await expect(awaitForTranslation("Bonjour", "en")).rejects.toThrow(/quota exceeded/);
+    await expect(awaitForTranslationOrThrow("Bonjour", "en")).rejects.toThrow(/quota exceeded/);
   });
 
   describe("user generated content (originLanguage)", () => {
     it("returns the key as-is when the target IS its origin language", async () => {
-      const { awaitForTranslation, api } = await boot();
+      const { awaitForTranslationOrThrow, api } = await boot();
       const spy = vi.spyOn(api, "fetchTranslation");
       await expect(
-        awaitForTranslation("Hola mundo", "es", { originLanguage: "es" })
+        awaitForTranslationOrThrow("Hola mundo", "es", { originLanguage: "es" })
       ).resolves.toBe("Hola mundo");
       expect(spy).not.toHaveBeenCalled();
     });
 
     it("still translates UGC into the primary language", async () => {
-      const { awaitForTranslation, api } = await boot({ fr: { "Hola mundo": "Bonjour le monde" } });
+      const { awaitForTranslationOrThrow, api } = await boot({ fr: { "Hola mundo": "Bonjour le monde" } });
       await expect(
-        awaitForTranslation("Hola mundo", "fr", { originLanguage: "es" })
+        awaitForTranslationOrThrow("Hola mundo", "fr", { originLanguage: "es" })
       ).resolves.toBe("Bonjour le monde");
     });
   });
 
   describe("unknown language codes", () => {
     it("ignores a language code it does not know", async () => {
-      const { awaitForTranslation, api } = await boot();
+      const { awaitForTranslationOrThrow, api } = await boot();
       vi.spyOn(api, "fetchTranslation").mockResolvedValue(okOne({ klingon: "nuqneH", en: "Hello" }));
 
-      await expect(awaitForTranslation("Bonjour", "en")).resolves.toBe("Hello");
+      await expect(awaitForTranslationOrThrow("Bonjour", "en")).resolves.toBe("Hello");
     });
 
     it("ignores unknown codes coming from the boot fetch", async () => {
-      const { awaitForTranslation } = await boot({ klingon: { Bonjour: "nuqneH" }, en: { Bonjour: "Hello" } });
+      const { awaitForTranslationOrThrow } = await boot({ klingon: { Bonjour: "nuqneH" }, en: { Bonjour: "Hello" } });
 
-      await expect(awaitForTranslation("Bonjour", "en")).resolves.toBe("Hello");
+      await expect(awaitForTranslationOrThrow("Bonjour", "en")).resolves.toBe("Hello");
     });
   });
 
@@ -180,7 +185,7 @@ describe("awaitForTranslation", () => {
     }
 
     async function bootFailing() {
-      const { awaitForTranslation, api } = await boot();
+      const { awaitForTranslationOrThrow, api } = await boot();
       vi.spyOn(console, "error").mockImplementation(() => {});
       vi.spyOn(api, "fetchTranslation").mockResolvedValue({
         ok: false,
@@ -188,29 +193,29 @@ describe("awaitForTranslation", () => {
         data: {},
         message: "",
       });
-      return awaitForTranslation;
+      return awaitForTranslationOrThrow;
     }
 
     it("crashes the process when the caller ignores the rejection", async () => {
-      const awaitForTranslation = await bootFailing();
+      const awaitForTranslationOrThrow = await bootFailing();
 
       const unhandled = await withUnhandledWatch(async () => {
         // A floating promise: no await, no catch. This MUST stay fatal — a server that
         // cannot translate has to fail loudly instead of serving the wrong text.
-        void awaitForTranslation("Bonjour", "en");
+        void awaitForTranslationOrThrow("Bonjour", "en");
       });
 
       expect(unhandled).toHaveLength(1);
-      expect((unhandled[0] as Error).message).toMatch(/FATAL: awaitForTranslation failed for key "Bonjour"/);
+      expect((unhandled[0] as Error).message).toMatch(/FATAL: awaitForTranslationOrThrow failed for key "Bonjour"/);
     });
 
     it("does not crash the process when the caller handles the rejection", async () => {
-      const awaitForTranslation = await bootFailing();
+      const awaitForTranslationOrThrow = await bootFailing();
       let handled: Error | null = null;
 
       const unhandled = await withUnhandledWatch(async () => {
         try {
-          await awaitForTranslation("Bonjour", "en");
+          await awaitForTranslationOrThrow("Bonjour", "en");
         } catch (error) {
           handled = error as Error;
         }
@@ -222,14 +227,96 @@ describe("awaitForTranslation", () => {
     });
 
     it("names the key, says what to do, and keeps the original error as the cause", async () => {
-      const awaitForTranslation = await bootFailing();
+      const awaitForTranslationOrThrow = await bootFailing();
 
-      const error = await awaitForTranslation("Bonjour", "en").catch((e: Error) => e);
+      const error = await awaitForTranslationOrThrow("Bonjour", "en").catch((e: Error) => e);
 
-      expect(error.message).toMatch(/FATAL: awaitForTranslation failed for key "Bonjour"/);
+      expect(error.message).toMatch(/FATAL: awaitForTranslationOrThrow failed for key "Bonjour"/);
       expect(error.message).toMatch(/try\/catch/);
       expect(error.message).toMatch(/quota exceeded/);
       expect((error as Error & { cause?: Error }).cause?.message).toBe("quota exceeded");
     });
+  });
+});
+
+describe("awaitForTranslationOrFallbackToOriginal", () => {
+  it("resolves to the hit translation when the store has it", async () => {
+    const { awaitForTranslationOrFallbackToOriginal, api } = await boot({ en: { Bonjour: "Hello" } });
+    const spy = vi.spyOn(api, "fetchTranslation");
+    await expect(awaitForTranslationOrFallbackToOriginal("Bonjour", "en")).resolves.toBe("Hello");
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("resolves to the key when the API answers not-ok, without rejecting", async () => {
+    const { awaitForTranslationOrFallbackToOriginal, api } = await boot();
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(api, "fetchTranslation").mockResolvedValue({
+      ok: false,
+      error: "quota exceeded",
+      data: {},
+      message: "",
+    });
+
+    await expect(awaitForTranslationOrFallbackToOriginal("Bonjour", "en")).resolves.toBe("Bonjour");
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("resolves to the key when the API request rejects (network error), without rejecting", async () => {
+    const { awaitForTranslationOrFallbackToOriginal, api } = await boot();
+    vi.spyOn(api, "fetchTranslation").mockRejectedValue(new Error("network down"));
+
+    await expect(awaitForTranslationOrFallbackToOriginal("Bonjour", "en")).resolves.toBe("Bonjour");
+  });
+
+  it("applies `replace` to the fallback key", async () => {
+    const { awaitForTranslationOrFallbackToOriginal, api } = await boot();
+    vi.spyOn(api, "fetchTranslation").mockResolvedValue({
+      ok: false,
+      error: "quota exceeded",
+      data: {},
+      message: "",
+    });
+
+    await expect(
+      awaitForTranslationOrFallbackToOriginal("Hello {{name}}", "en", { replace: { "{{name}}": "Arnaud" } })
+    ).resolves.toBe("Hello Arnaud");
+  });
+
+  it("returns the key when the API answers ok but without the requested language", async () => {
+    const { awaitForTranslationOrFallbackToOriginal, api } = await boot();
+    vi.spyOn(api, "fetchTranslation").mockResolvedValue(okOne({ es: "Hola" }));
+
+    await expect(awaitForTranslationOrFallbackToOriginal("Bonjour", "en")).resolves.toBe("Bonjour");
+  });
+
+  it("never produces an unhandled rejection when the caller ignores the promise", async () => {
+    const { awaitForTranslationOrFallbackToOriginal, api } = await boot();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(api, "fetchTranslation").mockResolvedValue({
+      ok: false,
+      error: "quota exceeded",
+      data: {},
+      message: "",
+    });
+
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => unhandled.push(reason);
+    process.on("unhandledRejection", onUnhandled);
+    try {
+      // A floating promise: no await, no catch. It must never crash the process.
+      void awaitForTranslationOrFallbackToOriginal("Bonjour", "en");
+      await new Promise((r) => setTimeout(r, 10));
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+    }
+
+    expect(unhandled).toEqual([]);
+  });
+});
+
+describe("awaitForTranslation (deprecated)", () => {
+  it("is the same function as awaitForTranslationOrThrow", async () => {
+    const { awaitForTranslation, awaitForTranslationOrThrow } = await boot();
+    expect(awaitForTranslation).toBe(awaitForTranslationOrThrow);
   });
 });

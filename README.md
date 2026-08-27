@@ -213,43 +213,57 @@ Get up and running in minutes!
     ```
      *Note: You'll need an `API_KEY` from [i18n-keyless.com](https://i18n-keyless.com) or configure your [own API](#️-setup-with-your-own-api).*
 
-3.  **Use:** Use `awaitForTranslation` to fetch and retrieve translations.
-
-
+3.  **Use:** Two functions fetch and retrieve translations. Use `awaitForTranslationOrThrow`
+    in a script or a build step (an ignored rejection crashes the process on purpose). Use
+    `awaitForTranslationOrFallbackToOriginal` in a request handler (it never rejects: a
+    failed POST falls back to the key, with the failure still logged).
 
     ```javascript
-    import { awaitForTranslation } from "i18n-keyless-node";
+    import { awaitForTranslationOrThrow } from "i18n-keyless-node";
 
     // Assuming init has completed
     (async () => {
       // Fetch and get the French translation for "Hello world"
-      const greeting = await awaitForTranslation("Hello world", "fr"); // Target language 'fr'
+      const greeting = await awaitForTranslationOrThrow("Hello world", "fr"); // Target language 'fr'
       console.log(greeting); // Output: "Bonjour le monde" (or similar)
 
       // Fetch and get the Spanish translation for "Processing complete."
-      const message = await awaitForTranslation("Processing complete.", "es"); // Target language 'es'
+      const message = await awaitForTranslationOrThrow("Processing complete.", "es"); // Target language 'es'
       console.log(message); // Output: "Procesamiento completo." (or similar)
 
       // Example with context
-      const backButtonText = await awaitForTranslation("Back", "es", { context: "this is a back button" });
+      const backButtonText = await awaitForTranslationOrThrow("Back", "es", { context: "this is a back button" });
       console.log(backButtonText); // Output: Spanish translation for "Back" (e.g., "Atrás")
 
       // ⚠️ IMPORTANT: Always await translations to avoid API rate limiting
       // Bad - could get rate limited:
-      awaitForTranslation("Hello", "fr");
-      awaitForTranslation("World", "fr");
+      awaitForTranslationOrThrow("Hello", "fr");
+      awaitForTranslationOrThrow("World", "fr");
       
       // Good - await each translation:
-      await awaitForTranslation("Hello", "fr");
-      await awaitForTranslation("World", "fr");
+      await awaitForTranslationOrThrow("Hello", "fr");
+      await awaitForTranslationOrThrow("World", "fr");
       
       // Even better - await in parallel if possible:
       await Promise.all([
-        awaitForTranslation("Hello", "fr"),
-        awaitForTranslation("World", "fr") 
+        awaitForTranslationOrThrow("Hello", "fr"),
+        awaitForTranslationOrThrow("World", "fr") 
       ]);
 
     })();
+    ```
+
+    In a request handler (an HTTP server, an API route), prefer the fallback variant so one
+    failed translation doesn't fail the whole request:
+
+    ```javascript
+    import { awaitForTranslationOrFallbackToOriginal } from "i18n-keyless-node";
+
+    async function handleRequest(lang) {
+      // Still MUST be awaited (rate limiting) — it just never rejects.
+      const greeting = await awaitForTranslationOrFallbackToOriginal("Hello world", lang);
+      return greeting; // falls back to "Hello world" if the POST fails; the failure is logged
+    }
     ```
 
 ### **Vue Quick Start**
@@ -534,18 +548,23 @@ await init({
 
 ### **Translation Methods**
 
-#### `awaitForTranslation` (Asynchronous - **MANDATORY AWAIT**)
+#### `awaitForTranslationOrThrow` / `awaitForTranslationOrFallbackToOriginal` (Asynchronous - **MANDATORY AWAIT**)
 
-Use `awaitForTranslation` to retrieve a translation, automatically fetching it from the backend via API or custom handler if it's missing locally. 
+Two functions retrieve a translation, automatically fetching it from the backend via API or
+custom handler if it's missing locally. Pick by call site: in a **request handler**, use
+`awaitForTranslationOrFallbackToOriginal` — it never rejects, and returns the key on
+failure (the failure is still logged). In a **script or a build step**, use
+`awaitForTranslationOrThrow` — it rejects, and an ignored rejection crashes the process on
+purpose, so a one-off run fails loudly instead of shipping untranslated output.
 
 **🚨 CRITICAL NODE.JS USAGE NOTE 🚨**
 
-**You MUST `await` the `awaitForTranslation` function calls**. You would be blocked by 429 Too many requests if you didn't.
+**You MUST `await` both functions' calls**, always — even `awaitForTranslationOrFallbackToOriginal`, which never rejects, still needs the `await` for rate limiting. You would be blocked by 429 Too many requests if you didn't.
 
-Failure to do so is **not optional**. If the underlying translation process encounters an
-error (network issue, API error, etc.) the promise rejects, and an unhandled rejection
-terminates the Node process — deliberately, so a server that cannot translate fails loudly
-instead of serving the wrong text.
+For `awaitForTranslationOrThrow`, failure to await is **not optional**. If the underlying
+translation process encounters an error (network issue, API error, etc.) the promise
+rejects, and an unhandled rejection terminates the Node process — deliberately, so a script
+or build step that cannot translate fails loudly instead of shipping the wrong text.
 
 Handling it is honoured, though: a `try/catch` or a `.catch()` gets the error and your
 process keeps running, so you can fall back to your own text. Only an *ignored* rejection is
@@ -554,18 +573,22 @@ fatal. The error names the key and carries the underlying failure as its `cause`
 > **Before 3.2.0 this was backwards**: ignoring the rejection was silent, and a correct
 > `try/catch` crashed the process anyway.
 
+> **Deprecated:** `awaitForTranslation` is an alias of `awaitForTranslationOrThrow`, kept
+> for backward compatibility since 3.5.0. It will be removed in 4.0.0 — use
+> `awaitForTranslationOrThrow` or `awaitForTranslationOrFallbackToOriginal` instead.
+
 ```javascript
-import { awaitForTranslation } from "i18n-keyless-node";
+import { awaitForTranslationOrThrow } from "i18n-keyless-node";
 
 // --- CORRECT USAGE (Mandatory) ---
 async function getGreetingSafe(name: string, lang: string): Promise<string> {
-  const greetingTemplate = await awaitForTranslation("Hello {user}", lang);
+  const greetingTemplate = await awaitForTranslationOrThrow("Hello {user}", lang);
   return greetingTemplate.replace("{user}", name);
 }
 
 
 // --- ALSO CORRECT: .catch() is honoured, your fallback runs, nothing crashes ---
-awaitForTranslation("Processing complete.", "es")
+awaitForTranslationOrThrow("Processing complete.", "es")
   .then(message => {
     console.log(message); // Output: "Procesamiento completo."
   })
@@ -575,10 +598,10 @@ awaitForTranslation("Processing complete.", "es")
   });
 
 // DO NOT DO THIS:
-awaitForTranslation("This will crash if it rejects!", "de");
+awaitForTranslationOrThrow("This will crash if it rejects!", "de");
 
 // ALSO DO NOT DO THIS (assigning promise without handling rejection):
-const promise = awaitForTranslation("This also crashes if it rejects!", "it");
+const promise = awaitForTranslationOrThrow("This also crashes if it rejects!", "it");
 
 ```
 
@@ -614,7 +637,7 @@ persisted on its own, so a client only downloads and stores the parts it actuall
 getTranslation("Pay now", { namespace: "checkout" });
 
 // Node
-await awaitForTranslation("Pay now", "fr", { namespace: "checkout" });
+await awaitForTranslationOrThrow("Pay now", "fr", { namespace: "checkout" });
 ```
 
 Set a default namespace once in `init` (a per-call `namespace` always overrides it):
@@ -672,7 +695,7 @@ It works with the imperative API and on the server too:
 getTranslation(review.body, { originLanguage: review.lang });
 
 // node
-await awaitForTranslation(review.body, "en", { originLanguage: review.lang });
+await awaitForTranslationOrThrow(review.body, "en", { originLanguage: review.lang });
 ```
 
 **How it stays cheap.** The row is keyed by the primary-language version, so the same

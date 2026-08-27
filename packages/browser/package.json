@@ -1,7 +1,7 @@
 {
   "name": "i18n-keyless-browser",
   "private": false,
-  "version": "3.4.0",
+  "version": "3.5.0",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -25,10 +25,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "postpublish": "rm -rf ./dist && rm *.tgz"
+    "postpublish": "rm -rf ./dist && rm -f *.tgz"
   },
   "dependencies": {
-    "i18n-keyless-core": "3.4.0"
+    "i18n-keyless-core": "3.5.0"
   },
   "devDependencies": {
     "@types/node": "^22.5.5",

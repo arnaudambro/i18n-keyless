@@ -8,6 +8,24 @@ All notable changes to i18n-keyless are documented here. The npm packages
 This project follows [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
 
+## [3.5.0] — 2026-08-27
+
+### Added
+
+- `i18n-keyless-node` exports `awaitForTranslationOrThrow`: the same Proxy-wrapped lookup as
+  the former `awaitForTranslation` (rejects on failure; an ignored rejection crashes the
+  process by design), for scripts and build steps.
+- `i18n-keyless-node` exports `awaitForTranslationOrFallbackToOriginal`: same lookup and same
+  POST, but never rejects — a failed POST returns the key with `replace` applied, exactly
+  like a miss already does. Use it in request handlers, where one failed translation must
+  not fail the whole request; use `awaitForTranslationOrThrow` in a script or a build step,
+  where an ignored rejection crashing the process is the point.
+
+### Deprecated
+
+- `awaitForTranslation` (`i18n-keyless-node`) is now an alias of `awaitForTranslationOrThrow`
+  (identical behaviour). It will be removed in 4.0.0.
+
 ## [3.4.0] — 2026-08-27
 
 ### Added: four new SDKs, all on the same protocol

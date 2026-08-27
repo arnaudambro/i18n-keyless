@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.5.0
+
+No change in the port. The version tracks the JavaScript SDKs: 3.5.0 adds
+`awaitForTranslationOrThrow` / `awaitForTranslationOrFallbackToOriginal` to `i18n-keyless-node`
+and deprecates `awaitForTranslation` there. Protocol reference unchanged.
+
 ## 3.4.0
 
 First release of the Flutter port. The version tracks the JavaScript SDKs and the protocol

@@ -13,20 +13,19 @@ export function Home() {
       </p>
       <p>
         <I18nKeylessText>
-          Voici une phrase disponible dans toutes vos langues, vous pouvez la modifier si vous le
-          souhaitez.
+          Voici une phrase disponible dans toutes vos langues, vous pouvez la modifier si vous le souhaitez.
         </I18nKeylessText>
       </p>
       <p className="muted">
         <I18nKeylessText>
-          Attention, vous traduisez en 15 langues, cela prend plus de temps que 2 ou 5, qui sont des
-          cas d'usage plus courants.
+          Attention, vous traduisez en 15 langues, cela prend plus de temps que 2 ou 5, qui sont des cas d'usage plus
+          courants.
         </I18nKeylessText>
       </p>
       <p className="muted">
         <I18nKeylessText>
-          Attention aussi : les traductions n'ont lieu qu'une seule fois, comme une recherche Google :
-          elles sont ensuite gardées en cache pour un chargement instantané.
+          Attention aussi : les traductions n'ont lieu qu'une seule fois, comme une recherche Google : elles sont
+          ensuite gardées en cache pour un chargement instantané.
         </I18nKeylessText>
       </p>
     </section>

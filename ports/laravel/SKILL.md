@@ -61,9 +61,9 @@ The service provider is auto-discovered. No code change: `__()`, `@lang`, `trans
   hook: call `app(\I18nKeyless\Laravel\KeylessTranslator::class)->handleMissingKey(...)`
   from that callback.
 - A source string is capped at 2000 characters (`context` and `namespace` at 200). Long-form
-  content is allowed, but a blog post is one translation **per Markdown block**: keep the
-  Markdown inside each block, give every block of the document the same `context` — one very
-  short summary of it — and one `namespace` per document.
+  content is allowed, but a blog post is one translation **per Markdown block** of about 1000
+  characters: keep the Markdown inside each block, give every block of the document the same
+  `context` — one very short summary of it — and one `namespace` per document.
   https://docs.i18n-keyless.com/docs/guides/long-form-content
 
 ## Configuration

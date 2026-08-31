@@ -1,0 +1,20 @@
+# i18n-keyless — see README.md next to this file. With ONCE (https://once.com) you do not
+# need this file: point ONCE at the image and it handles the domain, TLS, updates, backups.
+#
+#   cp .env.example .env   # then fill LICENSE_KEY and the AI provider
+#   docker compose up -d
+#   open http://localhost:1800
+services:
+  i18n-keyless:
+    image: ghcr.io/ambroselli-io/i18n-keyless:latest
+    container_name: i18n-keyless
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - '${HOST_PORT:-1800}:80'
+    volumes:
+      # The SQLite database and the session secret. Back this up; it is everything.
+      - i18n-keyless-data:/storage
+
+volumes:
+  i18n-keyless-data:

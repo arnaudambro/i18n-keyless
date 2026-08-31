@@ -19,9 +19,9 @@ export function initI18n() {
     ...(apiKey ? {} : { API_URL: "http://localhost:8787" }),
     languages: {
       primary: PRIMARY,
-      supported: [...SUPPORTED_LANGUAGES],
+      supported: [...SUPPORTED_LANGUAGES]
     },
     // SPA: persist translations so they load instantly on the next visit.
-    storage: window.localStorage,
+    storage: window.localStorage
   });
 }

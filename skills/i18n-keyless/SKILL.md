@@ -160,10 +160,12 @@ Available as props on `<T>` and as the options argument of `useTranslation(text,
 
 Long-form content is **allowed**, but a post is not one translation — it is **one translation
 per block**. A source string is capped at **2000 characters** (`context` and `namespace` at
-200); a longer key is a `400`.
+200); a longer key is a `400`. That cap is a quality rule, not a storage one: the row is keyed
+by a sha256 of the source text. **Target 1000 characters per block**, 2000 is the reject.
 
 1. **Split the document into Markdown blocks** — a heading, a paragraph, a whole list, a
-   quote, a table row. Never split inside a sentence.
+   quote, a table row. Never split inside a sentence. Cut a paragraph over 1000 characters at
+   a sentence break, but keep a table or a list whole whatever its length.
 2. **Keep the Markdown inside the block** (`**bold**`, `[link](url)`, `` `code` ``, list
    markers). The translation preserves the syntax, so the formatting survives; render each
    block with `react-markdown` (or `react-native-markdown-display`).
@@ -273,7 +275,8 @@ const isLang = (l: string): l is Lang => (AVAILABLE_LANGS as readonly string[]).
   resolved translated text.
 - The component is `I18nKeylessText` (aliased `T`) — not `I18nKeyless`.
 - A source string is capped at 2000 characters, `context` and `namespace` at 200. Long-form
-  content is fine, but send it block by block — see "Long content" above.
+  content is fine, but send it block by block, around 1000 characters each — see "Long
+  content" above.
 
 ## Operate it from your agent (MCP)
 

@@ -348,11 +348,11 @@ const text = getTranslation(children);
 
 ### Translate a blog post or long content
 
-A post is **not one translation, it is one translation per block**. The server refuses a source string longer than **2000 characters** (`context` and `namespace` are capped at 200), so the whole post is never a key. Blocks are also the better unit anyway: an edit re-translates one paragraph instead of the whole article, and a model asked for one paragraph does not drift, drop a list or reformat a table.
+A post is **not one translation, it is one translation per block**. The server refuses a source string longer than **2000 characters** (`context` and `namespace` are capped at 200), so the whole post is never a key. That cap is a quality rule, not a storage one — a row is keyed by a hash of its source text. Blocks are the better unit anyway: an edit re-translates one paragraph instead of the whole article, and a model asked for one paragraph does not drift, drop a list or reformat a table.
 
 The recipe:
 
-1. Split the document into Markdown blocks — a heading, a paragraph, a whole list, a quote, a table row. Never split inside a sentence.
+1. Split the document into Markdown blocks — a heading, a paragraph, a whole list, a quote, a table row. Never split inside a sentence. Target **1000 characters** per block; cut a longer paragraph at a sentence break, but keep a table or a list whole whatever its length.
 2. Keep the Markdown **inside** each block (`**bold**`, `[link](url)`, `` `code` ``, list markers). The translation keeps the syntax and the renderer restores the styling.
 3. Pass the **same `context` to every block: one very short summary of the post**, one sentence, 200 characters maximum. A lone paragraph does not say what the article is about; the summary does, and it is what makes that paragraph translate correctly.
 4. Pass one `namespace` per post (`blog:<slug>`), so a reader downloads only the post they open.
@@ -713,7 +713,7 @@ const isLang = (l: string): l is Lang => (AVAILABLE_LANGS as readonly string[]).
 - Translations are cached on-device — if you change a translation in the dashboard, cached clients pick it up via the next refresh, not instantly.
 - `getTranslation` is a plain function, not a hook — components that rely on it must subscribe to the store (`useCurrentLanguage()` / `useI18nKeyless((s) => s.translations)`) to re-render when translations refresh.
 - For `react-markdown` (and similar renderers that block re-renders), key the renderer by the resolved translated text (see "Translate Markdown" above).
-- A source string is capped at 2000 characters (`context` and `namespace` at 200); longer is a `400`. Long-form content is allowed, but it must be sent block by block — see "Translate a blog post or long content" above.
+- A source string is capped at 2000 characters (`context` and `namespace` at 200); longer is a `400`. The cap on the source text is a quality rule, not a storage one: the unique index holds a sha256 of the text, so only `context` and `namespace` sit in its size budget. Long-form content is allowed, but it must be sent block by block, around 1000 characters each — see "Translate a blog post or long content" above.
 
 ## Operate it from your agent (MCP)
 
@@ -737,7 +737,7 @@ Tools, by the scope you grant on the consent page (a tool outside the granted sc
 
 - `i18n:read` — `get_started` (install + `init` with the project's public key and languages filled in), `search_docs`, `list_languages`, `get_project`, `list_projects`, `list_translations` (paginated, `missingOnly` for rows a language is still empty in), `get_translation`.
 - `i18n:write` — `translate`, `override_translation`, `delete_translation` (needs `confirm: true`), `set_project_languages` (primary only while the project has no translation).
-- `i18n:account` — `create_project` (in-band with a saved payment method, otherwise returns a `checkout_url`), `invite_member`, `remove_member`, `cancel_subscription` (at period end, reversible with `resume_subscription`) — owner only, need `confirm: true`.
+- `i18n:account` — `create_project` (instance admins only; on i18n-keyless.com projects are created from the website), `invite_member` (returns the invitation to pass on; no email is sent), `remove_member` — owner or admin, need `confirm: true`.
 
 Not tools, on purpose: code scanning (the agent already has the code), the free trial, plan changes (not in the dashboard yet). Stateless HTTP, no sessions; language codes are v3 only; MCP traffic never counts as a monthly active user.
 
@@ -752,6 +752,7 @@ Not tools, on purpose: code scanning (the agent already has the code), the free 
 - Per-package skills: Vue https://github.com/arnaudambro/i18n-keyless/blob/main/packages/vue/SKILL.md, Angular https://github.com/arnaudambro/i18n-keyless/blob/main/packages/angular/SKILL.md, browser https://github.com/arnaudambro/i18n-keyless/blob/main/packages/browser/SKILL.md, Laravel https://github.com/arnaudambro/i18n-keyless/blob/main/ports/laravel/SKILL.md, Flutter https://github.com/arnaudambro/i18n-keyless/blob/main/ports/flutter/SKILL.md
 - Protocol and ports: https://github.com/arnaudambro/i18n-keyless/blob/main/docs/PROTOCOL.md, conformance vectors https://github.com/arnaudambro/i18n-keyless/tree/main/conformance, port checklist https://github.com/arnaudambro/i18n-keyless/blob/main/docs/PORT_CHECKLIST.md
 - MCP server (HTTP, OAuth): https://api.i18n-keyless.com/mcp — guide: https://docs.i18n-keyless.com/docs/guides/mcp
+- Self-hosted (€30 once): the same Docker image as i18n-keyless.com, on your server, with ONCE (once.com) or docker compose, SQLite or Postgres, any AI provider (`AI_PROVIDER`, `AI_MODEL`, `AI_API_KEY`): https://i18n-keyless.com/self-hosted — guide: https://docs.i18n-keyless.com/docs/guides/self-hosting. Point every SDK at it with the `API_URL` init option.
 
 ### Every page of the documentation
 
@@ -776,6 +777,7 @@ Generated from the site — run `npm run docs:sync` in `docs/` after adding a pa
 - Reliability & scale — https://docs.i18n-keyless.com/docs/guides/reliability-and-scale
 - Remix / React Router 7 — https://docs.i18n-keyless.com/docs/ssr/remix
 - Replace values — https://docs.i18n-keyless.com/docs/guides/replace-values
+- Self-host it (€30, once) — https://docs.i18n-keyless.com/docs/guides/self-hosting
 - Server-Side Rendering — https://docs.i18n-keyless.com/docs/ssr
 - TanStack Start — https://docs.i18n-keyless.com/docs/ssr/tanstack-start
 - Translate user content (UGC) — https://docs.i18n-keyless.com/docs/guides/user-generated-content

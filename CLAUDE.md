@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-i18n-keyless is a translation library that eliminates manual key management. Developers write text in their primary language directly, and translations are handled automatically via AI-powered APIs. One wire protocol (`docs/PROTOCOL.md`), several SDKs: React and React Native, Node.js, Vue, Angular, a framework-free browser package (npm workspaces under `packages/`), plus a Laravel port and a Flutter port under `ports/`.
+i18n-keyless is a translation library that eliminates manual key management. Developers write text in their primary language directly, and translations are handled automatically via AI-powered APIs. One wire protocol (`docs/PROTOCOL.md`), several SDKs: React and React Native, Node.js, Vue, Angular, a framework-free browser package (npm workspaces under `packages/`), plus a Laravel port, a Ruby on Rails port and a Flutter port under `ports/`.
 
 ## Generated files — do not edit here
 
@@ -50,6 +50,7 @@ npm run test:coverage      # With V8 coverage
 
 # The ports are not npm workspaces: test them with their own toolchains.
 (cd ports/laravel && composer install && vendor/bin/phpunit)   # PHP >= 8.2, Composer
+(cd ports/rails   && bundle install && bundle exec rake test)   # Ruby >= 3.1, Bundler
 (cd ports/flutter && flutter test)                              # Flutter >= 3.27
 ```
 
@@ -79,15 +80,17 @@ packages/browser  → i18n-keyless-browser  (depends on core; plus the <i18n-t> 
 packages/web-component                    (experimental/WIP, superseded by packages/browser)
 
 ports/laravel     → i18n-keyless/laravel  (Composer, PHPUnit; not an npm workspace)
+ports/rails       → i18n-keyless-rails    (RubyGems, minitest + WebMock; not an npm workspace)
 ports/flutter     → i18n_keyless          (pub.dev, flutter test; not an npm workspace)
 ```
 
 The ports under `ports/` are rewrites of the protocol in another language, not wrappers of
 core. They are not npm workspaces, so the root `npm run test` never reaches them: test them
-with `cd ports/laravel && vendor/bin/phpunit` and `cd ports/flutter && flutter test`. Both
-replay the shared conformance vectors from `conformance/vectors/`.
+with `cd ports/laravel && vendor/bin/phpunit`, `cd ports/rails && bundle exec rake test` and
+`cd ports/flutter && flutter test`. All three replay the shared conformance vectors from
+`conformance/vectors/`.
 
-All packages and ports share the same version (currently in root `package.json`). When bumping versions, update root + every `packages/*/package.json` (core, react, node, vue, angular, browser) + the `i18n-keyless-core` dependency references in react, node, vue, angular and browser + the ports: `version` in `ports/flutter/pubspec.yaml`, the `Version` header constants the two ports send (`VERSION` in `ports/laravel/src/ApiClient.php`, `ports/flutter/lib/src/core/version.dart`), and `ports/laravel/composer.json` if it ever declares a `version` (today it does not: Packagist reads the git tag of the mirror repository).
+All packages and ports share the same version (currently in root `package.json`). When bumping versions, update root + every `packages/*/package.json` (core, react, node, vue, angular, browser) + the `i18n-keyless-core` dependency references in react, node, vue, angular and browser + the ports: `version` in `ports/flutter/pubspec.yaml`, the `Version` header constants the ports send (`VERSION` in `ports/laravel/src/ApiClient.php`, `ports/rails/lib/i18n_keyless/version.rb`, `ports/flutter/lib/src/core/version.dart`), and `ports/laravel/composer.json` if it ever declares a `version` (today it does not: Packagist reads the git tag of the mirror repository).
 
 ## Architecture
 
@@ -130,13 +133,13 @@ codes), verified against the API source. `conformance/vectors/*.json` are its ex
 half: `packages/core/__tests__/conformance.test.ts` replays them against the pure helpers
 core exports for that purpose (`storageKeyFor`, `queueIdFor`, `applyReplace`,
 `buildDictionaryUrl`, `etagCacheKey`, `resolveSdkRuntime`, `isServerRuntime`,
-`isRetryableStatus`, ...), and the Laravel and Flutter suites replay the same files. A
+`isRetryableStatus`, ...), and the Laravel, Rails and Flutter suites replay the same files. A
 behaviour change in core is a change to the vectors, the spec and every port together;
 `docs/PORT_CHECKLIST.md` lists what a new port must ship.
 
 The `sdk` header names the runtime: `react-client` / `react-server`, `vue-client` /
 `vue-server`, `angular-client` / `angular-server`, `browser`, `node`, and `laravel` /
-`flutter` for the ports. Rule (`isServerRuntime`): `node`, `laravel` and every `*-server`
+`rails` / `flutter` for the ports. Rule (`isServerRuntime`): `node`, `laravel`, `rails` and every `*-server`
 label are servers (no `unique_id`, counted by connection); everything else is a device.
 
 ### Translation Key Format
@@ -159,7 +162,8 @@ Every npm package has a Vitest suite, and every one runs it in `prepublishOnly`.
 react package uses the happy-dom environment and `@testing-library/react`, with zustand
 mocked in `__tests__/setup.ts`; vue and browser use happy-dom; angular uses jsdom with
 Angular JIT (`__tests__/setup.ts`); core and node run in the default node environment.
-The Laravel port runs PHPUnit on Orchestra Testbench with `Http::fake()`; the Flutter port
+The Laravel port runs PHPUnit on Orchestra Testbench with `Http::fake()`; the Rails port runs
+minitest with WebMock (plus one test that boots a one-file Rails application); the Flutter port
 runs `flutter test` with a `MockClient`. Neither needs a network or a key.
 
 A stale assertion in core survived a whole release because only react ran its tests on

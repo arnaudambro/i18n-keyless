@@ -2,7 +2,7 @@
  * The zero-code entry: one `<script type="module">` tag, and the page is translated.
  *
  * ```html
- * <script type="module"
+ * <script async type="module"
  *   src="https://esm.sh/i18n-keyless-browser/auto"
  *   data-api-key="YOUR_API_KEY"
  *   data-primary="fr"

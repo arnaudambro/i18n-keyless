@@ -579,10 +579,11 @@ is `react-server`. Vectors: `usage-reporting.json`, `usage-request.json`.
 | browser | always | `browser` | yes |
 | node | always | `node` | no |
 | laravel port | always | `laravel` | no (reports usage like `node`) |
+| rails port | always | `rails` | no (reports usage like `node`) |
 | flutter port | always | `flutter` | yes |
 
-Rule (`isServerRuntime` in core, `isServerRuntime` in the API): `node`, `laravel` and every
-label ending in `-server` are servers. Everything else, an absent header included, is a
+Rule (`isServerRuntime` in core, `isServerRuntime` in the API): `node`, `laravel`, `rails`
+and every label ending in `-server` are servers. Everything else, an absent header included, is a
 device. A new port picks `<name>-client` / `<name>-server` when it can run on both sides,
 or a bare name otherwise.
 
@@ -591,13 +592,13 @@ How the API reads the header (`api-express/src/middlewares/user-count.ts:24-29`,
 
 | `sdk` header value | Runtime the API assumes | Counting key (`user-count.ts:147-150`) |
 | --- | --- | --- |
-| `node`, `laravel`, any `*-server` | server | `srv_<22 chars>`: a SHA-256 of the server secret, the API key and the source address (IPv6 bucketed to its /64), `user-count.ts:42-47`. Any `unique_id` sent is ignored. |
+| `node`, `laravel`, `rails`, any `*-server` | server | `srv_<22 chars>`: a SHA-256 of the server secret, the API key and the source address (IPv6 bucketed to its /64), `user-count.ts:42-47`. Any `unique_id` sent is ignored. |
 | `react-client`, `vue-client`, `angular-client`, `browser`, `flutter` | device | the `unique_id` header; when absent or empty, `anon_<API_KEY>`: one shared row per project, `user-count.ts:67-69` |
 | absent | device | same as `react-client` (SDKs before 3.2.0 sent no header) |
 | **any other string** (a typo) | device | same as `react-client` |
 
 The value is never validated or rejected: the only test in the API is `isServerRuntime`
-(`node`, `laravel`, or a `-server` suffix); everything else is a device. The value itself
+(`node`, `laravel`, `rails`, or a `-server` suffix); everything else is a device. The value itself
 is not stored: the usage table holds only the counting key it selects, and Sentry tags
 carry `version`, `appbuild`, `appdevice`, `currentroute` and `unique_id` but not `sdk`
 (`api-express/src/index.ts:92-100`; the full header set reaches Sentry only inside the
@@ -614,8 +615,8 @@ Consequences for a port:
 - a server port MUST send `sdk: node` or `sdk: react-server` and no `unique_id`; any other
   value would make the API count the server as a device, and without an id every request
   of that server collapses into `anon_<API_KEY>`;
-- a runtime label for a new port (`vue`, `angular`, `browser`, `laravel`, `flutter`) is
-  therefore accepted today, but counted as a device. Before such a label is sent from a
+- a runtime label for a new port (`vue`, `angular`, `browser`, `flutter`) is therefore
+  accepted today, but counted as a device (`laravel` and `rails` are known servers). Before such a label is sent from a
   server, `sdkRuntime` in `user-count.ts` MUST learn it, otherwise the server is
   miscounted. The docs in `i18n-keyless-saas/docs` do not describe the header yet.
 

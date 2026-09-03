@@ -1,13 +1,14 @@
 # Publishing
 
-One version for everything: the six npm packages, the Flutter port and the Laravel port.
+One version for everything: the six npm packages, the Flutter port, the Laravel port and
+the Rails port.
 Today it is `3.5.0`. Every release bumps all of them, even a package with no change:
 the wire `Version` header and the `i18n-keyless-core` pin must agree.
 
 ## The script
 
 ```bash
-node scripts/set-version.mjs 3.5.0     # 1. the version, in 10 files
+node scripts/set-version.mjs 3.5.0     # 1. the version, in 11 files
 # 2. CHANGELOG.md: rename "## [Unreleased]"; ports/flutter/CHANGELOG.md: add "## 3.5.0"
 node scripts/publish.mjs --dry-run     # 3. preflight, build, every test suite, publish dry runs
 node scripts/publish.mjs               # 4. the release, one confirmation per step
@@ -16,7 +17,7 @@ node scripts/publish.mjs               # 4. the release, one confirmation per st
 `scripts/publish.mjs` runs the steps below in order and asks before each upload. It skips
 what is already done (a package at this version on npm or pub.dev, an existing tag), so
 after a failure you fix the cause and run it again. Flags: `--yes` (no questions),
-`--skip-tests`, `--skip-npm`, `--skip-flutter`, `--skip-laravel`, `--skip-git`.
+`--skip-tests`, `--skip-npm`, `--skip-flutter`, `--skip-laravel`, `--skip-rails`, `--skip-git`.
 
 The rest of this file is the same procedure by hand, and the reasons behind each step.
 
@@ -32,6 +33,7 @@ The rest of this file is the same procedure by hand, and the reasons behind each
 | `i18n-keyless-browser` | npm | same | yes |
 | `i18n_keyless` (Flutter) | pub.dev | `flutter pub publish` in `ports/flutter` | no: run `flutter test` first |
 | `i18n-keyless/laravel` | Packagist | git tag on a mirror repo | no: run `vendor/bin/phpunit` first |
+| `i18n-keyless-rails` | RubyGems | `gem build` + `gem push` in `ports/rails` | no: run `bundle exec rake test` first |
 
 `.npmrc` sets `workspaces=true`, so a bare `npm publish` at the root publishes every
 workspace, in alphabetical order: angular, browser, core, node, react, vue. Each package's
@@ -54,7 +56,10 @@ that package (and the ones after it).
   After the first push (step 5 below), submit `https://github.com/arnaudambro/i18n-keyless-laravel`
   on https://packagist.org/packages/submit once, and enable the GitHub hook it proposes.
   Later tags are picked up on their own.
-- Toolchains: Node, PHP 8.5 + Composer, Flutter (all installed on this machine, 2026-08-26).
+- RubyGems: `gem signin` once (the gemspec sets `rubygems_mfa_required`, so the account
+  needs MFA). The name `i18n-keyless-rails` is free.
+- Toolchains: Node, PHP 8.5 + Composer, Flutter, Ruby 3.4 + Bundler (all installed on this
+  machine, 2026-09-02).
 
 ## Release steps
 
@@ -85,6 +90,7 @@ the old `Version` constant. Rebuild it by hand first:
 ```bash
 for p in core react node vue angular browser; do (cd packages/$p && npx vitest run) || break; done
 (cd ports/laravel && vendor/bin/phpunit)
+(cd ports/rails && bundle exec rake test)
 (cd ports/flutter && flutter analyze && flutter test)
 ```
 
@@ -137,7 +143,20 @@ Two traps in the last line, both of which have already happened once:
   empty `SPLIT`, the refspec reads `:refs/tags/v3.4.0`, which **deletes** the tag on the
   mirror. Recover with `git push laravel <hash>:refs/tags/v3.4.0`.
 
-### 7. Commit and tag the monorepo
+### 7. Rails (RubyGems)
+
+The gem builds from `ports/rails` (no mirror: RubyGems takes a `.gem` file):
+
+```bash
+cd ports/rails
+gem build i18n-keyless-rails.gemspec     # i18n-keyless-rails-3.5.0.gem
+gem push i18n-keyless-rails-3.5.0.gem    # asks for the MFA code
+rm i18n-keyless-rails-3.5.0.gem
+```
+
+`lib/i18n_keyless/version.rb` is the version RubyGems reads (written by `set-version.mjs`).
+
+### 8. Commit and tag the monorepo
 
 ```bash
 git add -A
@@ -149,7 +168,7 @@ git push && git push --tags
 The push to `main` triggers `.github/workflows/context7-refresh.yml`, which re-indexes the
 docs for agents.
 
-### 8. Check
+### 9. Check
 
 ```bash
 npm view i18n-keyless-vue version
@@ -157,6 +176,7 @@ npm view i18n-keyless-angular version
 npm view i18n-keyless-browser version
 open https://pub.dev/packages/i18n_keyless
 open https://packagist.org/packages/i18n-keyless/laravel
+gem search -r i18n-keyless-rails --exact
 ```
 
 ## Rollback
@@ -166,3 +186,5 @@ open https://packagist.org/packages/i18n-keyless/laravel
 - pub.dev: retract the version on its page, publish a fix.
 - Packagist: delete the tag on the mirror (`git push laravel :refs/tags/v3.4.0`) and press
   "Update" on the package page.
+- RubyGems: `gem yank i18n-keyless-rails -v 3.4.0` (the version number stays taken), then
+  publish a fix.

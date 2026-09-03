@@ -317,6 +317,7 @@ adapting this file:
 | Angular >= 17.1 | `i18n-keyless-angular` | `packages/angular/SKILL.md` |
 | Plain HTML, Svelte, Alpine, htmx, jQuery, legacy sites | `i18n-keyless-browser` | `packages/browser/SKILL.md` |
 | Laravel 11, 12, 13 | `i18n-keyless/laravel` (Composer) | `ports/laravel/SKILL.md` |
+| Ruby on Rails 7, 8 | `i18n-keyless-rails` (RubyGems) | `ports/rails/SKILL.md` |
 | Flutter, Dart | `i18n_keyless` (pub.dev) | `ports/flutter/SKILL.md` |
 
 Paths are relative to the repository root (https://github.com/arnaudambro/i18n-keyless).

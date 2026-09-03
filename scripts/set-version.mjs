@@ -65,6 +65,13 @@ edit("ports/flutter/lib/src/core/version.dart", (t) => {
   return t.replace(re, `$1${version}$2`);
 });
 
+// Rails: the gem version, which is also the wire `Version` header.
+edit("ports/rails/lib/i18n_keyless/version.rb", (t) => {
+  const re = /(VERSION = ")[^"]*(")/;
+  if (!re.test(t)) throw new Error("I18nKeyless::VERSION not found");
+  return t.replace(re, `$1${version}$2`);
+});
+
 // Laravel: the wire `Version` constant (Packagist reads the version from the git tag).
 edit("ports/laravel/src/ApiClient.php", (t) => {
   const re = /(public const VERSION = ')[^']*(')/;

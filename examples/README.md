@@ -27,6 +27,7 @@ the same feature set so you can compare integrations side by side:
 | [`angular`](./angular) | Angular (standalone, signals) | SPA | `i18n-keyless-angular`: `provideI18nKeyless()`, `<i18n-t>`, the `t` pipe, `translation()` signal (source files only: generate the workspace with the CLI) |
 | [`browser`](./browser) | plain HTML, no framework | script tag | `i18n-keyless-browser`: the `auto` script tag, `data-i18n`, `<i18n-t>`, `watchTranslation` |
 | [`laravel`](./laravel) | Laravel | server (PHP) | `i18n-keyless/laravel`: `__()` unchanged, `i18nk()` with `context`, five commands against the mock backend |
+| [`rails`](./rails) | Ruby on Rails | server (Ruby) | `i18n-keyless-rails`: `t('source string')`, `i18nk()` with `context`, five commands against the mock backend |
 
 Primary language is **`fr`** across all examples — you write strings in French and
 i18n-keyless translates them to `en`/`es` (and any other supported language).
@@ -80,6 +81,7 @@ build via `file:../../packages/*`:
 | angular | (library suite) | | `cd packages/angular && npx vitest run` covers the component, the pipe, the service and the SSR provider |
 | browser | (library suite) | | `cd packages/browser && npx vitest run` covers the store, `data-i18n`, `<i18n-t>` and the `auto` entry |
 | laravel | (port suite) | | `cd ports/laravel && vendor/bin/phpunit`; the example itself is a throwaway app driven by `artisan tinker` |
+| rails | (port suite) | | `cd ports/rails && bundle exec rake test`; the example itself is a throwaway app driven by `rails runner` |
 
 Notes:
 - The web/Vitest configs `dedupe` React and inline the linked lib + zustand so the
@@ -93,4 +95,6 @@ Notes:
   cannot load from `file://`.
 - **laravel** is a Composer package, not an npm workspace: the example README creates a
   throwaway Laravel app next to it with `composer create-project` and requires the port by
-  path. The Flutter port carries its own example in `ports/flutter/example`.
+  path. **rails** is a RubyGem: the example README creates a throwaway Rails app with
+  `rails new` and adds the gem by path. The Flutter port carries its own example in
+  `ports/flutter/example`.

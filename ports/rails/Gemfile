@@ -1,0 +1,16 @@
+# frozen_string_literal: true
+
+source "https://rubygems.org"
+
+gemspec
+
+group :development, :test do
+  gem "actionpack", ">= 7.0"
+  gem "actionview", ">= 7.0"
+  gem "activejob", ">= 7.0"
+  gem "minitest", "~> 5.20"
+  gem "rack-test", "~> 2.1"
+  gem "railties", ">= 7.0"
+  gem "rake", "~> 13.0"
+  gem "webmock", "~> 3.20"
+end

@@ -1,7 +1,7 @@
 {
   "$schema": "https://context7.com/schema/context7.json",
   "projectTitle": "i18n-keyless",
-  "description": "Keyless i18n SDK for React, React Native, Node, Vue, Angular, plain browser (script tag and <i18n-t> web component), Laravel and Flutter: the source string is the key, translations are AI-generated at runtime.",
+  "description": "Keyless i18n SDK for React, React Native, Node, Vue, Angular, plain browser (script tag and <i18n-t> web component), Laravel, Ruby on Rails and Flutter: the source string is the key, translations are AI-generated at runtime.",
   "branch": "main",
   "excludeFolders": [
     "node_modules",
@@ -40,6 +40,8 @@
     "Browser package: the auto script tag needs data-api-key and data-primary; self-hosted files need an import map for the bare i18n-keyless-core specifier.",
     "Laravel: I18N_KEYLESS_API_KEY and I18N_KEYLESS_LANGUAGES are both required in .env; without the languages list, missing strings are never sent.",
     "Laravel: keep Laravel's :name placeholders (__('Bienvenue :name', ['name' => $name])); there is no replace option. Use i18nk('text', context: '...') for a context.",
+    "Rails: I18N_KEYLESS_API_KEY and I18N_KEYLESS_LANGUAGES are both required in the environment; t('Welcome to our app') with a source string is keyless, t('users.index.title'), t(:hello) and t('hello') (a lowercase identifier) stay Rails YAML keys and are never sent; use i18nk('close') for a lowercase one-word source string.",
+    "Rails: keep I18n's %{name} placeholders (t('Bienvenue %{name}', name: name)); there is no replace option. Use t('text', context: '...') or i18nk('text', context: '...') for a context.",
     "Flutter: init the I18nKeylessClient before runApp and wrap the app in I18nKeylessScope; the widget is T, the string form is context.t(), and Lang is an enum (Lang.zhHans, not 'zh-Hans')."
   ]
 }

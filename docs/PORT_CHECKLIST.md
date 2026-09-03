@@ -1,6 +1,6 @@
 # Port checklist
 
-What a new i18n-keyless SDK (PHP/Laravel, Dart/Flutter, Python, Vue, Angular, browser, ...)
+What a new i18n-keyless SDK (PHP/Laravel, Ruby/Rails, Dart/Flutter, Python, Vue, Angular, browser, ...)
 must ship before it is called conformant. Tick every box; link the evidence in the PR.
 
 ## 1. Protocol (`docs/PROTOCOL.md`)

@@ -3,10 +3,28 @@
 All notable changes to i18n-keyless are documented here. The npm packages
 (`i18n-keyless-core`, `i18n-keyless-react`, `i18n-keyless-node`, `i18n-keyless-vue`,
 `i18n-keyless-angular`, `i18n-keyless-browser`) and the ports (`i18n-keyless/laravel`,
-`i18n_keyless`) share one version.
+`i18n-keyless-rails`, `i18n_keyless`) share one version.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
+
+## [Unreleased]
+
+### Added
+
+- **`i18n-keyless-rails`** (`ports/rails`, RubyGems, Ruby >= 3.1, Rails 7.0 to 8.x): a new
+  port of protocol v3 for Ruby on Rails. An `I18n` backend chained after the application's
+  own (`I18n::Backend::Chain`), so `t('Welcome to our app')` with a source string resolves
+  through the API while YAML keys (`t('users.index.title')`, a Symbol, a `scope:`) keep
+  working, win, and are never sent (`I18nKeyless.keyless_key?`, `config.rails_key_pattern`).
+  Dictionaries in `Rails.cache` with ETag revalidation, misses sent after the response
+  (`I18nKeyless::Middleware`, a `Rack::BodyProxy`), after each ActiveJob, at exit, or as an
+  `I18nKeyless::TranslateMissingKeysJob` with `I18N_KEYLESS_QUEUE`; usage analytics on the
+  node rules; `context:` and `namespace:` through `t()` options or the `i18nk()` helper
+  (views, controllers, mailers, jobs); `%{name}` placeholders stay I18n's. Same
+  `I18N_KEYLESS_*` environment names and cache key layout as the Laravel port. Runtime label
+  `rails` (a server, counted like `node`): `isServerRuntime` in core and in the API learn it,
+  `conformance/vectors/usage-reporting.json` lists it.
 
 ## [3.5.0] — 2026-08-27
 

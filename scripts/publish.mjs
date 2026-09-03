@@ -2,14 +2,14 @@
 /**
  * Release everything at the version already written in `package.json` (see
  * `scripts/set-version.mjs`): the six npm packages, the Flutter port on pub.dev, the
- * Laravel port on Packagist (a tag on the mirror repository), then the monorepo commit,
- * tag and push. It is the executable form of `PUBLISH.md`; read that file for the why.
+ * Laravel port on Packagist (a tag on the mirror repository), the Rails port on RubyGems,
+ * then the monorepo commit, tag and push. It is the executable form of `PUBLISH.md`; read that file for the why.
  *
  *   node scripts/publish.mjs                 # the whole release, one confirmation per step
  *   node scripts/publish.mjs --dry-run       # preflight, build, tests, publish dry runs; no commit
  *   node scripts/publish.mjs --yes           # no confirmations
  *   node scripts/publish.mjs --skip-tests    # trust the last run
- *   node scripts/publish.mjs --skip-flutter --skip-laravel --skip-git
+ *   node scripts/publish.mjs --skip-flutter --skip-laravel --skip-rails --skip-git
  *
  * Every step is safe to run again: a package already at this version on its registry is
  * skipped, a tag that exists is not recreated, so a release that failed half-way is
@@ -28,7 +28,7 @@ const dryRun = flag("dry-run");
 const yes = flag("yes");
 
 const NPM_PACKAGES = ["core", "react", "node", "vue", "angular", "browser"]; // core FIRST
-const known = ["dry-run", "yes", "skip-tests", "skip-npm", "skip-flutter", "skip-laravel", "skip-git"];
+const known = ["dry-run", "yes", "skip-tests", "skip-npm", "skip-flutter", "skip-laravel", "skip-rails", "skip-git"];
 for (const a of args) {
   if (!known.includes(a.replace(/^--/, ""))) {
     console.error(`unknown flag ${a}\nusage: node scripts/publish.mjs [${known.map((k) => `--${k}`).join("] [")}]`);
@@ -86,6 +86,17 @@ function fail(message) {
   process.exit(1);
 }
 
+async function publishedOnRubyGems(version) {
+  try {
+    const res = await fetch("https://rubygems.org/api/v1/versions/i18n-keyless-rails.json");
+    if (!res.ok) return false;
+    const json = await res.json();
+    return (Array.isArray(json) ? json : []).some((v) => v.number === version);
+  } catch {
+    return false;
+  }
+}
+
 async function publishedOnPubDev(version) {
   try {
     const res = await fetch("https://pub.dev/api/packages/i18n_keyless");
@@ -121,6 +132,9 @@ if (!read("ports/flutter/lib/src/core/version.dart").includes(`'${version}'`)) {
 }
 if (!read("ports/laravel/src/ApiClient.php").includes(`VERSION = '${version}'`)) {
   problems.push("ports/laravel/src/ApiClient.php has another VERSION");
+}
+if (!read("ports/rails/lib/i18n_keyless/version.rb").includes(`VERSION = "${version}"`)) {
+  problems.push("ports/rails/lib/i18n_keyless/version.rb has another VERSION");
 }
 if (problems.length) {
   problems.push(`run: node scripts/set-version.mjs ${version}`);
@@ -158,6 +172,8 @@ for (const name of NPM_PACKAGES) {
 }
 const flutterDone = flag("skip-flutter") ? false : await publishedOnPubDev(version);
 if (flutterDone) console.log(`already on pub.dev: i18n_keyless ${version}`);
+const railsDone = flag("skip-rails") ? false : await publishedOnRubyGems(version);
+if (railsDone) console.log(`already on rubygems.org: i18n-keyless-rails ${version}`);
 
 if (problems.length) {
   fail(`preflight failed:\n  - ${problems.join("\n  - ")}`);
@@ -185,6 +201,11 @@ if (flag("skip-tests")) {
     const laravel = resolve(root, "ports/laravel");
     if (!existsSync(resolve(laravel, "vendor"))) run("composer", ["install"], { cwd: laravel });
     run("vendor/bin/phpunit", [], { cwd: laravel });
+  }
+  if (!flag("skip-rails")) {
+    const rails = resolve(root, "ports/rails");
+    run("bundle", ["install", "--quiet"], { cwd: rails });
+    run("bundle", ["exec", "rake", "test"], { cwd: rails });
   }
   if (!flag("skip-flutter")) {
     const flutter = resolve(root, "ports/flutter");
@@ -225,6 +246,26 @@ if (flag("skip-flutter")) {
     if (!(await confirm("Publish i18n_keyless to pub.dev? (no unpublish)"))) fail("stopped before pub.dev");
     run("flutter", ["pub", "publish", "--force"], { cwd: flutter });
   }
+}
+
+// ---------------------------------------------------------------------------------------
+// 4b. Rails: RubyGems takes a .gem file built from ports/rails (no mirror). A yanked
+//     version number stays taken, so the build is checked before anything is pushed.
+
+if (flag("skip-rails")) {
+  console.log("\nrails skipped (--skip-rails)");
+} else if (railsDone) {
+  console.log(`\nrubygems.org: i18n-keyless-rails is already at ${version}`);
+} else {
+  step("RubyGems: i18n-keyless-rails");
+  const rails = resolve(root, "ports/rails");
+  const gemFile = `i18n-keyless-rails-${version}.gem`;
+  run("gem", ["build", "i18n-keyless-rails.gemspec"], { cwd: rails });
+  if (!dryRun) {
+    if (!(await confirm("Publish i18n-keyless-rails to rubygems.org?"))) fail("stopped before rubygems.org");
+    run("gem", ["push", gemFile], { cwd: rails });
+  }
+  run("rm", ["-f", gemFile], { cwd: rails });
 }
 
 // ---------------------------------------------------------------------------------------
@@ -291,5 +332,6 @@ for (const name of NPM_PACKAGES) {
   console.log(`${`i18n-keyless-${name}`.padEnd(24)} ${v ?? "?"}${mark}`);
 }
 console.log(`i18n_keyless (pub.dev)   ${(await publishedOnPubDev(version)) ? version : dryRun ? "(dry run)" : `<-- NOT ${version}`}`);
-console.log("\nhttps://pub.dev/packages/i18n_keyless\nhttps://packagist.org/packages/i18n-keyless/laravel");
+console.log(`i18n-keyless-rails (gem) ${(await publishedOnRubyGems(version)) ? version : dryRun ? "(dry run)" : `<-- NOT ${version}`}`);
+console.log("\nhttps://pub.dev/packages/i18n_keyless\nhttps://packagist.org/packages/i18n-keyless/laravel\nhttps://rubygems.org/gems/i18n-keyless-rails");
 console.log("\nThen in i18n-keyless-saas/docs: bump i18n-keyless-* to the new version, npm install, npm test.");

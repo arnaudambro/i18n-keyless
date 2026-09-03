@@ -12,7 +12,7 @@ Welcome to **i18n-keyless**! 🚀 This package provides a seamless way to handle
 - [How it works](#-how-it-works)
 - [Installation](#-installation)
 - [Quick Start](#-quick-start)
-  - [React](#react-quick-start), [Node](#node-quick-start), [Vue](#vue-quick-start), [Angular](#angular-quick-start), [Browser](#browser-quick-start), [Laravel](#laravel-quick-start), [Flutter](#flutter-quick-start)
+  - [React](#react-quick-start), [Node](#node-quick-start), [Vue](#vue-quick-start), [Angular](#angular-quick-start), [Browser](#browser-quick-start), [Laravel](#laravel-quick-start), [Rails](#rails-quick-start), [Flutter](#flutter-quick-start)
 - [Usage](#-usage)
   - [React](#-react-usage-i18n-keyless-react)
   - [Node](#-node-usage-i18n-keyless-node)
@@ -91,6 +91,7 @@ also show `getServerTranslations` + `runWithI18nKeyless` + `getUsedTranslationsS
 | [nextjs](./examples/nextjs) | SSR | | [node](./examples/node) | server |
 | [vue-vite](./examples/vue-vite) | SPA (Vue) | | [angular](./examples/angular) | SPA (Angular) |
 | [browser](./examples/browser) | script tag, no framework | | [laravel](./examples/laravel) | server (PHP) |
+| [rails](./examples/rails) | server (Ruby) | | | |
 
 See [`examples/README.md`](./examples/README.md) to run them (real service via an API key, or
 offline against the bundled mock backend). Primary language is `fr` throughout.
@@ -126,6 +127,7 @@ the full reference for that package.
 | Angular >= 17.1 (standalone, signals, Angular SSR) | `i18n-keyless-angular` | `npm install i18n-keyless-angular` | [packages/angular](./packages/angular/README.md) |
 | Plain HTML, Svelte, Alpine, htmx, jQuery, legacy sites | `i18n-keyless-browser` | `npm install i18n-keyless-browser`, or one script tag | [packages/browser](./packages/browser/README.md) |
 | Laravel 11, 12, 13 | `i18n-keyless/laravel` (Composer) | `composer require i18n-keyless/laravel` | [ports/laravel](./ports/laravel/README.md) |
+| Ruby on Rails 7, 8 | `i18n-keyless-rails` (RubyGems) | `bundle add i18n-keyless-rails` | [ports/rails](./ports/rails/README.md) |
 | Flutter, Dart | `i18n_keyless` (pub.dev) | `flutter pub add i18n_keyless` | [ports/flutter](./ports/flutter/README.md) |
 | Any stack, shared engine | `i18n-keyless-core` | `npm install i18n-keyless-core` | [packages/core](./packages/core), [docs/PROTOCOL.md](./docs/PROTOCOL.md) |
 
@@ -350,7 +352,7 @@ No framework, no build step: one script tag does `init`, translates every `data-
 element and every `<i18n-t>`, and exposes the JS API as `window.i18nKeyless`.
 
 ```html
-<script type="module" src="https://esm.sh/i18n-keyless-browser/auto"
+<script async type="module" src="https://esm.sh/i18n-keyless-browser/auto"
         data-api-key="<YOUR_API_KEY>" data-primary="en" data-supported="en,fr,es"></script>
 
 <button onclick="i18nKeyless.setCurrentLanguage('fr')">Set FR</button>
@@ -383,6 +385,29 @@ i18nk('8 heures', context: 'duration');          // context, when one string has
 ```
 
 Full reference (cache, queue, locales, limitations): [ports/laravel/README.md](./ports/laravel/README.md).
+
+### **Rails Quick Start**
+
+Write the source string where a key would go: `t('Welcome to our app')` resolves through the
+API, cached in `Rails.cache`. Your YAML keys keep working and win. One gem, two `.env` lines.
+
+```bash
+bundle add i18n-keyless-rails
+```
+
+```dotenv
+I18N_KEYLESS_API_KEY=<YOUR_API_KEY>
+I18N_KEYLESS_LANGUAGES=en,fr,es      # every language your app serves
+```
+
+```ruby
+t('Welcome to our app')                          # translated for I18n.locale
+t('Welcome %{name}', name: user.name)            # placeholders stay I18n's job
+i18nk('8 heures', context: 'duration')           # context, when one string has two meanings
+t('users.index.title')                           # a Rails key: YAML as before, never sent
+```
+
+Full reference (the Rails-key rule, cache, queue, locales, limitations): [ports/rails/README.md](./ports/rails/README.md).
 
 ### **Flutter Quick Start**
 
@@ -998,7 +1023,7 @@ await init({
 ## 🔌 **Protocol and ports**
 
 Every package and port speaks the same wire protocol to the same API, so a project can mix
-them (a Laravel backend and a Vue front end, a Flutter app and a Node cron) on one API key
+them (a Laravel or Rails backend and a Vue front end, a Flutter app and a Node cron) on one API key
 and one dashboard, and an app migrating from one package to another keeps its cache and its
 device id.
 
@@ -1007,13 +1032,14 @@ device id.
   usage analytics, identity (`sdk` and `unique_id`), the 48 language codes. Verified against
   the API source.
 - [`conformance/`](./conformance): JSON test vectors that every SDK replays. The TypeScript
-  core, the Laravel port and the Flutter port run them in their test suites.
-- [`docs/PORT_CHECKLIST.md`](./docs/PORT_CHECKLIST.md): what a new port (Python, Ruby, ...)
+  core, the Laravel, Rails and Flutter ports run them in their test suites.
+- [`docs/PORT_CHECKLIST.md`](./docs/PORT_CHECKLIST.md): what a new port (Python, ...)
   must ship before it is called conformant.
 
 Runtime labels sent in the `sdk` header: `react-client` / `react-server`, `vue-client` /
-`vue-server`, `angular-client` / `angular-server`, `browser`, `node`, `laravel`, `flutter`.
-A `*-server` label, `node` and `laravel` are servers (counted by connection, no device id);
+`vue-server`, `angular-client` / `angular-server`, `browser`, `node`, `laravel`, `rails`,
+`flutter`. A `*-server` label, `node`, `laravel` and `rails` are servers (counted by
+connection, no device id);
 everything else is a device.
 
 ---

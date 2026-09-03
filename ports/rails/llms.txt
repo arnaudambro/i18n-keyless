@@ -1,0 +1,101 @@
+# i18n-keyless-rails
+
+> Keyless translations for Ruby on Rails 7 and 8. `t('Welcome to our app')` (the source string where a key would go) resolves through the i18n-keyless API: AI translation on the first miss, cached in `Rails.cache`, served from there. One gem, two `.env` lines, zero code change for the strings that already read as text.
+
+This file is the whole gem documentation as one pasteable Markdown page. The general i18n-keyless documentation (dashboard, MCP server, the JavaScript SDKs) is at https://docs.i18n-keyless.com/llms.txt.
+
+## Install
+
+```bash
+bundle add i18n-keyless-rails
+```
+
+```dotenv
+I18N_KEYLESS_API_KEY=your-key
+I18N_KEYLESS_LANGUAGES=en,fr,es   # required for translation: every language the app serves
+I18N_KEYLESS_PRIMARY_LANG=en      # optional, default I18n.default_locale
+```
+
+Requirements: Ruby >= 3.1, Rails 7.0 to 8.x (or any Ruby app with `i18n` and `activesupport`). The Railtie `I18nKeyless::Railtie` is auto-loaded.
+
+## Use
+
+```ruby
+t('Welcome to our app')                                    # a source string: keyless
+t('Welcome %{name}', name: user.name)                      # I18n placeholders
+t('8 heures', context: 'duration')                         # context: stored as "8 heures__duration"
+i18nk('8 heures', context: 'clock time')                   # the helper (views, controllers, mailers, jobs)
+i18nk('Payer', namespace: 'checkout')                      # an i18n-keyless namespace
+i18nk('close')                                             # a lowercase word: the helper never reads it as a key
+t('users.index.title')                                     # a Rails key: YAML as before, never sent
+I18n.locale = :"pt-BR"                                     # Rails locales are mapped (pt-BR)
+I18nKeyless.t('Bonjour', locale: :en)                      # outside a view
+```
+
+`i18nk(text, values = nil, context: nil, locale: nil, namespace: nil, **values)`.
+
+Rails-key rule (`I18nKeyless.keyless_key?`, `config.rails_key_pattern` = `/\A[a-z0-9_]+(\.[a-z0-9_]+)*\z/`): a Symbol, a `scope:`, or a lowercase identifier path is a Rails key; anything with a space, an uppercase letter or punctuation is a source string.
+
+## Behaviour
+
+- Primary locale: the source string is returned, no API call.
+- The backend is `I18n::Backend::Chain.new(<the app's backend>, I18nKeyless::Backend.new)`: a YAML line wins.
+- Other locale, first miss in the process: the locale's dictionary is read from the cache; absent, it is fetched once from `GET {api_url}/translate/{lang}?last_refresh=` and stored, then kept in the process.
+- Missing string: source text returned (placeholders replaced), miss recorded. After the response (`I18nKeyless::Middleware`, a `Rack::BodyProxy`), after each ActiveJob, or as an `I18nKeyless::TranslateMissingKeysJob` when `queue` is set, misses are sent to `POST {api_url}/translate` (body `{key, context?, namespace?, languages, primaryLanguage}`, where `languages` is the configured list plus the primary, never the locale that missed), deduplicated by key and context, 30 in flight at most. Answers are merged into the cache. With an empty `languages` config nothing is sent (the API stores the received list as the project's languages): the source text is served and one warning is logged per process.
+- Stale dictionary (older than `cache_ttl`): served, then revalidated after the response with `If-None-Match: <etag>`; `304` keeps it.
+- HTTP policy: 10 s timeout, retries with backoff 500 ms then 1500 ms on network error, timeout, 429, 5xx; no retry on other 4xx; never raises. A failed fetch is remembered 60 s.
+- Headers on every request: `Authorization: Bearer <api_key>`, `Content-Type: application/json`, `Version: 3.5.0`, `sdk: rails` (a server label, counted like `node`). No `unique_id` (a server is counted by its connection).
+- Usage analytics (node SDK rule): the UTC date each string was last served is recorded (namespace, `key__context`), merged into a cumulative map in the cache (never cleared), and POSTed to `{api_url}/translate/last-used-translations` as `{primaryLanguage, translationsUsageByNamespace}` after the response, at most once every 10 s across processes (an `unless_exist` cache lock), only when the map changed. Fire and forget. `usage: false` disables it.
+
+## Configuration (I18nKeyless.configure { |c| ... })
+
+| key | env | default |
+| --- | --- | --- |
+| enabled | I18N_KEYLESS_ENABLED | true |
+| api_key | I18N_KEYLESS_API_KEY | nil |
+| api_url | I18N_KEYLESS_API_URL | https://api.i18n-keyless.com |
+| primary | I18N_KEYLESS_PRIMARY_LANG | I18n.default_locale |
+| languages | I18N_KEYLESS_LANGUAGES | empty: required for translation, nothing is sent without it |
+| namespace | I18N_KEYLESS_NAMESPACE | default |
+| cache | | Rails.cache (a MemoryStore outside Rails) |
+| cache_ttl | I18N_KEYLESS_CACHE_TTL | 3600 |
+| cache_prefix | | i18n-keyless |
+| timeout | | 10 |
+| retry | | [500, 1500] |
+| concurrency | | 30 |
+| usage | I18N_KEYLESS_USAGE | true |
+| queue | I18N_KEYLESS_QUEUE | nil |
+| logger | | Rails.logger |
+| rails_key_pattern | | `/\A[a-z0-9_]+(\.[a-z0-9_]+)*\z/` (nil: every string is keyless) |
+
+## Locale mapping
+
+Rails locale to i18n-keyless code: exact match first (`pt-BR`, `zh-Hans`), then Chinese by region (`zh_CN`, `zh_SG` to `zh-Hans`; `zh_TW`, `zh_HK`, `zh_MO` to `zh-Hant`), `es-419` to `es-MX`, then the bare language (`fr_FR` to `fr`, `pt-AO` to `pt`). Unknown locales are left alone. 48 codes: ar, bn, ca, zh-Hans, zh-Hant, hr, cs, da, nl, en, en-GB, fi, fr, fr-CA, de, el, gu, he, hi, hu, id, it, ja, kn, ko, ms, ml, mr, no, or, pl, pt, pt-BR, pa, ro, ru, sk, sl, es, es-MX, sv, ta, te, th, tr, uk, ur, vi. List the served locales in `config.i18n.available_locales` when they have no YAML file.
+
+## Limitations
+
+- YAML plural rules (`one:` / `other:`) do not apply to a source string. Use `i18nk()` with a `context` per plural form, or a YAML file.
+- A lowercase one-word string (`t('close')`) is read as a Rails key: use `i18nk('close')`.
+- The `_html` suffix convention does not apply to a source string.
+- Misses are deduplicated by key and context (the SDK queue ignores the context).
+- Usage counts only the strings served by this gem: a string served from YAML is not counted.
+- The miss guard and the usage lock live in the cache: a `:memory_store` is per process; use a shared store in production.
+- A source string is capped at 2000 characters (`context` and `namespace` at 200). Long-form content is allowed, but a blog post is one translation **per Markdown block** of about 1000 characters: keep the Markdown inside each block, give every block of the document the same `context` (one very short summary of it) and one `namespace` per document. https://docs.i18n-keyless.com/docs/guides/long-form-content
+
+## Classes
+
+- `I18nKeyless`: `configure`, `config`, `translate` / `t`, `flush`, `install!`, `uninstall!`, `keyless_key?`, `translator`, `reset!`.
+- `I18nKeyless::Railtie`: middleware, helper mix-ins, `after_perform` flush, `after_initialize` chain, `at_exit` flush.
+- `I18nKeyless::Backend`: the chained I18n backend (`lookup`, `reload!`).
+- `I18nKeyless::Translator`: `get`, `lookup`, `ensure_loaded`, `flush`, `translate_now`, `pending_misses`, `pending_usage`, `resolve_namespace`.
+- `I18nKeyless::ApiClient`: `fetch_dictionary`, `translate`, `send_usage`, `dictionary_url`, `translate_body`, `decide`, `error_for`; constants `VERSION`, `SDK`, `DEFAULT_URL`.
+- `I18nKeyless::DictionaryStore`: cache entries `{translations, etag, fetched_at, failed}`, `claim_miss` / `release_miss` guard, `usage` / `merge_usage` / `claim_usage_slot`.
+- `I18nKeyless::Locale`: `to_lang`, `resolve`, `lang?`, `to_app_store_locale`, `AVAILABLE_LANGS`.
+- `I18nKeyless::Miss`: `key`, `context`, `namespace`, `langs`, `lookup_key`, `id`.
+- `I18nKeyless::Helper`: `i18nk`. `I18nKeyless::Middleware`: the Rack flush. `I18nKeyless::TranslateMissingKeysJob`: queued misses.
+
+## Links
+
+- Get an API key: https://i18n-keyless.com/#get-api-key
+- Dashboard: https://i18n-keyless.com/dashboard
+- Docs: https://docs.i18n-keyless.com

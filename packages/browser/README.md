@@ -10,7 +10,7 @@ Get an API key at https://i18n-keyless.com/#get-api-key
 ## Quick start: one script tag
 
 ```html
-<script type="module" src="https://esm.sh/i18n-keyless-browser/auto"
+<script async type="module" src="https://esm.sh/i18n-keyless-browser/auto"
         data-api-key="YOUR_API_KEY" data-primary="fr" data-supported="fr,en,es"></script>
 <h1 data-i18n>Bonjour le monde</h1>
 <p><i18n-t context="durée">8 heures</i18n-t></p>
@@ -39,8 +39,20 @@ translates every `data-i18n` element and every `<i18n-t>`, and exposes the JS AP
 `window.i18nKeyless` holds the whole JS API below, plus `ready`, a promise that resolves
 once the store is hydrated.
 
+The `async` attribute prevents the script from blocking page rendering if the CDN is slow.
+
 The package is plain ESM and imports its dependency by name (`i18n-keyless-core`), so the
 URL must come from a CDN that resolves bare specifiers (esm.sh, or unpkg with `?module`).
+
+**For maximum reliability**, pin the exact version in the URL. The bare path
+(`esm.sh/i18n-keyless-browser/auto`) re-resolves every 10 minutes and can time out when
+esm.sh rebuilds the module. A pinned path gets an immutable cache:
+
+```html
+<script async type="module" src="https://esm.sh/i18n-keyless-browser@3.5.0/auto"
+        data-api-key="YOUR_API_KEY" data-primary="fr" data-supported="fr,en,es"></script>
+```
+
 To serve the files yourself, add an import map before the script tag:
 
 ```html

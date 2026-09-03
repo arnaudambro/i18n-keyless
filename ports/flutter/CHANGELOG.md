@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.6.0
+
+No change in the port. The version tracks the JavaScript SDKs: 3.6.0 adds the function form
+of `useTranslation()` to `i18n-keyless-react` and makes every SDK render the source text
+before `init()` instead of throwing. Protocol reference unchanged.
+
 ## 3.5.0
 
 No change in the port. The version tracks the JavaScript SDKs: 3.5.0 adds

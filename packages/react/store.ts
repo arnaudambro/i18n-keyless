@@ -593,7 +593,9 @@ export function getTranslation(key: string, options?: TranslationOptions): strin
   // render, and setTranslationUsage writes to the store synchronously, which makes React
   // log "Cannot update a component while rendering a different component". Usage analytics
   // never needs to affect the current render, so flush it on a microtask (after render).
-  if (!isServerEnv() && !base.config.ssr) {
+  // Before `init()` there is nothing to report to and nothing to translate with: the core
+  // returns the key, and no usage is recorded (Storybook, unit tests, a build step).
+  if (!isServerEnv() && !base.config.ssr && base.config.API_KEY) {
     queueMicrotask(() => {
       base.setTranslationUsage(key, options?.context, options?.namespace, options?.unpersistedNamespace);
       // Remember namespaces that hold UGC keys so switching (or booting) to the primary

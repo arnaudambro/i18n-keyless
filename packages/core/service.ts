@@ -111,15 +111,16 @@ export function getNamespacesToFetchAfterTranslationFinished(): Array<{ namespac
  * @param key - The translation key (text in primary language)
  * @param store - The translation store containing translations and config
  * @param options - Optional parameters for translation retrieval
- * @returns The translated text or the original key if not found
- * @throws Error if config is not initialized
+ * @returns The translated text, or the key itself when there is no translation yet — or when
+ * `init()` has not run: a component tree rendered before or without init (Storybook, a unit
+ * test, a build step) shows the primary language instead of throwing.
  */
 export function getTranslationCore(key: string, store: FetchTranslationParams, options?: TranslationOptions): string {
   const currentLanguage = store.currentLanguage;
   const config = store.config;
   const translations = store.translations;
-  if (!config.API_KEY) {
-    throw new Error("i18n-keyless: config is not initialized");
+  if (!config?.API_KEY) {
+    return applyReplace(key, options?.replace);
   }
   // The language the key is already written in: the primary language, except for UGC
   // (originLanguage). When the current language is that one, the key renders as-is —

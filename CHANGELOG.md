@@ -8,10 +8,16 @@ All notable changes to i18n-keyless are documented here. The npm packages
 This project follows [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [3.6.0] — 2026-09-03
 
 ### Added
 
+- **`i18n-keyless-react`**: `useTranslation()` called **without a text** returns a reactive
+  `t(text, options?)` function (type `TranslateFunction`) — for a component with many
+  strings, or strings inside an array or a `.map()`, where one hook per string does not fit.
+  The hook's options are the defaults, a call's options merge over them; same resolution and
+  the same `<I18nKeylessProvider>` SSR behaviour as the string form. The string form is
+  unchanged.
 - **`i18n-keyless-rails`** (`ports/rails`, RubyGems, Ruby >= 3.1, Rails 7.0 to 8.x): a new
   port of protocol v3 for Ruby on Rails. An `I18n` backend chained after the application's
   own (`I18n::Backend::Chain`), so `t('Welcome to our app')` with a source string resolves
@@ -25,6 +31,19 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
   `I18N_KEYLESS_*` environment names and cache key layout as the Laravel port. Runtime label
   `rails` (a server, counted like `node`): `isServerRuntime` in core and in the API learn it,
   `conformance/vectors/usage-reporting.json` lists it.
+
+### Changed
+
+- **`i18n-keyless-core`** (and every SDK built on it): `getTranslationCore` — hence
+  `getTranslation()`, `t()`, `<I18nKeylessText>` — returns the source text (with `replace`
+  applied) before `init()` has run, instead of throwing `config is not initialized`. A
+  component tree rendered without the app entry (Storybook, a unit test, a build step) shows
+  the primary language and sends nothing. `i18n-keyless-react` records no usage in that state.
+
+### Fixed
+
+- `SKILL.md`: `getSupportedLanguages()` returns the language codes from `init()`, not
+  `{ label, value }` pairs.
 
 ## [3.5.0] — 2026-08-27
 

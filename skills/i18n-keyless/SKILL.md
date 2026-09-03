@@ -100,21 +100,23 @@ import { I18nKeylessText as T, useTranslation, getTranslation } from "i18n-keyle
 const placeholder = useTranslation("Votre email");
 <input placeholder={placeholder} />
 
-// 3. Function — OUTSIDE a component: a route loader, head(), a utility.
+// 3. Hook, function form — inside a component with MANY strings, or strings in an array
+//    or a .map(): call useTranslation() without a text and get a reactive t().
+const t = useTranslation({ context: "navigation" });
+<Nav items={links.map((l) => ({ ...l, label: t(l.label) }))} />
+
+// 4. Function — OUTSIDE a component: a route loader, head(), a utility.
 export const loader = () => ({ title: getTranslation("Premier onglet") });
 ```
 
 `getTranslation` is a plain function, **not a hook**. A component that only calls it will
 not re-render when translations refresh, and under TanStack Start it renders the primary
-language on the server. In a component, use `useTranslation`. If you must keep
-`getTranslation` in a component, subscribe explicitly:
+language on the server. In a component, use `useTranslation` — the string form for one
+prop, the function form (`const t = useTranslation()`) for many. Never subscribe to the
+store by hand to make `getTranslation` reactive: the function form is that subscription.
 
-```tsx
-import { useCurrentLanguage, useI18nKeyless } from "i18n-keyless-react";
-
-useCurrentLanguage();                        // re-render on language change
-useI18nKeyless((s) => s.translations);       // re-render on translations refresh
-```
+Before `init()` runs (Storybook, a unit test, a build step) every path renders the primary
+language and sends nothing: `getTranslation` and `t()` return the text, they do not throw.
 
 ### Switch language
 
@@ -122,7 +124,7 @@ useI18nKeyless((s) => s.translations);       // re-render on translations refres
 import { setCurrentLanguage, getSupportedLanguages } from "i18n-keyless-react";
 
 setCurrentLanguage("en");
-getSupportedLanguages(); // [{ label: "English", value: "en" }, …] for a picker
+getSupportedLanguages(); // ["en", "fr", …] — the codes from init(); use Intl.DisplayNames for a picker's labels
 ```
 
 ### Node

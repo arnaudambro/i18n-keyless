@@ -499,6 +499,26 @@ It is a hook, so the component re-renders when the translation arrives and when 
 switches language — and under SSR it reads the request's language from
 `<I18nKeylessProvider>`, like `<I18nKeylessText>` does.
 
+One hook call per string is right for a placeholder or two. For a component with many
+strings, or strings inside an array or a `.map()`, call `useTranslation()` **without a
+text**: it returns a reactive `t()` function with the same options and the same resolution.
+The hook's options are the defaults; a call's options merge over them:
+
+```javascript
+import { useTranslation } from "i18n-keyless-react";
+
+const links = [{ to: "/dashboard", label: "Dashboard" }, { to: "/inbox", label: "Inbox" }];
+
+export function Nav() {
+  const t = useTranslation({ context: "navigation menu item" });
+  return links.map((link) => <a key={link.to} href={link.to}>{t(link.label)}</a>);
+}
+```
+
+Because `t()` cannot know its strings ahead of time, that component re-renders on every
+translation batch that lands, not only on its own strings — fine for a nav, wasteful for
+one placeholder. Pick the form per site.
+
 **Outside a component** — a route loader, a utility, a `head()` — there is no hook to call.
 Use the plain `getTranslation` function there:
 
@@ -512,9 +532,10 @@ export const loader = async () => ({ title: getTranslation("Welcome") });
 > **`getTranslation` is a plain function, not a hook.** It reads the store one time and does
 > **not** subscribe to it. A component that calls it in render never re-renders when the
 > user switches language, and the text stays in the previous language. In a component, use
-> `useTranslation` instead. If you must keep `getTranslation` in a component, call
-> `useCurrentLanguage()` once at the top of *that* component to subscribe it (a
-> `useCurrentLanguage()` in a child does not help the parent).
+> `useTranslation` instead — the string form for one prop, `const t = useTranslation()` for
+> many. Before `init()` has run, `getTranslation` returns the text as-is instead of throwing,
+> so a component tree rendered without the app entry (Storybook, a unit test) shows the
+> primary language.
 
 For setting a new current language, use the `setCurrentLanguage` method wherever you want:
 

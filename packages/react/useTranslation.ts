@@ -1,8 +1,14 @@
 import { useEffect, useMemo } from "react";
-import { type TranslationOptions } from "i18n-keyless-core";
+import { getTranslationCore, type TranslationOptions } from "i18n-keyless-core";
 import { useI18nKeyless, getTranslation } from "./store.ts";
 import { useI18nKeylessContext } from "./I18nKeylessProvider.tsx";
 import { getRequestScope, recordUsedKey } from "./request-scope.ts";
+
+/**
+ * The reactive `t` function returned by `useTranslation()` called without a text.
+ * `options` merge over the ones given to the hook, per call.
+ */
+export type TranslateFunction = (text: string, options?: TranslationOptions) => string;
 
 const warnAboutWhitespace = (text: string) => {
   if (process.env.NODE_ENV === "development" && text !== text.trim()) {
@@ -25,9 +31,64 @@ const warnAboutWhitespace = (text: string) => {
  * language from `<I18nKeylessProvider>` — which is what makes it correct in frameworks that
  * render the component tree outside the `runWithI18nKeyless` scope (TanStack Start). See
  * docs/SSR.md.
+ *
+ * Called **without a text**, it returns a reactive `t(text, options?)` function instead —
+ * for a component with many strings, strings inside an array or a `.map()`, or a helper
+ * that builds its labels (a nav, a table header, a menu). Same resolution, same options
+ * (the hook's options are the defaults, a call's options merge over them), same SSR
+ * behaviour. The one difference: `t` cannot know its keys ahead of time, so the component
+ * re-renders on every translation batch that lands, not only on its own strings. That is
+ * the right trade for a nav with 25 labels; for one placeholder, pass the text to the hook.
+ *
+ * ```tsx
+ * const t = useTranslation({ context: "navigation" });
+ * <Nav items={links.map((l) => ({ ...l, label: t(l.label) }))} />
+ * ```
+ *
+ * A call site uses one form or the other, never both: the two forms call different hooks.
  */
-export function useTranslation(text: string, options: TranslationOptions = {}): string {
-  return useTranslationState(text, options).text;
+export function useTranslation(text: string, options?: TranslationOptions): string;
+export function useTranslation(options?: TranslationOptions): TranslateFunction;
+export function useTranslation(
+  textOrOptions?: string | TranslationOptions,
+  options: TranslationOptions = {}
+): string | TranslateFunction {
+  if (typeof textOrOptions === "string") {
+    // eslint-disable-next-line react-hooks/rules-of-hooks -- a call site never switches form
+    return useTranslationState(textOrOptions, options).text;
+  }
+  // eslint-disable-next-line react-hooks/rules-of-hooks -- a call site never switches form
+  return useTranslator(textOrOptions ?? {});
+}
+
+/**
+ * The function form of `useTranslation`. Subscribes to the language and to the whole
+ * translations map, then resolves each call the way `getTranslation()` does — through the
+ * `<I18nKeylessProvider>` request scope when there is one (the SSR component tree), through
+ * the store otherwise (the SPA, and the AsyncLocalStorage scope inside `getTranslation`).
+ */
+function useTranslator(defaults: TranslationOptions): TranslateFunction {
+  const scope = useI18nKeylessContext();
+  const currentLanguage = useI18nKeyless((store) => store.currentLanguage);
+  const translations = useI18nKeyless((store) => store.translations);
+  const lang = scope?.lang ?? currentLanguage;
+
+  return useMemo<TranslateFunction>(() => {
+    return (text, callOptions) => {
+      const merged = callOptions ? { ...defaults, ...callOptions } : defaults;
+      const sourceText = text.trim();
+      if (scope?.translations) {
+        // Same view of the store that `getTranslation` builds for the AsyncLocalStorage
+        // scope, keyed on the provider's language and dictionary instead.
+        recordUsedKey(merged.context ? `${sourceText}__${merged.context}` : sourceText);
+        const base = useI18nKeyless.getState();
+        return getTranslationCore(sourceText, { ...base, currentLanguage: scope.lang, translations: scope.translations }, merged);
+      }
+      return getTranslation(sourceText, merged);
+    };
+    // `defaults` is usually an inline literal: key on its content, not its identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scope, lang, translations, JSON.stringify(defaults)]);
 }
 
 /**

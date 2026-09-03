@@ -7,10 +7,12 @@ beforeEach(() => {
 });
 
 describe("getTranslationCore", () => {
-  it("throws when the config was never initialised", () => {
-    const store = makeStore();
+  it("returns the key, interpolated, when the config was never initialised", () => {
+    const store = makeStore({ currentLanguage: "en", translations: { Bonjour: "Hello" } });
     store.config.API_KEY = "";
-    expect(() => getTranslationCore("Bonjour", store)).toThrow(/config is not initialized/);
+    expect(getTranslationCore("Bonjour", store)).toBe("Bonjour");
+    expect(getTranslationCore("Bonjour {name}", store, { replace: { "{name}": "Ada" } })).toBe("Bonjour Ada");
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
   it("returns the key as-is when the current language IS the primary one", () => {

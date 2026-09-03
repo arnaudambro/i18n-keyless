@@ -27,7 +27,7 @@ final class ApiClient
      * Sent as the `Version` header. The API reads its major to pick the wire
      * dialect: >= 3 means the v3 language codes ("zh-Hans", "cs").
      */
-    public const VERSION = '3.5.0';
+    public const VERSION = '3.6.0';
 
     /**
      * Sent as the `sdk` header. `laravel` is registered on the API as a server

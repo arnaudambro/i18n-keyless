@@ -33,7 +33,8 @@ async function loadStore() {
   vi.resetModules();
   const core = await import("i18n-keyless-core");
   const mod = await import("../store.ts");
-  return { ...mod, core };
+  const hooks = await import("../hooks.ts");
+  return { ...mod, ...hooks, core };
 }
 
 async function booted(storage = makeStorage(), config: Record<string, unknown> = {}) {

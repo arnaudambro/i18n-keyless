@@ -23,9 +23,10 @@ async function load() {
   vi.resetModules();
   const core = await import("i18n-keyless-core");
   const mod = await import("../store.ts");
+  const hooks = await import("../hooks.ts");
   vi.spyOn(core, "getAllTranslationsFromLanguage").mockResolvedValue(okResponse() as never);
   vi.spyOn(core, "sendTranslationsUsageToI18nKeyless").mockResolvedValue({ ok: true, message: "" });
-  return { ...mod, core };
+  return { ...mod, ...hooks, core };
 }
 
 const baseConfig = (storage: unknown, extra: Record<string, unknown> = {}) => ({

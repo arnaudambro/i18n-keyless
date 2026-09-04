@@ -2,13 +2,16 @@
 
 import { useEffect, type ReactNode } from "react";
 import { I18nKeylessProvider, hydrateFromServer, type Translations } from "i18n-keyless-react";
-import { initI18nClient } from "../i18n";
+import { initI18nClient, PRIMARY } from "../i18n";
 
 // Client boundary. Next serializes `translations` (fetched in the server layout) into the
 // RSC payload automatically — no manual <script> needed.
 //
 // - <I18nKeylessProvider> makes the <T> component SSR-correct (it reads the provider via
 //   React context, available during Next's server render of client components).
+// - `primary` is REQUIRED here: Next server-renders client components in a second module
+//   graph (the SSR layer), separate from the one where the layout called init(). The store
+//   there never ran init(), so the provider must carry the primary language itself.
 // - hydrateFromServer + initI18nClient run in an effect: getTranslation(...) renders the
 //   PRIMARY language on the server and on the first client render (no hydration mismatch),
 //   then resolves to `lang` after this effect. (Prefer <T> if you want zero flash for the
@@ -28,7 +31,7 @@ export function Providers({
   }, [lang, translations]);
 
   return (
-    <I18nKeylessProvider lang={lang as never} translations={translations}>
+    <I18nKeylessProvider lang={lang as never} primary={PRIMARY} translations={translations}>
       {children}
     </I18nKeylessProvider>
   );

@@ -3,7 +3,13 @@ import { render, screen } from "@testing-library/react";
 import { vi, beforeEach, describe, it, expect } from "vitest";
 import { getTranslationCore, type PrimaryLang, type Lang } from "i18n-keyless-core";
 import { I18nKeylessText } from "../I18nKeylessText";
-import { I18nKeylessProvider } from "../I18nKeylessProvider";
+import { I18nKeylessProvider, useI18nKeylessContext } from "../I18nKeylessProvider";
+import { useTranslation } from "../useTranslation";
+
+function Labels({ text }: { text: string }) {
+  const t = useTranslation();
+  return <span>{t(text)}</span>;
+}
 
 // Same store-mock shape as I18nKeylessText.test.tsx: the store is pinned to the primary
 // language ("en") with no translations, so anything the provider renders in another
@@ -35,6 +41,10 @@ const mockStore = vi.hoisted(() => {
   );
   return useI18nKeylessMock;
 });
+
+// The hooks live in their own client module (hooks.ts); the components read the store
+// through it, so the same mock serves both.
+vi.mock("../hooks", async () => ({ useI18nKeyless: mockStore }));
 
 vi.mock("../store", async () => ({
   useI18nKeyless: mockStore,
@@ -139,6 +149,68 @@ describe("I18nKeylessProvider", () => {
     expect(mockStore.getState().translations).toMatchObject({
       Existing: "Déjà là",
       "Hello World": "Hola Mundo",
+    });
+  });
+
+  // The provider carries the primary language. The store's config is never consulted for
+  // it: under Next.js the SSR module graph's store never ran init() (see ssr-render.test.tsx).
+  describe("primary", () => {
+    it("the provider's primary wins over the store's for <T> and for t()", () => {
+      // The store says the primary is "en" (above); the provider says it is "fr".
+      render(
+        <I18nKeylessProvider lang="en" primary="fr" translations={{ Bonjour: "Hello" }}>
+          <p>
+            <I18nKeylessText>Bonjour</I18nKeylessText>
+          </p>
+          <Labels text="Bonjour" />
+        </I18nKeylessProvider>
+      );
+      expect(screen.getByText("Hello", { selector: "p" })).toBeInTheDocument();
+      expect(screen.getByText("Hello", { selector: "span" })).toBeInTheDocument();
+    });
+
+    it("resolves on a store that never ran init(): primary en, lang fr, expects French", () => {
+      mockStore.setState({
+        currentLanguage: "fr",
+        config: { API_KEY: "", languages: { primary: "fr" as PrimaryLang, supported: ["fr"] as Lang[] } },
+      });
+      render(
+        <I18nKeylessProvider lang="fr" primary="en" translations={{ "Hello World": "Bonjour le monde" }}>
+          <p>
+            <I18nKeylessText>Hello World</I18nKeylessText>
+          </p>
+          <Labels text="Hello World" />
+        </I18nKeylessProvider>
+      );
+      expect(screen.getByText("Bonjour le monde", { selector: "p" })).toBeInTheDocument();
+      expect(screen.getByText("Bonjour le monde", { selector: "span" })).toBeInTheDocument();
+    });
+
+    it("renders the source text when lang is the provider's primary, whatever the store says", () => {
+      mockStore.setState({
+        currentLanguage: "fr",
+        config: { API_KEY: "", languages: { primary: "fr" as PrimaryLang, supported: ["fr"] as Lang[] } },
+      });
+      render(
+        <I18nKeylessProvider lang="en" primary="en" translations={{ "Hello World": "SHOULD NOT SHOW" }}>
+          <I18nKeylessText>Hello World</I18nKeylessText>
+        </I18nKeylessProvider>
+      );
+      expect(screen.getByText("Hello World")).toBeInTheDocument();
+    });
+
+    it("exposes the primary through useI18nKeylessContext", () => {
+      let seen: string | undefined;
+      function Probe() {
+        seen = useI18nKeylessContext()?.primary;
+        return null;
+      }
+      render(
+        <I18nKeylessProvider lang="fr" primary="en" translations={{}}>
+          <Probe />
+        </I18nKeylessProvider>
+      );
+      expect(seen).toBe("en");
     });
   });
 });

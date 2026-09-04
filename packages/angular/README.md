@@ -181,7 +181,7 @@ const serverConfig: ApplicationConfig = {
     provideI18nKeylessServer(async () => {
       const url = new URL(inject(REQUEST)?.url ?? "http://localhost/");
       const lang = resolveLang(url.searchParams.get("lang"), { supported: ["fr", "en"], fallback: "fr" })!;
-      return { lang, translations: await getServerTranslations(lang) }; // cached per process
+      return { lang, translations: await getServerTranslations(lang), primary: "fr" }; // cached per process
     }),
   ],
 };
@@ -191,7 +191,11 @@ Hand the same `{ lang, translations }` to the client (`TransferState`, or a JSON
 you serialize) and provide it there too: in the browser `provideI18nKeylessServer` seeds the
 store synchronously (`hydrateFromServer`), so the first client render matches the server HTML
 and later reads agree with it. In provider mode the language is the scope's `lang`: drive it
-from the URL, `setCurrentLanguage` is for SPA mode.
+from the URL, `setCurrentLanguage` is for SPA mode. `primary` (≥ 3.6.1) is the language the
+source strings are written in: when the scope carries it, the resolution never reads the
+store's primary, so a store that has not run `provideI18nKeyless` yet cannot make a request
+in the real primary language look like a request for the source strings. Optional: it
+defaults to the store's primary.
 
 `runWithI18nKeyless({ lang, translations }, () => renderApplication(...))`, `getRequestScope()`
 and `getUsedTranslationsSnapshot()` are exported as well, for the imperative `getTranslation`

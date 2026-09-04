@@ -14,7 +14,7 @@ const mockStore = {
 };
 
 vi.mock("../store", () => ({
-  useI18nKeyless: { getState: () => mockStore },
+  boundStore: { getState: () => mockStore },
 }));
 
 // Keep all of core real except the network call.
@@ -60,9 +60,36 @@ describe("getServerTranslations", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it("returns an empty map (and caches it) when the fetch fails", async () => {
+  // A failure must not pin `{}` for the life of the process: a long-lived Node server would
+  // otherwise serve the source strings for every request after one bad fetch at boot.
+  it("returns an empty map when the fetch fails, and retries on the next request", async () => {
     fetchMock.mockResolvedValueOnce(undefined);
-    const result = await getServerTranslations("en");
-    expect(result).toEqual({});
+    expect(await getServerTranslations("en")).toEqual({});
+    expect(await getServerTranslations("en")).toEqual({ Hello: "Hello-en" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // The success is cached.
+    await getServerTranslations("en");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not cache a non-ok response", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: false, error: "boom" });
+    expect(await getServerTranslations("en")).toEqual({});
+    expect(await getServerTranslations("en")).toEqual({ Hello: "Hello-en" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns an empty map when the fetch rejects (a timeout), without caching it", async () => {
+    fetchMock.mockRejectedValueOnce(new Error("timeout"));
+    expect(await getServerTranslations("en")).toEqual({});
+    expect(await getServerTranslations("en")).toEqual({ Hello: "Hello-en" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not cache an empty success (a language with no translation yet)", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, data: { translations: {} } });
+    expect(await getServerTranslations("en")).toEqual({});
+    expect(await getServerTranslations("en")).toEqual({ Hello: "Hello-en" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

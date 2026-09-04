@@ -1,7 +1,10 @@
+"use client";
+
 import { useEffect, useMemo } from "react";
-import { getTranslationCore, type TranslationOptions } from "i18n-keyless-core";
-import { useI18nKeyless, getTranslation } from "./store.ts";
-import { useI18nKeylessContext } from "./I18nKeylessProvider.tsx";
+import { applyReplace, getTranslationCore, type Lang, type TranslationOptions } from "i18n-keyless-core";
+import { useI18nKeyless } from "./hooks.ts";
+import { getTranslation } from "./store.ts";
+import { useI18nKeylessContext, type I18nKeylessContextValue } from "./I18nKeylessProvider.tsx";
 import { getRequestScope, recordUsedKey } from "./request-scope.ts";
 
 /**
@@ -62,6 +65,26 @@ export function useTranslation(
 }
 
 /**
+ * The lookup itself, with no side effect: the text renders as-is when the current language
+ * is the one it is written in — the primary language, except for UGC (`originLanguage`),
+ * whose key looks up the map even when the current language is the primary one. Otherwise
+ * the map wins and the source text is the fallback while a translation is on its way.
+ *
+ * Pure so a provider subtree resolves on a store that never ran `init()` (Next's SSR module
+ * graph): `getTranslationCore` returns the key before `init()`, this does not.
+ */
+function resolveText(
+  sourceText: string,
+  translation: string | undefined,
+  lang: Lang | null,
+  primary: Lang,
+  originLanguage: Lang | undefined
+): string {
+  const sourceLanguage = originLanguage && originLanguage !== primary ? originLanguage : primary;
+  return lang === sourceLanguage ? sourceText : translation || sourceText;
+}
+
+/**
  * The function form of `useTranslation`. Subscribes to the language and to the whole
  * translations map, then resolves each call the way `getTranslation()` does — through the
  * `<I18nKeylessProvider>` request scope when there is one (the SSR component tree), through
@@ -78,17 +101,40 @@ function useTranslator(defaults: TranslationOptions): TranslateFunction {
       const merged = callOptions ? { ...defaults, ...callOptions } : defaults;
       const sourceText = text.trim();
       if (scope?.translations) {
-        // Same view of the store that `getTranslation` builds for the AsyncLocalStorage
-        // scope, keyed on the provider's language and dictionary instead.
-        recordUsedKey(merged.context ? `${sourceText}__${merged.context}` : sourceText);
+        const storageKey = merged.context ? `${sourceText}__${merged.context}` : sourceText;
+        recordUsedKey(storageKey);
         const base = useI18nKeyless.getState();
-        return getTranslationCore(sourceText, { ...base, currentLanguage: scope.lang, translations: scope.translations }, merged);
+        if (!base.config.API_KEY) {
+          // The store never ran `init()` in this module graph (Next's SSR layer): resolve
+          // from the provider alone, there is nothing to queue a miss against.
+          return applyReplace(
+            resolveText(sourceText, scope.translations[storageKey], scope.lang, scope.primary, merged.originLanguage),
+            merged.replace
+          );
+        }
+        // Same view of the store that `getTranslation` builds for the AsyncLocalStorage
+        // scope, keyed on the provider's language, dictionary and primary instead — so the
+        // core queues a miss, but never against the store's primary.
+        return getTranslationCore(sourceText, storeViewFor(base, scope), merged);
       }
       return getTranslation(sourceText, merged);
     };
     // `defaults` is usually an inline literal: key on its content, not its identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope, lang, translations, JSON.stringify(defaults)]);
+}
+
+/**
+ * The store as `getTranslationCore` must see it under a provider: the provider's language,
+ * dictionary and primary in place of the store's.
+ */
+function storeViewFor(base: ReturnType<typeof useI18nKeyless.getState>, scope: I18nKeylessContextValue) {
+  return {
+    ...base,
+    currentLanguage: scope.lang,
+    translations: scope.translations,
+    config: { ...base.config, languages: { ...base.config.languages, primary: scope.primary } },
+  };
 }
 
 /**
@@ -119,9 +165,15 @@ export function useTranslationState(text: string, options: TranslationOptions = 
   // requests don't share state: the React-context provider first, then the
   // AsyncLocalStorage request scope (set by runWithI18nKeyless). Otherwise (SPA mode)
   // both are absent and we use the global store. See docs/SSR.md.
-  const requestScope = useI18nKeylessContext() ?? getRequestScope();
+  const provider = useI18nKeylessContext();
+  const requestScope = provider ?? getRequestScope();
   const translation = requestScope?.translations ? requestScope.translations[storageKey] : storeTranslation;
   const currentLanguage = requestScope?.lang ?? storeCurrentLanguage;
+  // The primary language comes from the provider when there is one, never from the store:
+  // under Next.js the store of the SSR module graph never ran `init()` and holds the
+  // default primary. The AsyncLocalStorage scope shares the store's module graph, so the
+  // store's config is the right one there.
+  const primary = provider?.primary ?? config!.languages.primary;
 
   useEffect(() => {
     warnAboutWhitespace(text);
@@ -137,12 +189,7 @@ export function useTranslationState(text: string, options: TranslationOptions = 
   // setState, so no render-time update warning). See docs/SSR.md.
   recordUsedKey(storageKey);
 
-  // The text renders as-is when the current language is the one it's written in: the
-  // primary language, except for UGC (originLanguage) — a UGC key looks up the map even
-  // when the current language is the primary one.
-  const sourceLanguage =
-    originLanguage && originLanguage !== config!.languages.primary ? originLanguage : config!.languages.primary;
-  const translatedText = currentLanguage === sourceLanguage ? sourceText : translation || sourceText;
+  const translatedText = resolveText(sourceText, translation, currentLanguage, primary, originLanguage);
 
   const finalText = useMemo(() => {
     if (!replace) {

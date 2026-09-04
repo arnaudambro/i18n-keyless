@@ -55,7 +55,8 @@ async function load() {
   const core = await import("i18n-keyless-core");
   core.resetUniqueIdState?.();
   const store = await import("../store.ts");
-  return { ...store, core };
+  const hooks = await import("../hooks.ts");
+  return { ...store, ...hooks, core };
 }
 
 beforeEach(() => {

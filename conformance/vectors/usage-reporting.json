@@ -1,5 +1,5 @@
 {
-  "description": "Which runtime a package reports in the `sdk` header, whether that runtime records and sends usage analytics, and whether it sends a `unique_id` header. `hasWindow` is `typeof window !== 'undefined'`; `ssr` is the `ssr: true` config flag of the react package. The node package has neither input. Rule: `node`, `laravel`, `rails` and every label ending in `-server` are servers; everything else is a device. The vue and angular packages follow the react rule with their own labels; the browser package is always `browser`; the laravel port sends `laravel` and the rails port sends `rails` (servers that report usage like `node`); the flutter port sends `flutter` (a device).",
+  "description": "Which runtime a package reports in the `sdk` header, whether that runtime records and sends usage analytics, and whether it sends a `unique_id` header. `hasWindow` is `typeof window !== 'undefined'`; `ssr` is the `ssr: true` config flag of the react package. The node package has neither input. Rule: `node`, `laravel`, `rails` and every label ending in `-server` are servers; everything else is a device. The vue and angular packages follow the react rule with their own labels; the browser package is always `browser`; the laravel port sends `laravel` and the rails port sends `rails` (servers that report usage like `node`); the flutter port sends `flutter` (a device); the python port sends `python` and the go port sends `go` (servers that report usage like `node`); the swift and kotlin ports send `swift-client` / `swift-server` and `kotlin-client` / `kotlin-server` (the react rule: a device unless configured as a server).",
   "source": "packages/core/unique-id.ts: resolveSdkRuntime(input), isUsageReportingEnabled(runtime), identityHeaders(uniqueId). The react store applies the same rule inline (packages/react/store.ts: hydrate(), init(), getTranslation()).",
   "usageFlush": {
     "react-client": "one POST per init(), right after hydration, when the usage map is not empty; the map is cleared when the API answers ok",
@@ -9,7 +9,11 @@
     "vue-server / angular-server": "never, same as react-server",
     "laravel": "same as node (at most one POST every 10000 ms, cumulative map)",
     "rails": "same as node (at most one POST every 10000 ms, cumulative map)",
-    "flutter": "same as react-client"
+    "flutter": "same as react-client",
+    "python": "same as node (at most one POST every 10000 ms, cumulative map)",
+    "go": "same as node (at most one POST every 10000 ms, cumulative map)",
+    "swift-client / kotlin-client": "same as react-client",
+    "swift-server / kotlin-server": "never, same as react-server"
   },
   "cases": [
     {
@@ -189,6 +193,30 @@
       {
         "label": "rails",
         "expected": true
+      },
+      {
+        "label": "python",
+        "expected": true
+      },
+      {
+        "label": "go",
+        "expected": true
+      },
+      {
+        "label": "swift-server",
+        "expected": true
+      },
+      {
+        "label": "kotlin-server",
+        "expected": true
+      },
+      {
+        "label": "swift-client",
+        "expected": false
+      },
+      {
+        "label": "kotlin-client",
+        "expected": false
       },
       {
         "label": "react-server",

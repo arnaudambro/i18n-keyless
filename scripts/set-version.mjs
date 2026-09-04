@@ -3,7 +3,7 @@
  * Set the one shared version everywhere: the npm packages, the ports, and the `Version`
  * constants the ports send on the wire.
  *
- *   node scripts/set-version.mjs 3.4.0            # write
+ *   node scripts/set-version.mjs 3.4.0            # write (npm packages + the eight ports)
  *   node scripts/set-version.mjs 3.4.0 --dry-run  # print what would change
  */
 import { readFileSync, writeFileSync } from "node:fs";
@@ -76,6 +76,45 @@ edit("ports/rails/lib/i18n_keyless/version.rb", (t) => {
 edit("ports/laravel/src/ApiClient.php", (t) => {
   const re = /(public const VERSION = ')[^']*(')/;
   if (!re.test(t)) throw new Error("ApiClient::VERSION not found");
+  return t.replace(re, `$1${version}$2`);
+});
+
+// Python: the wire `Version` and the PyPI version (pyproject reads it: `dynamic = ["version"]`).
+edit("ports/python/src/i18n_keyless/version.py", (t) => {
+  const re = /(__version__ = ")[^"]*(")/;
+  if (!re.test(t)) throw new Error("__version__ not found");
+  return t.replace(re, `$1${version}$2`);
+});
+
+// Go: the wire `Version` constant (the module version is the git tag `ports/go/v<version>`).
+edit("ports/go/version.go", (t) => {
+  const re = /(const Version = ")[^"]*(")/;
+  if (!re.test(t)) throw new Error("Version not found");
+  return t.replace(re, `$1${version}$2`);
+});
+
+// Swift: the wire `Version` constant (SwiftPM reads the version from the mirror's git tag).
+edit("ports/swift/Sources/I18nKeyless/Version.swift", (t) => {
+  const re = /(public static let string = ")[^"]*(")/;
+  if (!re.test(t)) throw new Error("I18nKeylessVersion.string not found");
+  return t.replace(re, `$1${version}$2`);
+});
+
+// Kotlin: the wire `Version` constant and the Maven artifact version.
+edit("ports/kotlin/src/main/kotlin/io/i18nkeyless/Version.kt", (t) => {
+  const re = /(const val VERSION = ")[^"]*(")/;
+  if (!re.test(t)) throw new Error("VERSION not found");
+  return t.replace(re, `$1${version}$2`);
+});
+edit("ports/kotlin/build.gradle.kts", (t) => {
+  const re = /(^version = ")[^"]*(")/m;
+  if (!re.test(t)) throw new Error("gradle version not found");
+  return t.replace(re, `$1${version}$2`);
+});
+// The Kotlin example pins the published coordinate (the composite build substitutes it).
+edit("examples/kotlin/build.gradle.kts", (t) => {
+  const re = /(i18n-keyless-kotlin:)[^"]*(")/;
+  if (!re.test(t)) throw new Error("i18n-keyless-kotlin pin not found");
   return t.replace(re, `$1${version}$2`);
 });
 

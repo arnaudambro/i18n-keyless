@@ -1,0 +1,6 @@
+.gradle/
+build/
+.kotlin/
+.i18n-keyless/
+*.iml
+.idea/

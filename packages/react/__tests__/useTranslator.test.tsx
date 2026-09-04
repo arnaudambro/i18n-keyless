@@ -44,6 +44,10 @@ const mockStore = vi.hoisted(() => {
 
 const getTranslationMock = vi.hoisted(() => vi.fn((text: string) => `t:${text}`));
 
+// The hooks live in their own client module (hooks.ts); the components read the store
+// through it, so the same mock serves both.
+vi.mock("../hooks", async () => ({ useI18nKeyless: mockStore }));
+
 vi.mock("../store", async () => ({
   useI18nKeyless: mockStore,
   getTranslation: getTranslationMock,

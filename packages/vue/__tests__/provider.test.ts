@@ -30,6 +30,14 @@ const T = (content: string, props: Record<string, unknown> | null = null) =>
 const provided = (lang: string, translations: Record<string, string>, children: () => unknown) =>
   defineComponent({ render: () => h(lib.I18nKeylessProvider, { lang, translations }, children) });
 
+// `t()` from the composable, the function path inside a component.
+const Labels = defineComponent({
+  setup() {
+    const { t } = lib.useI18nKeyless();
+    return () => h("span", t("Hello"));
+  },
+});
+
 beforeEach(async () => {
   vi.spyOn(console, "error").mockImplementation(() => {});
   mockFetch();
@@ -202,5 +210,72 @@ describe("plugin and context edge paths", () => {
 
   it("useI18nKeylessContext returns null outside setup()", () => {
     expect(lib.useI18nKeylessContext()).toBeNull();
+  });
+});
+
+/**
+ * The store's default config has no API key and the primary "fr". A framework that
+ * server-renders the components in a module graph where `init()` never ran hands the
+ * provider that store. The scope carries the primary itself, so a request in the app's real
+ * primary language ("en") is not mistaken for a request for the source strings, and a
+ * request in "fr" (the default) is not mistaken for one either. Nothing initialises the store.
+ */
+describe("a store that never ran init() (a second module graph)", () => {
+  const cold = () =>
+    lib.useI18nKeyless.setState({
+      config: { API_KEY: "", languages: { primary: "fr", supported: ["fr"] } } as never,
+      currentLanguage: "fr",
+      translations: {},
+    });
+
+  beforeEach(() => {
+    cold();
+  });
+
+  it("renders French for an English-primary app when the provider carries the primary", async () => {
+    const Page = defineComponent({
+      render: () =>
+        h(lib.I18nKeylessProvider, { lang: "fr", primary: "en", translations: { Hello: "Bonjour" } }, () => [
+          h("p", [T("Hello")]),
+          h(Labels),
+        ]),
+    });
+    const html = await renderToString(createSSRApp(Page));
+    expect(html).toContain("<p>Bonjour</p>");
+    expect(html).toContain("<span>Bonjour</span>");
+  });
+
+  it("same through the plugin", async () => {
+    const Page = defineComponent({ render: () => [h("p", [T("Hello")]), h(Labels)] });
+    const app = createSSRApp(Page).use(lib.I18nKeyless, { lang: "fr", primary: "en", translations: { Hello: "Bonjour" } });
+    const html = await renderToString(app);
+    expect(html).toContain("<p>Bonjour</p>");
+    expect(html).toContain("<span>Bonjour</span>");
+  });
+
+  it("renders the source text when the request language is the provider's primary", async () => {
+    const html = await renderToString(
+      createSSRApp(
+        defineComponent({
+          render: () =>
+            h(lib.I18nKeylessProvider, { lang: "en", primary: "en", translations: { Hello: "SHOULD NOT SHOW" } }, () => [
+              T("Hello"),
+              h(Labels),
+            ]),
+        })
+      )
+    );
+    expect(html).toContain("Hello");
+    expect(html).not.toContain("SHOULD NOT SHOW");
+  });
+
+  it("without `primary`, falls back to the store's default and warns once", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const html = await renderToString(createSSRApp(provided("de", { Hello: "Hallo" }, () => T("Hello"))));
+    expect(html).toContain("Hallo");
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0][0])).toContain("primary");
+    await renderToString(createSSRApp(provided("de", {}, () => T("Hello"))));
+    expect(warn).toHaveBeenCalledTimes(1);
   });
 });

@@ -10,6 +10,7 @@
  *   node scripts/publish.mjs --yes           # no confirmations
  *   node scripts/publish.mjs --skip-tests    # trust the last run
  *   node scripts/publish.mjs --skip-flutter --skip-laravel --skip-rails --skip-git
+ *   node scripts/publish.mjs --skip-python --skip-go --skip-swift --skip-kotlin
  *
  * Every step is safe to run again: a package already at this version on its registry is
  * skipped, a tag that exists is not recreated, so a release that failed half-way is
@@ -28,7 +29,10 @@ const dryRun = flag("dry-run");
 const yes = flag("yes");
 
 const NPM_PACKAGES = ["core", "react", "node", "vue", "angular", "browser"]; // core FIRST
-const known = ["dry-run", "yes", "skip-tests", "skip-npm", "skip-flutter", "skip-laravel", "skip-rails", "skip-git"];
+const known = [
+  "dry-run", "yes", "skip-tests", "skip-npm", "skip-flutter", "skip-laravel", "skip-rails",
+  "skip-python", "skip-go", "skip-swift", "skip-kotlin", "skip-git",
+];
 for (const a of args) {
   if (!known.includes(a.replace(/^--/, ""))) {
     console.error(`unknown flag ${a}\nusage: node scripts/publish.mjs [${known.map((k) => `--${k}`).join("] [")}]`);
@@ -97,6 +101,15 @@ async function publishedOnRubyGems(version) {
   }
 }
 
+async function publishedOnPyPI(version) {
+  try {
+    const res = await fetch(`https://pypi.org/pypi/i18n-keyless/${version}/json`);
+    return res.status === 200;
+  } catch {
+    return false;
+  }
+}
+
 async function publishedOnPubDev(version) {
   try {
     const res = await fetch("https://pub.dev/api/packages/i18n_keyless");
@@ -136,6 +149,21 @@ if (!read("ports/laravel/src/ApiClient.php").includes(`VERSION = '${version}'`))
 if (!read("ports/rails/lib/i18n_keyless/version.rb").includes(`VERSION = "${version}"`)) {
   problems.push("ports/rails/lib/i18n_keyless/version.rb has another VERSION");
 }
+if (!read("ports/python/src/i18n_keyless/version.py").includes(`__version__ = "${version}"`)) {
+  problems.push("ports/python/src/i18n_keyless/version.py has another __version__");
+}
+if (!read("ports/go/version.go").includes(`const Version = "${version}"`)) {
+  problems.push("ports/go/version.go has another Version");
+}
+if (!read("ports/swift/Sources/I18nKeyless/Version.swift").includes(`string = "${version}"`)) {
+  problems.push("ports/swift/Sources/I18nKeyless/Version.swift has another version");
+}
+if (!read("ports/kotlin/src/main/kotlin/io/i18nkeyless/Version.kt").includes(`VERSION = "${version}"`)) {
+  problems.push("ports/kotlin/src/main/kotlin/io/i18nkeyless/Version.kt has another VERSION");
+}
+if (!read("ports/kotlin/build.gradle.kts").includes(`version = "${version}"`)) {
+  problems.push("ports/kotlin/build.gradle.kts has another version");
+}
 if (problems.length) {
   problems.push(`run: node scripts/set-version.mjs ${version}`);
 }
@@ -147,6 +175,11 @@ if (!read("CHANGELOG.md").includes(`## [${version}]`)) {
 if (!new RegExp(`^## ${version.replace(/\./g, "\\.")}\\s*$`, "m").test(read("ports/flutter/CHANGELOG.md"))) {
   problems.push(`ports/flutter/CHANGELOG.md has no "## ${version}" entry (pub.dev shows it)`);
 }
+for (const port of ["python", "go", "swift", "kotlin"]) {
+  if (!new RegExp(`^## ${version.replace(/\./g, "\\.")}\\s*$`, "m").test(read(`ports/${port}/CHANGELOG.md`))) {
+    problems.push(`ports/${port}/CHANGELOG.md has no "## ${version}" entry`);
+  }
+}
 
 // Git: on main, tag free, remotes present.
 const branch = capture("git", ["rev-parse", "--abbrev-ref", "HEAD"]);
@@ -157,6 +190,9 @@ if (tagExists && !flag("skip-git")) {
 }
 if (!flag("skip-laravel") && capture("git", ["remote", "get-url", "laravel"]) === null) {
   problems.push("no `laravel` git remote (see PUBLISH.md, one-time setup)");
+}
+if (!flag("skip-swift") && capture("git", ["remote", "get-url", "swift"]) === null) {
+  problems.push("no `swift` git remote (see PUBLISH.md, one-time setup)");
 }
 
 // Registries: logged in, and which packages are still to publish.
@@ -174,6 +210,8 @@ const flutterDone = flag("skip-flutter") ? false : await publishedOnPubDev(versi
 if (flutterDone) console.log(`already on pub.dev: i18n_keyless ${version}`);
 const railsDone = flag("skip-rails") ? false : await publishedOnRubyGems(version);
 if (railsDone) console.log(`already on rubygems.org: i18n-keyless-rails ${version}`);
+const pythonDone = flag("skip-python") ? false : await publishedOnPyPI(version);
+if (pythonDone) console.log(`already on pypi.org: i18n-keyless ${version}`);
 
 if (problems.length) {
   fail(`preflight failed:\n  - ${problems.join("\n  - ")}`);
@@ -212,6 +250,14 @@ if (flag("skip-tests")) {
     run("flutter", ["analyze"], { cwd: flutter });
     run("flutter", ["test"], { cwd: flutter });
   }
+  if (!flag("skip-python")) run("uv", ["run", "pytest", "-q"], { cwd: resolve(root, "ports/python") });
+  if (!flag("skip-go")) {
+    const go = resolve(root, "ports/go");
+    run("go", ["vet", "./..."], { cwd: go });
+    run("go", ["test", "./..."], { cwd: go });
+  }
+  if (!flag("skip-swift")) run("swift", ["test"], { cwd: resolve(root, "ports/swift") });
+  if (!flag("skip-kotlin")) run("./gradlew", ["test", "--quiet"], { cwd: resolve(root, "ports/kotlin") });
 }
 
 // ---------------------------------------------------------------------------------------
@@ -269,6 +315,43 @@ if (flag("skip-rails")) {
 }
 
 // ---------------------------------------------------------------------------------------
+// 4c. Python: PyPI takes the wheel and sdist that `uv build` writes from ports/python.
+//     A deleted version number stays taken on PyPI, so the build is checked first.
+
+if (flag("skip-python")) {
+  console.log("\npython skipped (--skip-python)");
+} else if (pythonDone) {
+  console.log(`\npypi.org: i18n-keyless is already at ${version}`);
+} else {
+  step("PyPI: i18n-keyless");
+  const python = resolve(root, "ports/python");
+  run("rm", ["-rf", "dist"], { cwd: python });
+  run("uv", ["build"], { cwd: python });
+  if (!dryRun) {
+    if (!(await confirm("Publish i18n-keyless to pypi.org?"))) fail("stopped before pypi.org");
+    run("uv", ["publish"], { cwd: python });
+  }
+}
+
+// ---------------------------------------------------------------------------------------
+// 4d. Kotlin: Maven Central through the Central Portal plugin. `publishToMavenCentral`
+//     needs the portal token and the signing key in ~/.gradle/gradle.properties
+//     (PUBLISH.md, one-time setup); the dry run only proves the artifact builds and
+//     installs locally. The upload is validated by the portal and released by hand there.
+
+if (flag("skip-kotlin")) {
+  console.log("\nkotlin skipped (--skip-kotlin)");
+} else {
+  step("Maven Central: io.github.arnaudambro:i18n-keyless-kotlin");
+  const kotlin = resolve(root, "ports/kotlin");
+  run("./gradlew", ["build", "publishToMavenLocal", "--quiet"], { cwd: kotlin });
+  if (!dryRun) {
+    if (!(await confirm("Publish i18n-keyless-kotlin to Maven Central?"))) fail("stopped before Maven Central");
+    run("./gradlew", ["publishToMavenCentral", "--quiet"], { cwd: kotlin });
+  }
+}
+
+// ---------------------------------------------------------------------------------------
 // 5. git: release commit and tag on the monorepo. The Laravel step needs that commit,
 //    because the subtree split reads `main`.
 
@@ -287,6 +370,13 @@ if (flag("skip-git") || dryRun) {
   }
   if (tagExists) console.log(`tag ${tag} exists`);
   else run("git", ["tag", tag]);
+  // Go: the module lives in a subdirectory, so its version is the tag `ports/go/v<version>`
+  // on this repository (the proxy reads it after the push).
+  if (!flag("skip-go")) {
+    const goTag = `ports/go/${tag}`;
+    if (capture("git", ["rev-parse", "-q", "--verify", `refs/tags/${goTag}`]) !== null) console.log(`tag ${goTag} exists`);
+    else run("git", ["tag", goTag]);
+  }
 }
 
 // ---------------------------------------------------------------------------------------
@@ -306,6 +396,26 @@ if (flag("skip-laravel") || dryRun) {
     const split = capture("git", ["subtree", "split", "--prefix=ports/laravel", "main"]);
     if (!split || !/^[0-9a-f]{40}$/.test(split)) fail(`git subtree split returned "${split}", not a commit`);
     run("git", ["push", "laravel", `${split}:refs/tags/${tag}`]);
+  }
+}
+
+// ---------------------------------------------------------------------------------------
+// 6b. Swift: SwiftPM resolves a package by the git tags of a repository whose ROOT holds
+//     Package.swift, so ports/swift is mirrored the same way as the Laravel port.
+
+if (flag("skip-swift") || dryRun) {
+  console.log(`\nswift ${dryRun ? "mirror skipped (dry run)" : "skipped (--skip-swift)"}`);
+} else {
+  step("SwiftPM: i18n-keyless-swift");
+  const mirrorTag = capture("git", ["ls-remote", "--tags", "swift", `refs/tags/${tag}`]);
+  if (mirrorTag) {
+    console.log(`mirror already has ${tag}`);
+  } else {
+    if (!(await confirm(`Push ports/swift to the mirror and tag it ${tag}?`))) fail("stopped before the mirror");
+    run("git", ["subtree", "push", "--prefix=ports/swift", "swift", "main"]);
+    const split = capture("git", ["subtree", "split", "--prefix=ports/swift", "main"]);
+    if (!split || !/^[0-9a-f]{40}$/.test(split)) fail(`git subtree split returned "${split}", not a commit`);
+    run("git", ["push", "swift", `${split}:refs/tags/${tag}`]);
   }
 }
 

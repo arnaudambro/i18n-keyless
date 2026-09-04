@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-i18n-keyless is a translation library that eliminates manual key management. Developers write text in their primary language directly, and translations are handled automatically via AI-powered APIs. One wire protocol (`docs/PROTOCOL.md`), several SDKs: React and React Native, Node.js, Vue, Angular, a framework-free browser package (npm workspaces under `packages/`), plus a Laravel port, a Ruby on Rails port and a Flutter port under `ports/`.
+i18n-keyless is a translation library that eliminates manual key management. Developers write text in their primary language directly, and translations are handled automatically via AI-powered APIs. One wire protocol (`docs/PROTOCOL.md`), several SDKs: React and React Native, Node.js, Vue, Angular, a framework-free browser package (npm workspaces under `packages/`), plus the Laravel, Ruby on Rails, Flutter, Python, Go, Swift and Kotlin ports under `ports/`.
 
 ## Generated files — do not edit here
 
@@ -24,7 +24,7 @@ documentation suite in the other repository, so run that suite after changing it
 ## Commands
 
 Release procedure: `PUBLISH.md`, automated by `node scripts/publish.mjs [--dry-run]` (one shared version, `node scripts/set-version.mjs x.y.z`,
-core `dist` built before `npm publish`, then pub.dev and the Packagist mirror).
+core `dist` built before `npm publish`, then pub.dev, RubyGems, PyPI, Maven Central, the Go tag and the Packagist and SwiftPM mirrors).
 
 ```bash
 # Build: there are no `build` npm scripts; build each package directly.
@@ -52,6 +52,10 @@ npm run test:coverage      # With V8 coverage
 (cd ports/laravel && composer install && vendor/bin/phpunit)   # PHP >= 8.2, Composer
 (cd ports/rails   && bundle install && bundle exec rake test)   # Ruby >= 3.1, Bundler
 (cd ports/flutter && flutter test)                              # Flutter >= 3.27
+(cd ports/python  && uv run pytest)                             # Python >= 3.9, uv
+(cd ports/go      && go vet ./... && go test ./...)             # Go >= 1.21
+(cd ports/swift   && swift test)                                # Swift 5.9+, macOS (XCTest)
+(cd ports/kotlin  && ./gradlew test)                            # JDK 17, the Gradle wrapper
 ```
 
 The npm packages build with `tsc` directly (no bundler), except `packages/angular`, which
@@ -82,15 +86,21 @@ packages/web-component                    (experimental/WIP, superseded by packa
 ports/laravel     → i18n-keyless/laravel  (Composer, PHPUnit; not an npm workspace)
 ports/rails       → i18n-keyless-rails    (RubyGems, minitest + WebMock; not an npm workspace)
 ports/flutter     → i18n_keyless          (pub.dev, flutter test; not an npm workspace)
+ports/python      → i18n-keyless          (PyPI, import i18n_keyless; pytest via uv)
+ports/go          → github.com/arnaudambro/i18n-keyless/ports/go/v3  (Go module, tag ports/go/vX.Y.Z)
+ports/swift       → I18nKeyless           (SwiftPM, via the mirror repo i18n-keyless-swift; swift test)
+ports/kotlin      → io.github.arnaudambro:i18n-keyless-kotlin  (Maven Central, pure JVM; ./gradlew test)
 ```
 
 The ports under `ports/` are rewrites of the protocol in another language, not wrappers of
 core. They are not npm workspaces, so the root `npm run test` never reaches them: test them
-with `cd ports/laravel && vendor/bin/phpunit`, `cd ports/rails && bundle exec rake test` and
-`cd ports/flutter && flutter test`. All three replay the shared conformance vectors from
-`conformance/vectors/`.
+with their own toolchains (the Commands section above). All seven replay the shared
+conformance vectors from `conformance/vectors/`. Python and Go follow the node SDK model
+(section 13 of the protocol: a server, translate-on-miss awaited, usage on a 10 s debounce);
+Swift and Kotlin follow the Flutter model (a device: persisted id, storage adapter, usage once
+per init), with a `server` flag that switches them to the `-server` label.
 
-All packages and ports share the same version (currently in root `package.json`). When bumping versions, update root + every `packages/*/package.json` (core, react, node, vue, angular, browser) + the `i18n-keyless-core` dependency references in react, node, vue, angular and browser + the ports: `version` in `ports/flutter/pubspec.yaml`, the `Version` header constants the ports send (`VERSION` in `ports/laravel/src/ApiClient.php`, `ports/rails/lib/i18n_keyless/version.rb`, `ports/flutter/lib/src/core/version.dart`), and `ports/laravel/composer.json` if it ever declares a `version` (today it does not: Packagist reads the git tag of the mirror repository).
+All packages and ports share the same version (currently in root `package.json`). `node scripts/set-version.mjs x.y.z` writes it everywhere: root + every `packages/*/package.json` (core, react, node, vue, angular, browser) + the `i18n-keyless-core` dependency references + the ports: `version` in `ports/flutter/pubspec.yaml`, the `Version` header constants the ports send (`VERSION` in `ports/laravel/src/ApiClient.php`, `ports/rails/lib/i18n_keyless/version.rb`, `ports/flutter/lib/src/core/version.dart`, `ports/python/src/i18n_keyless/version.py`, `ports/go/version.go`, `ports/swift/Sources/I18nKeyless/Version.swift`, `ports/kotlin/src/main/kotlin/io/i18nkeyless/Version.kt`) and `version` in `ports/kotlin/build.gradle.kts`. Laravel (Packagist), Swift (SwiftPM) and Go read the version from a git tag.
 
 ## Architecture
 
@@ -139,8 +149,12 @@ behaviour change in core is a change to the vectors, the spec and every port tog
 
 The `sdk` header names the runtime: `react-client` / `react-server`, `vue-client` /
 `vue-server`, `angular-client` / `angular-server`, `browser`, `node`, and `laravel` /
-`rails` / `flutter` for the ports. Rule (`isServerRuntime`): `node`, `laravel`, `rails` and every `*-server`
-label are servers (no `unique_id`, counted by connection); everything else is a device.
+`rails` / `flutter` / `python` / `go` / `swift-client` / `swift-server` / `kotlin-client` /
+`kotlin-server` for the ports. Rule (`isServerRuntime`): `node`, `laravel`, `rails`, `python`,
+`go` and every `*-server` label are servers (no `unique_id`, counted by connection);
+everything else is a device. A new server label must be added in three places: core
+`unique-id.ts`, `api-express/src/middlewares/user-count.ts` and
+`conformance/vectors/usage-reporting.json`.
 
 ### Translation Key Format
 
@@ -164,10 +178,20 @@ mocked in `__tests__/setup.ts`; vue and browser use happy-dom; angular uses jsdo
 Angular JIT (`__tests__/setup.ts`); core and node run in the default node environment.
 The Laravel port runs PHPUnit on Orchestra Testbench with `Http::fake()`; the Rails port runs
 minitest with WebMock (plus one test that boots a one-file Rails application); the Flutter port
-runs `flutter test` with a `MockClient`. Neither needs a network or a key.
+runs `flutter test` with a `MockClient`; the Python port runs pytest against a local
+`http.server`; the Go port runs `go test` with `httptest`; the Swift port runs XCTest with a
+`URLProtocol` stub; the Kotlin port runs JUnit 5 with a fake transport. None needs a network
+or a key.
 
 A stale assertion in core survived a whole release because only react ran its tests on
 publish — so keep the root `npm run test` green, not just the package you touched.
+
+Every store starts with the primary `fr`, and most fixtures use `fr` too, so a code path that
+falls back to the *default* primary passes those tests by coincidence (that is how the Next.js
+SSR-layer bug of 3.6.1 survived). Each package therefore keeps a suite with the primary `en`
+and the target language `fr` (`primary-not-default.test.ts`, or the provider / `ssr-render`
+suites in vue and react). When you add a resolution path, add its case there, on a store that
+never ran `init()` where the API allows it.
 
 ## Type System
 

@@ -98,3 +98,25 @@ describe("getTranslationCore", () => {
     });
   });
 });
+
+/**
+ * `makeStore` uses the primary "fr", the default every SDK store starts with. A lookup that
+ * fell back to that default would pass the tests above for the wrong reason. Here the
+ * primary is "en" and the current language is "fr".
+ */
+describe("a primary language other than the SDK default", () => {
+  const enPrimary = (overrides: Parameters<typeof makeStore>[0] = {}) =>
+    makeStore({ ...overrides, config: { API_KEY: "test-key", languages: { primary: "en", supported: ["en", "fr"] } } });
+
+  it("returns the key as-is in the primary language, even when the map holds a value", () => {
+    const store = enPrimary({ currentLanguage: "en", translations: { Hello: "SHOULD NOT SHOW" } });
+    expect(getTranslationCore("Hello", store)).toBe("Hello");
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("returns the translation in the SDK's default language, which is not the primary here", () => {
+    const store = enPrimary({ currentLanguage: "fr", translations: { Hello: "Bonjour" } });
+    expect(getTranslationCore("Hello", store)).toBe("Bonjour");
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+});

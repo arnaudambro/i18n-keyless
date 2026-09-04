@@ -29,9 +29,11 @@
  * - `browser`        — the framework-free browser package. Always a device.
  * - `node`           — the node SDK. No id: the API counts the source IP.
  *
- * Rule the API applies: `node`, `laravel`, `rails` and every label ending in `-server` are
- * servers (counted by connection); everything else, an absent header included, is a device.
- * The ports in other languages send `laravel`, `rails` and `flutter`.
+ * Rule the API applies: `node`, `laravel`, `rails`, `python`, `go` and every label ending in
+ * `-server` are servers (counted by connection); everything else, an absent header included,
+ * is a device. The ports in other languages send `laravel`, `rails`, `python`, `go` (servers),
+ * `flutter` (a device), and `swift-client` / `swift-server`, `kotlin-client` / `kotlin-server`
+ * (the react split).
  *
  * The API treats a request with NO `sdk` header as `react-client`, which is what every
  * SDK released before 3.2.0 is, in practice.
@@ -50,7 +52,14 @@ export type SdkPackage = "react" | "vue" | "angular" | "browser" | "node";
 
 /** A server runtime: no `unique_id`, counted by its connection, no usage analytics. */
 export function isServerRuntime(runtime: SdkRuntime | string): boolean {
-  return runtime === "node" || runtime === "laravel" || runtime === "rails" || runtime.endsWith("-server");
+  return (
+    runtime === "node" ||
+    runtime === "laravel" ||
+    runtime === "rails" ||
+    runtime === "python" ||
+    runtime === "go" ||
+    runtime.endsWith("-server")
+  );
 }
 
 /**

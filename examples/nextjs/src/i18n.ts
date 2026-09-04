@@ -1,6 +1,6 @@
-import { init, type Lang } from "i18n-keyless-react";
+import { init, type I18nConfig, type Lang } from "i18n-keyless-react";
 
-export const PRIMARY = "fr";
+export const PRIMARY: Lang = "fr";
 export const SUPPORTED_LANGUAGES = ["fr", "en", "es"] as const;
 
 function apiKey(): string | undefined {
@@ -10,13 +10,13 @@ function apiKey(): string | undefined {
     : process.env.NEXT_PUBLIC_I18N_KEYLESS_API_KEY;
 }
 
-function baseConfig() {
+function baseConfig(): I18nConfig {
   const key = apiKey();
   return {
     API_KEY: key || "demo",
     ...(key ? {} : { API_URL: "http://localhost:8787" }),
     languages: { primary: PRIMARY, supported: [...SUPPORTED_LANGUAGES] },
-  } as const;
+  };
 }
 
 let serverReady: Promise<unknown> | undefined;

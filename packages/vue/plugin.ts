@@ -2,7 +2,7 @@ import { reactive, toRef, type App, type MaybeRefOrGetter } from "vue";
 import { type Lang, type Translations } from "i18n-keyless-core";
 import { I18N_KEYLESS_SCOPE } from "./context.ts";
 import { I18nKeylessText } from "./I18nKeylessText.ts";
-import { I18nKeylessProvider } from "./I18nKeylessProvider.ts";
+import { I18nKeylessProvider, warnIfPrimaryIsMissing } from "./I18nKeylessProvider.ts";
 import { hydrateFromServer, init } from "./store.ts";
 import type { I18nConfig } from "./types.ts";
 
@@ -25,6 +25,12 @@ export interface I18nKeylessPluginOptions {
    * the serialized snapshot on the client.
    */
   translations?: MaybeRefOrGetter<Translations>;
+  /**
+   * The language the source strings are written in (`languages.primary`). Optional when the
+   * plugin also receives `config`, or when `init()` ran in this module graph: it then defaults
+   * to the store's primary. See docs/SSR.md.
+   */
+  primary?: Lang;
   /**
    * Register `<I18nKeylessText>`, `<T>` and `<I18nKeylessProvider>` as global components.
    * Defaults to true.
@@ -51,7 +57,9 @@ export const I18nKeyless = {
     if (options.lang) {
       const langRef = toRef(options.lang);
       const translationsRef = toRef(options.translations ?? {});
-      app.provide(I18N_KEYLESS_SCOPE, reactive({ lang: langRef, translations: translationsRef }));
+      const primary = options.primary ?? options.config?.languages.primary;
+      warnIfPrimaryIsMissing(primary);
+      app.provide(I18N_KEYLESS_SCOPE, reactive({ lang: langRef, translations: translationsRef, primary }));
       if (typeof window !== "undefined") {
         hydrateFromServer({ lang: langRef.value, translations: translationsRef.value });
       }

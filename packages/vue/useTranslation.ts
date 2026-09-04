@@ -1,5 +1,5 @@
 import { computed, toValue, type ComputedRef, type MaybeRefOrGetter } from "vue";
-import { type Lang, type TranslationOptions, resolveNamespace, resolveOriginLanguage } from "i18n-keyless-core";
+import { type Lang, type TranslationOptions, resolveNamespace } from "i18n-keyless-core";
 import { store, getTranslation, setCurrentLanguage, getSupportedLanguages, setState, getState } from "./store.ts";
 import { useI18nKeylessContext, type I18nKeylessContextValue } from "./context.ts";
 import { getRequestScope } from "./request-scope.ts";
@@ -96,8 +96,11 @@ export function resolveTranslation(
 
   // The text renders as-is when the current language is the one it's written in: the
   // primary language, except for UGC (originLanguage), which looks the map up even when
-  // the current language is the primary one.
-  const sourceLanguage = resolveOriginLanguage(options, store.config) ?? store.config.languages.primary;
+  // the current language is the primary one. The primary comes from the provided scope
+  // when it carries one, never from the store in that case: the store may never have run
+  // `init()` in this module graph. The AsyncLocalStorage scope shares the store's graph.
+  const primary = scope?.primary ?? store.config.languages.primary;
+  const sourceLanguage = originLanguage && originLanguage !== primary ? originLanguage : primary;
   const translatedText = currentLanguage === sourceLanguage ? sourceText : translations[storageKey] || sourceText;
 
   const finalText = applyReplace(translatedText, replace);

@@ -1,3 +1,5 @@
+"use client";
+
 import React from "react";
 import { type TranslationOptions } from "i18n-keyless-core";
 import { useTranslationState } from "./useTranslation.ts";

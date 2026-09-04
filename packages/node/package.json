@@ -1,7 +1,7 @@
 {
   "name": "i18n-keyless-node",
   "private": false,
-  "version": "3.6.0",
+  "version": "3.6.1",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -25,7 +25,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "i18n-keyless-core": "3.6.0"
+    "i18n-keyless-core": "3.6.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.0",

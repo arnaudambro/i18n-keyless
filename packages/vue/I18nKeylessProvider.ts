@@ -1,6 +1,6 @@
 import { defineComponent, provide, reactive, toRef, onMounted, watch, type PropType } from "vue";
 import { type Lang, type Translations } from "i18n-keyless-core";
-import { setState } from "./store.ts";
+import { setState, store } from "./store.ts";
 import { I18N_KEYLESS_SCOPE } from "./context.ts";
 
 export { useI18nKeylessContext, type I18nKeylessContextValue } from "./context.ts";
@@ -17,6 +17,31 @@ export interface I18nKeylessProviderProps {
    * here on the client so the first client render matches the server output.
    */
   translations: Translations;
+  /**
+   * The language the source strings are written in (`languages.primary` of your config).
+   * Optional where the provider renders in the same module graph as `init()`: it then
+   * defaults to the store's primary. Pass it when that is not guaranteed (a framework that
+   * server-renders the components in a second module graph). See docs/SSR.md.
+   */
+  primary?: Lang;
+}
+
+let warnedAboutMissingPrimary = false;
+
+/** Dev-only, once per process: a provider without `primary` on a store that never ran `init()`. */
+export function warnIfPrimaryIsMissing(primary: Lang | undefined): void {
+  if (primary !== undefined || store.config.API_KEY || warnedAboutMissingPrimary) {
+    return;
+  }
+  if (typeof process !== "undefined" && process.env?.NODE_ENV === "production") {
+    return;
+  }
+  warnedAboutMissingPrimary = true;
+  console.warn(
+    "i18n-keyless: the scope was provided without `primary` on a store where init() never ran, " +
+      `so it falls back to the default primary "${store.config.languages.primary}". ` +
+      "Pass primary (languages.primary) to <I18nKeylessProvider> or to the I18nKeyless plugin. See docs/SSR.md."
+  );
 }
 
 /**
@@ -42,12 +67,14 @@ export const I18nKeylessProvider = defineComponent({
   props: {
     lang: { type: String as PropType<Lang>, required: true },
     translations: { type: Object as PropType<Translations>, required: true },
+    primary: { type: String as PropType<Lang>, required: false },
   },
   setup(props, { slots }) {
+    warnIfPrimaryIsMissing(props.primary);
     // `reactive` unwraps the prop refs: consumers read `scope.lang` and track the prop.
     provide(
       I18N_KEYLESS_SCOPE,
-      reactive({ lang: toRef(props, "lang"), translations: toRef(props, "translations") })
+      reactive({ lang: toRef(props, "lang"), translations: toRef(props, "translations"), primary: toRef(props, "primary") })
     );
 
     // Client-only (`onMounted` does not run during SSR): seed the global store so reads

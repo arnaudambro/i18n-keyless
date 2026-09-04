@@ -1,0 +1,43 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "i18n-keyless"
+dynamic = ["version"]
+description = "Keyless translations for Python servers, scripts and build steps: write the source string where a key would go, the i18n-keyless API translates it once, for every language."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE.md"]
+requires-python = ">=3.9"
+authors = [{ name = "Arnaud Ambroselli", email = "arnaud.ambroselli.io@gmail.com" }]
+keywords = ["i18n", "l10n", "translation", "localization", "keyless", "django", "flask", "fastapi"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Software Development :: Internationalization",
+  "Topic :: Software Development :: Localization",
+  "Typing :: Typed",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://i18n-keyless.com"
+Documentation = "https://docs.i18n-keyless.com"
+Repository = "https://github.com/arnaudambro/i18n-keyless"
+Changelog = "https://github.com/arnaudambro/i18n-keyless/blob/main/ports/python/CHANGELOG.md"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.hatch.version]
+path = "src/i18n_keyless/version.py"
+
+[tool.hatch.build.targets.sdist]
+include = ["src/i18n_keyless", "README.md", "LICENSE.md", "CHANGELOG.md", "SKILL.md", "llms.txt"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

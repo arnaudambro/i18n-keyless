@@ -20,9 +20,7 @@ import {
   holdRequestsUntilUniqueIdIsKnown,
 } from "i18n-keyless-core";
 import { type I18nConfig, type TranslationStore } from "./types.ts";
-import { create, type StoreApi, type UseBoundStore } from "zustand";
-import { useSyncExternalStore } from "react";
-import { useI18nKeylessContext } from "./context.ts";
+import { create } from "zustand";
 import {
   storeKeys,
   setItem,
@@ -65,14 +63,14 @@ let serverSnapshotApplied = false;
 function adoptServerUniqueId(serverUniqueId: string | null | undefined, storage: I18nConfig["storage"]): void {
   // Never on a server: it is counted by IP, and storing an id there would only resurrect
   // the per-boot identity we just removed.
-  if (isServerEnv() || useI18nKeyless.getState().config?.ssr) {
+  if (isServerEnv() || boundStore.getState().config?.ssr) {
     return;
   }
-  if (useI18nKeyless.getState().uniqueId || !isUniqueId(serverUniqueId)) {
+  if (boundStore.getState().uniqueId || !isUniqueId(serverUniqueId)) {
     return;
   }
   setUniqueId(serverUniqueId);
-  useI18nKeyless.setState({ uniqueId: serverUniqueId });
+  boundStore.setState({ uniqueId: serverUniqueId });
   if (storage) {
     setItem(storeKeys.uniqueId, serverUniqueId, storage);
   }
@@ -82,7 +80,7 @@ queue.on("empty", () => {
   // When a batch of missing words finishes translating, bulk-fetch the current language —
   // but only for the namespaces that had a miss this round (getNamespacesToFetchAfterTranslationFinished), each
   // with its own delta cursor, so we never re-download the whole project.
-  const store = useI18nKeyless.getState();
+  const store = boundStore.getState();
   if (store.config) {
     for (const { namespace, unpersisted } of getNamespacesToFetchAfterTranslationFinished()) {
       getAllTranslationsFromLanguage(
@@ -94,7 +92,7 @@ queue.on("empty", () => {
   }
 });
 
-const boundStore = create<TranslationStore>((set, get) => ({
+export const boundStore = create<TranslationStore>((set, get) => ({
   uniqueId: null,
   lastRefresh: null,
   translations: {},
@@ -324,15 +322,15 @@ export function hydrateFromServer(snapshot?: { lang?: Lang; translations?: Trans
     return;
   }
   serverSnapshotApplied = true;
-  const current = useI18nKeyless.getState();
-  useI18nKeyless.setState({
+  const current = boundStore.getState();
+  boundStore.setState({
     currentLanguage: snapshot.lang,
     translations: { ...current.translations, ...(snapshot.translations ?? {}) },
   });
 }
 
 async function hydrate() {
-  const config = useI18nKeyless.getState().config;
+  const config = boundStore.getState().config;
   if (!config.API_KEY) {
     throw new Error(`i18n-keyless: config is not initialized hydrating`);
   }
@@ -366,7 +364,7 @@ async function hydrate() {
     const storedUniqueId = await getItem(storeKeys.uniqueId, storage);
     const uniqueId = isUniqueId(storedUniqueId) ? storedUniqueId : generateUniqueId();
     setUniqueId(uniqueId);
-    useI18nKeyless.setState({ uniqueId });
+    boundStore.setState({ uniqueId });
     if (uniqueId !== storedUniqueId) {
       setItem(storeKeys.uniqueId, uniqueId, storage);
     }
@@ -403,7 +401,7 @@ async function hydrate() {
     const loadedNamespaces = Object.keys(translationsByNamespace);
     if (loadedNamespaces.length) {
       if (debug) console.log("i18n-keyless: _hydrate", mergedTranslations);
-      useI18nKeyless.setState({
+      boundStore.setState({
         translations: mergedTranslations,
         translationsByNamespace,
         namespaces: loadedNamespaces,
@@ -420,7 +418,7 @@ async function hydrate() {
     | null;
   if (Array.isArray(storedOriginNamespaces) && storedOriginNamespaces.length) {
     if (debug) console.log("i18n-keyless: _hydrate: origin namespaces", storedOriginNamespaces);
-    useI18nKeyless.setState({ originNamespaces: storedOriginNamespaces });
+    boundStore.setState({ originNamespaces: storedOriginNamespaces });
   }
   const storedUsage = await getItem(storeKeys.translationsUsage, storage, JSON.parse);
   if (storedUsage && typeof storedUsage === "object") {
@@ -431,7 +429,7 @@ async function hydrate() {
     const isNamespaced = values.length === 0 || typeof values[0] === "object";
     if (isNamespaced) {
       if (debug) console.log("i18n-keyless: _hydrate: translations usage", storedUsage);
-      useI18nKeyless.setState({
+      boundStore.setState({
         translationsUsageByNamespace: storedUsage as unknown as Record<string, TranslationsUsage>,
       });
     } else if (debug) {
@@ -447,17 +445,17 @@ async function hydrate() {
     if (debug) console.log("i18n-keyless: _hydrate: keeping server-seeded language");
   } else if (skipCurrentLanguageHydration) {
     if (debug) console.log("i18n-keyless: _hydrate: skip current language hydration");
-    useI18nKeyless.setState({ currentLanguage: config?.languages.initWithDefault });
+    boundStore.setState({ currentLanguage: config?.languages.initWithDefault });
   } else if (currentLanguage) {
     if (debug) console.log("i18n-keyless: _hydrate", currentLanguage);
-    useI18nKeyless.setState({ currentLanguage: currentLanguage as Lang });
+    boundStore.setState({ currentLanguage: currentLanguage as Lang });
   } else {
     if (debug) console.log("i18n-keyless: _hydrate: no current language");
-    useI18nKeyless.setState({ currentLanguage: config?.languages.initWithDefault });
+    boundStore.setState({ currentLanguage: config?.languages.initWithDefault });
   }
   const lastRefresh = await getItem(storeKeys.lastRefresh, storage);
   if (lastRefresh) {
-    useI18nKeyless.setState({ lastRefresh: lastRefresh as string });
+    boundStore.setState({ lastRefresh: lastRefresh as string });
   }
 }
 
@@ -519,62 +517,25 @@ export async function init(newConfig: I18nConfig) {
   // — which the API bills as a brand-new user each time. Released in `finally` so a failed
   // hydration can never deadlock the queue. See i18n-keyless-core/unique-id.ts.
   const releaseUniqueIdGate = holdRequestsUntilUniqueIdIsKnown();
-  useI18nKeyless.setState({ config: newConfig });
+  boundStore.setState({ config: newConfig });
   try {
     await hydrate();
   } finally {
     releaseUniqueIdGate();
   }
-  const currentLanguage = useI18nKeyless.getState().currentLanguage;
+  const currentLanguage = boundStore.getState().currentLanguage;
   newConfig.onInit?.(currentLanguage);
   // initialize the language to fetch all the translations
-  useI18nKeyless.getState().setLanguage(currentLanguage);
+  boundStore.getState().setLanguage(currentLanguage);
   // Read-only on the server: don't POST usage stats on boot (crawler-triggered renders
   // and serverless per-request inits would otherwise pollute/spam the prune signal).
   if (!isServerEnv() && !newConfig.ssr) {
-    useI18nKeyless.getState().sendTranslationsUsage();
+    boundStore.getState().sendTranslationsUsage();
   }
 }
 
-/**
- * The store hook. zustand's own hook cannot be used as-is under SSR: it hands React
- * `getInitialState()` as the *server snapshot*, and React reads that snapshot on the server
- * and on the client's hydration render — so every selector saw the store's defaults
- * (`primary: "fr"`, no API key, no translations) instead of what `init()` and
- * `hydrateFromServer()` put there. This hook subscribes the same way, but its server
- * snapshot is the real current state, which is what the server rendered with and what the
- * client seeded before hydrating. Same call shape and the same `getState` / `setState` /
- * `subscribe` as a zustand bound store. See __tests__/ssr-render.test.tsx.
- */
-function useStoreSelector<T>(selector?: (state: TranslationStore) => T): T | TranslationStore {
-  const read = () => (selector ? selector(boundStore.getState()) : boundStore.getState());
-  return useSyncExternalStore(boundStore.subscribe, read, read);
-}
-export const useI18nKeyless = Object.assign(useStoreSelector, boundStore) as UseBoundStore<
-  StoreApi<TranslationStore>
->;
-
-/**
- * Returns the current language, and subscribes the component to language changes.
- *
- * Under a `<I18nKeylessProvider>` (SSR) it is the provider's language — the one the
- * subtree renders in, on the server and on the client alike. Without one, the store's.
- *
- * Call it in every component that calls {@link getTranslation}, even when you ignore the
- * return value. `getTranslation` is a plain function: it reads the store once and never
- * subscribes, so without this hook the component does not re-render on a language switch
- * and its text stays in the previous language.
- *
- * `<I18nKeylessText>` subscribes on its own and does not need this.
- */
-export function useCurrentLanguage(): Lang | null {
-  const scope = useI18nKeylessContext();
-  const currentLanguage = useI18nKeyless((state) => state.currentLanguage);
-  return scope?.lang ?? currentLanguage;
-}
-
 export function getSupportedLanguages(): I18nConfig["languages"]["supported"] {
-  return useI18nKeyless.getState().config.languages.supported;
+  return boundStore.getState().config.languages.supported;
 }
 
 /**
@@ -587,7 +548,7 @@ export function getSupportedLanguages(): I18nConfig["languages"]["supported"] {
  * Call {@link useCurrentLanguage} at the top of that component to subscribe it.
  */
 export function getTranslation(key: string, options?: TranslationOptions): string {
-  const base = useI18nKeyless.getState();
+  const base = boundStore.getState();
   // Read-only on the server: don't record usage (a render may be a crawler hit).
   // On the client, DEFER the usage write: getTranslation is called during component
   // render, and setTranslationUsage writes to the store synchronously, which makes React
@@ -618,18 +579,18 @@ export function getTranslation(key: string, options?: TranslationOptions): strin
 }
 
 export function setCurrentLanguage(lang: I18nConfig["languages"]["supported"][number]) {
-  useI18nKeyless.getState().config.onSetLanguage?.(lang);
-  return useI18nKeyless.getState().setLanguage(lang);
+  boundStore.getState().config.onSetLanguage?.(lang);
+  return boundStore.getState().setLanguage(lang);
 }
 
 export async function clearI18nKeylessStorageAndStore() {
   // Read the storage BEFORE wiping the config: the config holds the adapter, so clearing it
   // first left nothing to clear the storage with, and the persisted keys survived.
-  const storage = useI18nKeyless.getState().config?.storage;
+  const storage = boundStore.getState().config?.storage;
   if (storage) {
     await clearI18nKeylessStorage(storage);
   }
-  useI18nKeyless.setState({
+  boundStore.setState({
     translations: {},
     translationsByNamespace: {},
     namespaces: [],

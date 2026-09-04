@@ -20,6 +20,8 @@ const cache = new Map<Lang, Translations>();
  *
  * Requires `init()` to have been called first (so the store holds API config). Returns
  * an empty map for the primary language (no translation needed) and on fetch failure.
+ * Only a successful, non-empty response enters the cache: a failed or timed-out fetch
+ * answers `{}` for this request and is fetched again on the next one.
  *
  * See docs/SSR.md.
  */
@@ -32,8 +34,16 @@ export async function getServerTranslations(lang: Lang): Promise<Translations> {
     return cached;
   }
   // lastRefresh: null forces a full fetch of the language.
-  const response = await getAllTranslationsFromLanguage(lang, { ...store, lastRefresh: null });
-  const translations = response?.ok ? response.data.translations : {};
+  let response: Awaited<ReturnType<typeof getAllTranslationsFromLanguage>>;
+  try {
+    response = await getAllTranslationsFromLanguage(lang, { ...store, lastRefresh: null });
+  } catch {
+    return {};
+  }
+  const translations = response?.ok ? response.data.translations : undefined;
+  if (!translations || Object.keys(translations).length === 0) {
+    return {};
+  }
   cache.set(lang, translations);
   return translations;
 }

@@ -11,6 +11,14 @@ import type { Lang, Translations } from "i18n-keyless-core";
 export interface I18nRequestScope {
   lang: Lang;
   translations: Translations;
+  /**
+   * The language the source strings are written in. When present, the resolution compares
+   * `lang` with it and never with the store's config, so a store that never ran `init()`
+   * cannot make a request in the real primary language look like a request for the source
+   * strings. `provideI18nKeylessServer` accepts it; the AsyncLocalStorage scope does not
+   * need it (it shares the store's module graph). See docs/SSR.md.
+   */
+  primary?: Lang;
 }
 
 interface AsyncLocalStorageLike<T> {

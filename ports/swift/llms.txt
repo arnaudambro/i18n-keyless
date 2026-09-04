@@ -1,0 +1,155 @@
+# I18nKeyless (Swift)
+
+> Keyless i18n for Swift and SwiftUI. Write the string in your primary language, wrap it in `I18nKeylessText(...)`, and ship 48 languages at runtime with AI translations. No `.strings` / `.xcstrings` files, no translation keys. Add a language without an App Store release.
+
+This file is the whole documentation of the Swift package in one Markdown file, meant to be pasted into an LLM context window. Version 3.6.1, protocol v3. The same API key, dashboard and protocol serve the React, Vue, Node, Laravel, Rails and Flutter SDKs (see https://docs.i18n-keyless.com/llms.txt).
+
+## Core concepts
+
+- **Keyless**: the source string itself is the translation key. A context (`8 heures` + `durée`) is stored as `8 heures__durée`.
+- **Primary language**: the language the source strings are written in. Any of the 48 codes.
+- **Supported languages** (48, the App Store localizations), as the `Lang` enum: `ar bn ca zh-Hans zh-Hant hr cs da nl en en-GB fi fr fr-CA de el gu he hi hu id it ja kn ko ms ml mr no or pl pt pt-BR pa ro ru sk sl es es-MX sv ta te th tr uk ur vi`. Enum cases drop the hyphen: `.ptBR`, `.zhHans`, `.enGB`. `lang.code` is the wire string; `Lang.availableCodes` is the list.
+- **Storage**: `I18nKeylessStorage` (three methods). `UserDefaultsStorage()` in an app, `MemoryStorage()` on a server or in a test.
+- **AI translations**: on a cache miss the server generates the translation, stores it, and the next dictionary fetch brings it to the device.
+- **Overrides**: edit a translation in the dashboard (https://i18n-keyless.com/dashboard) or use `forceTemporary` from code.
+- **Namespaces**: an optional per-call partition (`namespace: "checkout"`) so a device fetches and stores only the slice it renders. Not a semantic key. Reserved default: `default`.
+- **User generated content**: pass `originLanguage` for a string written by a user in another language.
+- **Two runtimes**: an app is a device (`swift-client`, a persisted `unique_id`, usage analytics); a server-side process sets `server: true` and is a server (`swift-server`, no id, no usage), like the `-server` labels of the JavaScript SDKs.
+- **API key**: https://i18n-keyless.com/#get-api-key. Required in every mode.
+
+## Installation
+
+```swift
+// Package.swift
+.package(url: "https://github.com/arnaudambro/i18n-keyless-swift.git", from: "3.6.1")
+// target dependency: "I18nKeyless"
+```
+
+```swift
+import I18nKeyless
+
+@main
+struct MyApp: App {
+    init() {
+        try? I18nKeyless.configure(.init(
+            apiKey: "YOUR_API_KEY",
+            languages: .init(primary: .fr, supported: [.fr, .en])))
+    }
+    var body: some Scene { WindowGroup { ContentView() } }
+}
+```
+
+`configure` returns once the cache is hydrated from storage; the bulk fetch and the usage POST run in the background. `await I18nKeyless.shared.waitForIdle()` waits for them (a splash screen, a test).
+
+## Usage
+
+```swift
+// SwiftUI view: a Text that re-renders when the translation lands or the language changes.
+I18nKeylessText("Bonjour le monde").font(.title)
+
+// String, inside a view observing the store: navigationTitle, accessibilityLabel, ...
+struct Header: View {
+    @ObservedObject var i18n = I18nKeyless.shared
+    var body: some View { MyView().navigationTitle(i18n.text("Accueil")) }
+}
+
+// Plain function, outside a view: does not trim, subscribes nothing.
+let subject = I18nKeyless.t("Bienvenue")
+
+// Language.
+await I18nKeyless.setLanguage(.en)
+I18nKeyless.currentLanguage               // .en
+I18nKeyless.shared.supportedLanguages
+```
+
+`I18nKeylessText` and `text(_:)` trim the source string and warn once, in a DEBUG build, on surrounding whitespace. `I18nKeyless.t(_:)` and `translate(_:_:)` do not trim.
+
+### Per-translation options
+
+Parameters of `I18nKeylessText(...)`, `I18nKeyless.t(...)` and `translate(_:_:)`:
+
+| Option | Meaning |
+| --- | --- |
+| `context: "durée"` | disambiguates meaning; two contexts are two translations |
+| `replace: ["{name}": user.name]` | interpolation; keys include the delimiters; ordered pairs (first match wins); regex-special characters literal; an empty replacement keeps the placeholder |
+| `namespace: "checkout"` | fetch/storage partition |
+| `unpersistedNamespace: true` | memory-only namespace, never persisted, never reported |
+| `forceTemporary: [.en: "Hi"]` | your own translation, sent to the API, arrives with the next fetch |
+| `originLanguage: .es` | the language a user-written string is in |
+| `debug: true` | logs the resolution of this string |
+
+### Config (`I18nKeylessConfig`)
+
+| Field | Default |
+| --- | --- |
+| `apiKey` | required |
+| `apiURL` | `https://api.i18n-keyless.com` (self-hosted backend, no trailing slash) |
+| `languages` | required: `.init(primary:, supported:, fallback:, initWithDefault:, skipCurrentLanguageHydration:)` |
+| `storage` | app: `UserDefaultsStorage()`, server: `MemoryStorage()` |
+| `defaultNamespace` | `default` |
+| `server` | `false`; `true` on server-side Swift: no device id, no usage, runtime `swift-server` |
+| `handleTranslate`, `getAllTranslations`, `sendTranslationsUsage` | custom handlers replacing the HTTP calls |
+| `onInit`, `onSetLanguage` | callbacks |
+| `urlSessionConfiguration` | `.ephemeral`; a `URLProtocol` stub in tests |
+| `debug`, `logger` | `false`, `print` |
+
+### Device language at first launch
+
+```swift
+let lang = resolveLang(Locale.preferredLanguages.first, supported: [.fr, .en], fallback: .en)
+// .init(..., initWithDefault: lang)
+```
+
+`resolveLang` maps any BCP-47 tag most specific first (`pt-BR`, then `pt`; `zh-TW` is `zh-Hant`; `es-419` is `es-MX`). `Lang(code: "pt-BR")` is the exact match. `toAppStoreLocale(.fr)` is `fr-FR`.
+
+## How it works
+
+1. `I18nKeylessText("Bonjour")` looks the key up in the flat cache of the current language, synchronously. Miss: the source text renders and the key is queued (30 in flight at most, deduplicated by `namespace:key`).
+2. The queue posts `POST /translate` per missing key. When it drains, `GET /translate/:lang` fetches the dictionary of every namespace that had a miss, with `If-None-Match` when an ETag is known (a `304` keeps the cache). The answer is merged and persisted per namespace.
+3. Transport: 10 s timeout, 3 attempts, 500 ms then 1500 ms backoff on network errors, timeouts, 429 and 5xx; no retry on other 4xx; never throws; never clears a stored translation.
+4. Identity: a 16-character device id is generated before the first request, persisted under `i18n-keyless-user-id`, and sent as `unique_id` with `sdk: swift-client` and `Version: 3.6.1`. A server (`server: true`) sends `sdk: swift-server` and no id. `clearStorage()` keeps the id.
+5. Usage analytics: every render records `key__context` with the UTC date under its namespace; the map is POSTed once per `configure` and cleared on success. `server: true` disables both recording and sending.
+6. SwiftUI: `I18nKeyless` is an `ObservableObject` (`revision`, `objectWillChange` on the main thread); `I18nKeylessText` and any view reading `revision` re-render on every change.
+
+## Storage adapters
+
+```swift
+public protocol I18nKeylessStorage: AnyObject {
+    func getItem(_ key: String) throws -> String?
+    func setItem(_ key: String, _ value: String) throws
+    func removeItem(_ key: String) throws
+}
+```
+
+`UserDefaultsStorage(_ defaults:)` (pass a suite for an App Group), `MemoryStorage()`. Keys (identical to the JavaScript SDKs): `i18n-keyless-user-id`, `i18n-keyless-current-language`, `i18n-keyless-translations` (default namespace, JSON), `i18n-keyless-translations__<ns>`, `i18n-keyless-last-refresh`, `i18n-keyless-last-refresh__<ns>`, `i18n-keyless-translations-usage`, `i18n-keyless-namespaces`, `i18n-keyless-origin-namespaces`.
+
+## Testing
+
+```swift
+let client = I18nKeyless()
+try client.configure(.init(
+    apiKey: "test", languages: .init(primary: .fr, supported: [.fr, .en]),
+    apiURL: "https://api.test", storage: MemoryStorage(),
+    urlSessionConfiguration: myStubConfiguration))
+await client.waitForIdle()
+```
+
+Create your own `I18nKeyless()` (not `.shared`) so cases stay isolated. Stub the transport with a `URLProtocol` registered on the injected `URLSessionConfiguration`.
+
+## Gotchas
+
+- Every `I18nKeylessText` needs `configure` to have run; one rendered earlier shows the source text and does not throw.
+- Source strings must be written in the primary language.
+- No leading or trailing whitespace inside `I18nKeylessText(...)`.
+- A dashboard edit reaches cached devices at the next refresh, not instantly.
+- After a language switch, a string with no entry in the new language shows the previous language's text until its translation arrives.
+- Two contexts of the same string in one batch make one `POST /translate`; the second is translated on a later render.
+- A source string is capped at 2000 characters (`context` and `namespace` at 200). Long-form content is one translation **per Markdown block** of about 1000 characters: keep the Markdown inside each block, give every block the same `context` (one short summary of the document) and one `namespace` per document. https://docs.i18n-keyless.com/docs/guides/long-form-content
+
+## Links
+
+- Docs: https://docs.i18n-keyless.com
+- Dashboard: https://i18n-keyless.com/dashboard
+- MCP server: `claude mcp add --transport http i18n-keyless https://api.i18n-keyless.com/mcp`
+- Repository, protocol and conformance vectors: https://github.com/arnaudambro/i18n-keyless (`docs/PROTOCOL.md`, `conformance/`)
+- Published from the mirror repository: https://github.com/arnaudambro/i18n-keyless-swift

@@ -28,6 +28,10 @@ the same feature set so you can compare integrations side by side:
 | [`browser`](./browser) | plain HTML, no framework | script tag | `i18n-keyless-browser`: the `auto` script tag, `data-i18n`, `<i18n-t>`, `watchTranslation` |
 | [`laravel`](./laravel) | Laravel | server (PHP) | `i18n-keyless/laravel`: `__()` unchanged, `i18nk()` with `context`, five commands against the mock backend |
 | [`rails`](./rails) | Ruby on Rails | server (Ruby) | `i18n-keyless-rails`: `t('source string')`, `i18nk()` with `context`, five commands against the mock backend |
+| [`python`](./python) | Python (`http.server`, no framework) | server (Python) | `i18n-keyless`: `init()`, `t()` in a handler, `context`, `replace`, a `?lang=` switcher, against the mock backend |
+| [`go`](./go) | Go (`net/http`, `html/template`) | server (Go) | the Go module: `Init()`, `T()` in a template func map, `WithContext`, `WithReplace`, a `?lang=` switcher via `ResolveLang`, against the mock backend |
+| [`swift`](./swift) | SwiftUI (two screens) + a CLI target | native (Swift) | `I18nKeyless`: `configure`, `I18nKeylessText`, `t()` with `context` and `replace`, a language picker; the CLI runs the same store headless against the mock backend |
+| [`kotlin`](./kotlin) | Kotlin (JVM, `com.sun.net.httpserver`) | server (Kotlin) | `i18n-keyless-kotlin`: one client per language with `server = true`, `t()` with `context` and `replace`, a `?lang=` switcher via `resolveLang`, against the mock backend |
 
 Primary language is **`fr`** across all examples — you write strings in French and
 i18n-keyless translates them to `en`/`es` (and any other supported language).
@@ -82,6 +86,10 @@ build via `file:../../packages/*`:
 | browser | (library suite) | | `cd packages/browser && npx vitest run` covers the store, `data-i18n`, `<i18n-t>` and the `auto` entry |
 | laravel | (port suite) | | `cd ports/laravel && vendor/bin/phpunit`; the example itself is a throwaway app driven by `artisan tinker` |
 | rails | (port suite) | | `cd ports/rails && bundle exec rake test`; the example itself is a throwaway app driven by `rails runner` |
+| python | pytest (uv) | 4 | `cd examples/python && uv run pytest`: both pages, `context`, `replace`, the switcher, against a stubbed API |
+| go | `go test` | | `cd examples/go && go test ./...`: both pages against an in-process `httptest` stand-in for the mock server |
+| swift | XCTest | | `cd examples/swift && swift test`; `swift run` drives the CLI against the mock backend |
+| kotlin | JUnit 5 (Gradle) | 6 | `cd examples/kotlin && ./gradlew test`: HTML in three languages, `?lang=en-US`, one POST per missing string, `kotlin-server` headers |
 
 Notes:
 - The web/Vitest configs `dedupe` React and inline the linked lib + zustand so the

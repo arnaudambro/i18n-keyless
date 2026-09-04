@@ -3,7 +3,7 @@ vi.unmock("zustand");
 
 import React from "react";
 import { render, act } from "@testing-library/react";
-import { useI18nKeyless } from "../store.ts";
+import { useI18nKeyless } from "../hooks.ts";
 import { I18nKeylessText as T } from "../I18nKeylessText.tsx";
 import { createMemoryStorage } from "../utils.ts";
 import type { I18nKeylessResponse } from "i18n-keyless-core";

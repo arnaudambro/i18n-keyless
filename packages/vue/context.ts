@@ -10,6 +10,13 @@ export interface I18nKeylessContextValue {
    * The translations map for `lang`, typically produced by `getServerTranslations(lang)`.
    */
   translations: Translations;
+  /**
+   * The language the source strings are written in. When present, the resolution compares
+   * `lang` with it and never with the store's config, so a store that never ran `init()`
+   * (a second module graph, a test) cannot make a request in the real primary language
+   * look like a request for the source strings. See docs/SSR.md.
+   */
+  primary?: Lang;
 }
 
 /**

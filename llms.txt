@@ -4,7 +4,7 @@
 
 i18n-keyless lets you ship multi-language apps without managing translation keys or files. You write text in your primary language, wrap it in a component or call, and the SDK fetches AI-generated translations on the fly, caches them locally, and lets you override them from a dashboard or directly in code.
 
-Official SDKs: React, React Native (`i18n-keyless-react`), Node.js (`i18n-keyless-node`), Vue 3 / Nuxt (`i18n-keyless-vue`), Angular (`i18n-keyless-angular`), plain browser with a script tag and the `<i18n-t>` web component (`i18n-keyless-browser`), Laravel (`i18n-keyless/laravel` on Packagist), Ruby on Rails (`i18n-keyless-rails` on RubyGems) and Flutter (`i18n_keyless` on pub.dev). One protocol, one dashboard, one API key. This file documents the React and Node SDKs in depth; the other packages are listed under "Other packages and ports" with a link to their own reference.
+Official SDKs: React, React Native (`i18n-keyless-react`), Node.js (`i18n-keyless-node`), Vue 3 / Nuxt (`i18n-keyless-vue`), Angular (`i18n-keyless-angular`), plain browser with a script tag and the `<i18n-t>` web component (`i18n-keyless-browser`), Laravel (`i18n-keyless/laravel` on Packagist), Ruby on Rails (`i18n-keyless-rails` on RubyGems), Flutter (`i18n_keyless` on pub.dev), Python (`i18n-keyless` on PyPI), Go (`github.com/arnaudambro/i18n-keyless/ports/go/v3`), Swift (`I18nKeyless`, SwiftPM) and Kotlin (`io.github.arnaudambro:i18n-keyless-kotlin` on Maven Central). One protocol, one dashboard, one API key. This file documents the React and Node SDKs in depth; the other packages are listed under "Other packages and ports" with a link to their own reference.
 
 This file is a single-page Markdown summary of the documentation, intended to be pasted into an LLM context window so the assistant has full coverage of the API surface and conventions.
 
@@ -102,6 +102,10 @@ Same protocol, same options (`context`, `replace`, `namespace`, `unpersistedName
 - **Laravel 11, 12, 13** (`composer require i18n-keyless/laravel`, then `I18N_KEYLESS_API_KEY` and `I18N_KEYLESS_LANGUAGES` in `.env`): the existing `__('...')` calls (JSON keyless mode) resolve through the API, cached in Laravel's cache; `:name` placeholders stay Laravel's; `i18nk('text', context: '...')` for a context. README: https://github.com/arnaudambro/i18n-keyless/blob/main/ports/laravel/README.md
 - **Ruby on Rails 7, 8** (`bundle add i18n-keyless-rails`, then `I18N_KEYLESS_API_KEY` and `I18N_KEYLESS_LANGUAGES` in the environment): an I18n backend chained after the app's, so `t('Welcome to our app')` with a source string resolves through the API, cached in `Rails.cache`, while YAML keys (`t('users.index.title')`, a Symbol, a lowercase identifier) keep working and win; `%{name}` placeholders stay I18n's; `t('text', context: '...')` or `i18nk('text', context: '...')` for a context. README: https://github.com/arnaudambro/i18n-keyless/blob/main/ports/rails/README.md
 - **Flutter / Dart** (`flutter pub add i18n_keyless`): one `I18nKeylessClient`, `init` before `runApp`, `I18nKeylessScope` around the app, the `T('...')` widget and `context.t('...')`; `Lang` is an enum; no ARB files, no `gen-l10n`. README: https://github.com/arnaudambro/i18n-keyless/blob/main/ports/flutter/README.md
+- **Python >= 3.9** (`pip install i18n-keyless`, import `i18n_keyless`): the node model for a server; `i18n.init(api_key=..., primary=..., supported=[...])` once at start, then `i18n.t("source string", lang, context=..., namespace=..., replace={...})` returns the translation or the source text and never raises; `t_or_raise()` for a script; usage on a 10 s debounce (`flush_usage()` before a script exits); Django, Flask and FastAPI call `t()` with the request language. README: https://github.com/arnaudambro/i18n-keyless/blob/main/ports/python/README.md
+- **Go >= 1.21** (`go get github.com/arnaudambro/i18n-keyless/ports/go/v3`, package `i18nkeyless`, stdlib only): the node model for a server; `client, err := i18nkeyless.Init(ctx, i18nkeyless.Config{APIKey, Languages{Primary, Supported}})` once per process, then `client.T(ctx, "source string", lang, i18nkeyless.WithContext(...), WithNamespace(...), WithReplace(map))` returns the translation or the source text and never fails; `client.Translate(...)` returns the error; `FlushUsage()` / `Close()` for a CLI; usage on a 10 s debounce. README: https://github.com/arnaudambro/i18n-keyless/blob/main/ports/go/README.md
+- **Kotlin / Android** (`implementation("io.github.arnaudambro:i18n-keyless-kotlin:3.6.1")`, package `io.i18nkeyless`, pure JVM, zero dependencies): the device model; `I18nKeyless.initBlocking(I18nKeylessConfig(apiKey, languages = LanguagesConfig(primary, supported), storage = FileStorage(dir)))` once, then `I18nKeyless.t("source string", context = ..., namespace = ..., replace = mapOf(...))` for the current language, `setLanguage(Lang.EN)`, `addListener {}` for Compose; a persisted 16-char device id, usage once per init; `server = true` (Ktor, Spring) sends `kotlin-server`, no id, one client per language. README: https://github.com/arnaudambro/i18n-keyless/blob/main/ports/kotlin/README.md
+- **Swift / iOS / macOS** (SwiftPM `https://github.com/arnaudambro/i18n-keyless-swift`, product `I18nKeyless`, Foundation only, iOS 15 / macOS 12): the device model; `try I18nKeyless.configure(.init(apiKey:, languages: .init(primary:, supported:)))` once, then the SwiftUI view `I18nKeylessText("source string")` (re-renders when the translation lands) or `I18nKeyless.t("source string", context:, namespace:, replace:)` for a `String`, `await I18nKeyless.setLanguage(.en)`; `UserDefaults` storage by default, a persisted 16-char device id, usage once per configure; `server: true` (Vapor) sends `swift-server`, no id, no usage. README: https://github.com/arnaudambro/i18n-keyless/blob/main/ports/swift/README.md
 - **Protocol and ports**: the language-neutral wire protocol every SDK implements (https://github.com/arnaudambro/i18n-keyless/blob/main/docs/PROTOCOL.md), the JSON conformance vectors every port replays (https://github.com/arnaudambro/i18n-keyless/tree/main/conformance) and the checklist for a new port (https://github.com/arnaudambro/i18n-keyless/blob/main/docs/PORT_CHECKLIST.md).
 
 ## React / React Native API (`i18n-keyless-react`)
@@ -436,7 +440,9 @@ How much wiring you need depends on whether the component tree renders **inside*
   path). Call `getTranslation()` only in loaders / `head()`, never in a component body.
 - **Next.js App Router / Astro islands** — no render hook to wrap; use `<I18nKeylessProvider>`
   for `<T>` (SSR-correct). Imperative `getTranslation()` in server output renders the
-  primary language until the client effect — prefer `<T>` for zero flash.
+  primary language until the client effect — prefer `<T>` for zero flash. Under Next.js pass
+  `primary` to the provider (>= 3.6.1): Next server-renders client components in a module
+  graph where `init()` never ran, so the provider must carry the primary language itself.
 
 ### Primary-language SSR (default, no extra code)
 
@@ -461,15 +467,18 @@ To serve translated, indexable HTML for `/{lang}/...` or `?lang=xx` URLs:
 
 1. **`getServerTranslations(lang)`** — returns the translations map for `lang`, cached
    per server process (each language fetched at most once per boot). Requires `init` to
-   have run first. Returns `{}` for the primary language. Evict with
+   have run first. Returns `{}` for the primary language and on a failed fetch; only a
+   successful, non-empty response is cached (>= 3.6.1). Evict with
    `clearServerTranslationsCache(lang?)`.
 2. **`runWithI18nKeyless({ lang, translations }, fn)`** — wrap the server render so both
    `getTranslation(...)` (a plain function — reads the request scope via
    `AsyncLocalStorage`) and `<T>` / `<I18nKeylessText>` (components — read the Provider)
    resolve in `lang`. Wrap once; no per-call-site changes.
-3. **`<I18nKeylessProvider lang translations>`** — per-request React context for `<T>`,
-   and what makes client hydration flash-free. In localized SSR the language is the `lang`
-   you pass (drive it from the URL); `setCurrentLanguage` is for SPA mode only.
+3. **`<I18nKeylessProvider lang translations primary?>`** — per-request React context for
+   `<T>`, and what makes client hydration flash-free. In localized SSR the language is the
+   `lang` you pass (drive it from the URL); `setCurrentLanguage` is for SPA mode only.
+   `primary` (>= 3.6.1) is the source language, read from context and never from the store:
+   optional where the provider shares `init()`'s module graph, required under Next.js.
 
 ```tsx
 import { runWithI18nKeyless, getServerTranslations, I18nKeylessProvider } from "i18n-keyless-react";
@@ -563,8 +572,10 @@ there.
   setup whose body renders outside the ALS or uses code-split routes): keys aren't recorded,
   so the subset misses body keys → hydration mismatch; serialize the full map there.
   `undefined` outside a `runWithI18nKeyless` render.
-- `I18nKeylessProvider({ lang, translations, children })` — per-request context for `<T>`;
-  seeds the store on the client for flash-free hydration of the component form.
+- `I18nKeylessProvider({ lang, translations, primary?, children })` — per-request context
+  for `<T>`; seeds the store on the client for flash-free hydration of the component form.
+  `primary` (>= 3.6.1): the source language, required under Next.js App Router. The
+  component, the provider and `useTranslation` ship the `"use client"` directive.
 - `hydrateFromServer({ lang, translations }) => void` (`>= 2.2.0`) — client-only; seed the
   store *synchronously* before `hydrateRoot` so the `getTranslation` function form is
   correct on first render. No-op without `lang`.
@@ -598,8 +609,9 @@ Copy-paste integration guides per meta-framework live at:
   then `initI18nClient()`).
 - Next.js App Router — https://i18n-keyless.com/docs/ssr/nextjs (no render hook to wrap, so
   no `runWithI18nKeyless`: `app/[lang]/layout.tsx` (server) fetches `getServerTranslations`
-  → a `"use client"` `Providers` boundary rendering `<I18nKeylessProvider>` and calling
-  `hydrateFromServer` + `initI18nClient` in an effect; imperative `getTranslation` renders
+  → a `"use client"` `Providers` boundary rendering `<I18nKeylessProvider lang primary
+  translations>` and calling `hydrateFromServer` + `initI18nClient` in an effect; `<T>`
+  renders from Server Components directly (>= 3.6.1); imperative `getTranslation` renders
   the primary language until that effect — prefer `<T>`).
 - Astro (React islands) — https://i18n-keyless.com/docs/ssr/astro (`.astro` page fetches
   `getServerTranslations`, passes `lang` + `translations` as island props; island renders
@@ -620,6 +632,10 @@ AsyncStorage), and `expo`. Run: `cd examples/<name> && cp .env.example .env && n
 
 ### Changelog
 
+- `3.6.1` — Next.js App Router: `<I18nKeylessProvider primary>` (the hooks read the primary
+  from context, never from the store, which never ran `init()` in Next's SSR layer);
+  `"use client"` shipped in `I18nKeylessText`, `I18nKeylessProvider` and `useTranslation`;
+  `getServerTranslations` no longer caches a failed fetch.
 - `2.5.0` — `originLanguage` (UGC): translate user-written text arriving in any supported
   language; the raw text is kept verbatim for origin-language viewers, everything else is
   AI-translated via the primary language.
@@ -748,9 +764,10 @@ Not tools, on purpose: code scanning (the agent already has the code), the free 
 - Docs: https://docs.i18n-keyless.com
 - Dashboard: https://i18n-keyless.com/dashboard
 - Get an API key: https://i18n-keyless.com/#get-api-key
+- FAQ: https://docs.i18n-keyless.com/docs/faq — no plural or gender API (write one full sentence per form and branch in your own code, `context` for the gender), no date/number formatting (use `Intl` with `useCurrentLanguage()` and inject the result with `replace`), hosted vs self-hosted (monthly per project vs €30 once, unlimited projects, your server and your AI key), no custom prompt (only `context` per key, the project's language list, and your own overrides), and fixing a typo (a corrected source string is a new key and a new row; a corrected translation is a dashboard override, which sticks because the API only fills empty cells).
 - GitHub: https://github.com/arnaudambro/i18n-keyless
 - Agent Skill (`SKILL.md`, for Claude Code and any tool that reads skills): https://github.com/arnaudambro/i18n-keyless/blob/main/skills/i18n-keyless/SKILL.md
-- Per-package skills: Vue https://github.com/arnaudambro/i18n-keyless/blob/main/packages/vue/SKILL.md, Angular https://github.com/arnaudambro/i18n-keyless/blob/main/packages/angular/SKILL.md, browser https://github.com/arnaudambro/i18n-keyless/blob/main/packages/browser/SKILL.md, Laravel https://github.com/arnaudambro/i18n-keyless/blob/main/ports/laravel/SKILL.md, Rails https://github.com/arnaudambro/i18n-keyless/blob/main/ports/rails/SKILL.md, Flutter https://github.com/arnaudambro/i18n-keyless/blob/main/ports/flutter/SKILL.md
+- Per-package skills: Vue https://github.com/arnaudambro/i18n-keyless/blob/main/packages/vue/SKILL.md, Angular https://github.com/arnaudambro/i18n-keyless/blob/main/packages/angular/SKILL.md, browser https://github.com/arnaudambro/i18n-keyless/blob/main/packages/browser/SKILL.md, Laravel https://github.com/arnaudambro/i18n-keyless/blob/main/ports/laravel/SKILL.md, Rails https://github.com/arnaudambro/i18n-keyless/blob/main/ports/rails/SKILL.md, Flutter https://github.com/arnaudambro/i18n-keyless/blob/main/ports/flutter/SKILL.md, Python https://github.com/arnaudambro/i18n-keyless/blob/main/ports/python/SKILL.md, Go https://github.com/arnaudambro/i18n-keyless/blob/main/ports/go/SKILL.md, Kotlin https://github.com/arnaudambro/i18n-keyless/blob/main/ports/kotlin/SKILL.md, Swift https://github.com/arnaudambro/i18n-keyless/blob/main/ports/swift/SKILL.md
 - Protocol and ports: https://github.com/arnaudambro/i18n-keyless/blob/main/docs/PROTOCOL.md, conformance vectors https://github.com/arnaudambro/i18n-keyless/tree/main/conformance, port checklist https://github.com/arnaudambro/i18n-keyless/blob/main/docs/PORT_CHECKLIST.md
 - MCP server (HTTP, OAuth): https://api.i18n-keyless.com/mcp — guide: https://docs.i18n-keyless.com/docs/guides/mcp
 - Self-hosted (€30 once): the same Docker image as i18n-keyless.com, on your server, with ONCE (once.com) or docker compose, SQLite or Postgres, any AI provider (`AI_PROVIDER`, `AI_MODEL`, `AI_API_KEY`): https://i18n-keyless.com/self-hosted — guide: https://docs.i18n-keyless.com/docs/guides/self-hosting. Point every SDK at it with the `API_URL` init option.
@@ -766,6 +783,7 @@ Generated from the site — run `npm run docs:sync` in `docs/` after adding a pa
 - Change language — https://docs.i18n-keyless.com/docs/guides/react/change-language
 - Debug — https://docs.i18n-keyless.com/docs/guides/debug
 - Examples — https://docs.i18n-keyless.com/docs/examples
+- FAQ — https://docs.i18n-keyless.com/docs/faq
 - Force temporary translation — https://docs.i18n-keyless.com/docs/guides/force-temporary
 - I18nKeyless.init() — https://docs.i18n-keyless.com/docs/api/node/I18nKeyless.init
 - I18nKeyless.init() — https://docs.i18n-keyless.com/docs/api/react/I18nKeyless.init

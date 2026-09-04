@@ -83,6 +83,7 @@ fix for a problem that exists on a normal server.
 | 4 | Module-singleton store → state shared across requests. | **Done.** `<I18nKeylessProvider>` supplies per-request `lang`/`translations`; `<T>` reads context first and falls back to the store. `getServerTranslations(lang)` fetches with a per-process cache. |
 | 5 | Undocumented hydration semantics. | **Done.** This file, plus the provider seeds the store on client mount for flash-free hydration. |
 | 6 | Under Vite SSR (TanStack Start) the `AsyncLocalStorage` scope was duplicated across the server-entry and SSR-render module graphs/realms → `?lang=en` rendered the primary language with a hydration mismatch. | **Done (2.3.2).** The ALS instance lives on one `globalThis` slot keyed by a plain string (not `Symbol.for()`, whose registry is per-realm), so every module copy in the process shares one ALS. See *One ALS per process* below. |
+| 7 | Under Next.js App Router the provider resolved the primary language from the **store**, but Next server-renders client components in a second module graph where `init()` never ran → a `<I18nKeylessProvider lang="fr">` in a French-primary app rendered the English source text (and a non-primary `lang` worked by accident). `dist` shipped no `"use client"`, so a Server Component could not render `<T>` without a client re-export. `getServerTranslations` cached `{}` after a failed fetch for the life of the process. | **Done (3.6.1).** The provider carries `primary` and the hooks read it from context, never from the store. `I18nKeylessText`, `I18nKeylessProvider` and `useTranslation` ship the `"use client"` directive. Only a successful, non-empty response enters the server cache. See *Next.js App Router* below. |
 
 ## SEO consequence (why Issue 4 eventually matters)
 
@@ -101,12 +102,19 @@ Three new exports from `i18n-keyless-react`:
 - **`getServerTranslations(lang)`** → `Promise<Translations>` — fetches the
   translations map for `lang`, cached per process (`Map<Lang, Translations>`), so each
   language is fetched at most once per boot. Returns `{}` for the primary language and
-  on fetch failure. Requires `init()` to have run first. Use
-  `clearServerTranslationsCache(lang?)` to evict.
-- **`<I18nKeylessProvider lang translations>`** — per-request React context. `<T>`
+  on fetch failure. Only a successful, non-empty response is cached (≥ 3.6.1): a failed or
+  timed-out fetch answers `{}` for that request and is retried on the next one. Requires
+  `init()` to have run first. Use `clearServerTranslationsCache(lang?)` to evict.
+- **`<I18nKeylessProvider lang translations primary?>`** — per-request React context. `<T>`
   reads `lang`/`translations` from it first and falls back to the global store when no
   provider is present (so SPA mode is unchanged). On the client it also seeds the store
-  on mount for flash-free hydration.
+  on mount for flash-free hydration. `primary` (≥ 3.6.1) is the language the source
+  strings are written in: the hooks under a provider compare `lang` with **that**, never
+  with the store's config. It defaults to the store's primary where the provider renders
+  in the same module graph as `init()`; **pass it under Next.js App Router**, whose SSR
+  layer never runs `init()` (see *Next.js App Router* below). The vue package (`primary` on
+  `<I18nKeylessProvider>` and on the plugin) and the angular package (`primary` in the
+  `provideI18nKeylessServer` scope) carry it the same way.
 - **`runWithI18nKeyless(scope, fn)`** → `Promise<R>` — runs `fn` with a per-request scope
   active so the **imperative `getTranslation(...)`** (and `<T>`) resolve in `scope.lang`
   for the duration of the **server** render. `getServerTranslations`/`<I18nKeylessProvider>`
@@ -186,7 +194,8 @@ inside or outside** the `runWithI18nKeyless` scope:
 |---|---|---|---|
 | **Remix / React Router 7** | **inside** the ALS (`entry.server` calls `renderToPipeableStream` directly inside `runWithI18nKeyless`) | ALS *or* Provider | ALS — works anywhere in the tree |
 | **TanStack Start** | **outside** the ALS (only `head()` + `loader`s run inside it) | **Provider** (fed via the root loader) | ALS — **only in loaders / `head()`**, never a component body |
-| **Next.js App Router / Astro islands** | no render hook to wrap | **Provider** | not scoped — renders primary on the server, resolves after `hydrateFromServer` on the client |
+| **Astro islands** | no render hook to wrap | **Provider** | not scoped — renders primary on the server, resolves after `hydrateFromServer` on the client |
+| **Next.js App Router** | no render hook to wrap; client components are server-rendered in a module graph where `init()` never ran | **Provider with `primary`** (≥ 3.6.1); `<T>` renders from Server Components directly, the package ships `"use client"` | not scoped — renders primary on the server, resolves after `hydrateFromServer` on the client |
 
 Rules of thumb:
 
@@ -241,6 +250,35 @@ Requires i18n-keyless **≥ 2.3.2** (see *One ALS per process* above). Gotchas:
 - **`getUsedTranslationsSnapshot()` doesn't work here** — component bodies render outside the ALS,
   so `recordUsedKey` never sees them and the subset misses body keys → mismatch. Serialize the
   **full** map via the loader.
+
+**Next.js App Router (≥ 3.6.1):**
+
+Next renders a page twice on the server: the Server Components in the RSC layer, then the
+client components in a **second module graph** (the SSR layer) to produce their HTML. Every
+module-scope singleton exists twice, the store included. The layout's `init()` ran in the RSC
+layer; the store the provider and `<T>` see in the SSR layer is a fresh instance, with the
+default config and no API key. Three consequences, and what the package does about each:
+
+1. **The provider carries the primary language.** Before 3.6.1 the hooks compared `lang` with
+   the *store's* primary, which in the SSR layer is the default `fr`: a French-primary app
+   rendered the English source text under `<I18nKeylessProvider lang="fr">` (the request
+   language *looked like* the primary), while `lang="de"` worked by accident. Pass
+   `primary={languages.primary}` to the provider; the hooks read it from context and never
+   from the store. Omitting it falls back to the store's primary and logs a warning in
+   development when that store never ran `init()`.
+2. **`<T>` renders from a Server Component.** `I18nKeylessText`, `I18nKeylessProvider` and
+   `useTranslation` ship the `"use client"` directive, so `import { T } from
+   "i18n-keyless-react"` works in a Server Component: Next hands the element to the client
+   boundary itself. No re-export from a client module of your own. `init`,
+   `getServerTranslations` and the request-scope helpers stay server-safe (no directive).
+3. **A failed fetch is not cached.** `getServerTranslations` used to cache `{}` after a
+   timeout for the life of the process — invisible on an edge isolate, wrong on a long-lived
+   Node server. Only a successful, non-empty response is cached; a failure answers `{}` for
+   that request and is retried on the next one.
+
+Translate-on-miss runs in an effect, never on the server: the first server render of a new
+string is the source text until a browser has rendered it once. Seed the project before
+opening it to crawlers.
 
 Full runnable apps for each framework live in [`examples/`](../examples); the `tanstack-start`
 one mirrors the recipe above.
@@ -338,10 +376,12 @@ const lang = langFromUrlOrHeader(request);          // "en"
 const translations = await getServerTranslations(lang); // cached per process
 
 // render (server) and hydrate (client) with the SAME props
-<I18nKeylessProvider lang={lang} translations={translations}>
+<I18nKeylessProvider lang={lang} primary="fr" translations={translations}>
   <App /> {/* <T>…</T> inside now renders in `lang` */}
 </I18nKeylessProvider>
 // serialize `translations` into the HTML and pass the same object on the client.
+// `primary` is optional where the provider shares init()'s module graph; under Next.js
+// App Router it is required (the SSR layer never runs init()).
 ```
 
 ## Escape hatch available today (no lib change)

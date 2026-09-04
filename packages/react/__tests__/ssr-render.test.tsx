@@ -8,7 +8,7 @@ import { type Lang, type PrimaryLang } from "i18n-keyless-core";
 // a zustand selector, which the store mocks in the other files cannot show.
 vi.mock("zustand", async () => vi.importActual("zustand"));
 
-const { useI18nKeyless, useCurrentLanguage } = await import("../store");
+const { useI18nKeyless, useCurrentLanguage } = await import("../hooks");
 const { createMemoryStorage } = await import("../utils");
 const { I18nKeylessProvider } = await import("../I18nKeylessProvider");
 const { I18nKeylessText } = await import("../I18nKeylessText");
@@ -112,5 +112,70 @@ describe("server render (renderToString)", () => {
       renderToString(<I18nKeylessText>Hello</I18nKeylessText>)
     );
     expect(html).toContain("Bonjour");
+  });
+
+});
+
+/**
+ * Next.js App Router renders client components on the server in a second module graph (the
+ * SSR layer), separate from the one where the page called `init()`. The store there is a
+ * fresh instance: default config, no API key, primary "fr". A French request under a
+ * `<I18nKeylessProvider lang="fr">` therefore rendered the English source text, because the
+ * hooks compared the request language with the *store's* primary. The provider now carries
+ * the primary itself. This is the regression test: nothing initialises the store.
+ */
+describe("server render on a store that never ran init() (Next's SSR module graph)", () => {
+  function Labels() {
+    const t = useTranslation();
+    return <span>{t("Hello")}</span>;
+  }
+
+  beforeEach(() => {
+    useI18nKeyless.setState(useI18nKeyless.getInitialState(), true);
+  });
+
+  it("renders French for an English-primary app when the provider carries the primary", () => {
+    const html = renderToString(
+      <I18nKeylessProvider lang="fr" primary="en" translations={{ Hello: "Bonjour" }}>
+        <p>
+          <I18nKeylessText>Hello</I18nKeylessText>
+        </p>
+        <Placeholder text="Hello" />
+        <Labels />
+      </I18nKeylessProvider>
+    );
+    expect(html).toContain("<p>Bonjour</p>");
+    expect(html).toContain('placeholder="Bonjour"');
+    expect(html).toContain("<span>Bonjour</span>");
+  });
+
+  it("renders the source text when the request language is the provider's primary", () => {
+    const html = renderToString(
+      <I18nKeylessProvider lang="en" primary="en" translations={{ Hello: "SHOULD NOT SHOW" }}>
+        <I18nKeylessText>Hello</I18nKeylessText>
+        <Labels />
+      </I18nKeylessProvider>
+    );
+    expect(html).toContain("Hello");
+    expect(html).not.toContain("SHOULD NOT SHOW");
+  });
+
+  it("without `primary`, falls back to the store's default and warns once", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const html = renderToString(
+      <I18nKeylessProvider lang="de" translations={{ Hello: "Hallo" }}>
+        <I18nKeylessText>Hello</I18nKeylessText>
+      </I18nKeylessProvider>
+    );
+    expect(html).toContain("Hallo");
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toContain("primary");
+    renderToString(
+      <I18nKeylessProvider lang="de" translations={{}}>
+        <I18nKeylessText>Hello</I18nKeylessText>
+      </I18nKeylessProvider>
+    );
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
   });
 });

@@ -1,0 +1,95 @@
+# i18n-keyless (Python)
+
+> Keyless translations for a Python server, script or build step. `t("Welcome to our app", "fr")` (the source string where a key would go) resolves through the i18n-keyless API: AI translation on the first miss, cached in memory, served from there. One package, no dependency, one `init()` call.
+
+This file is the whole package documentation as one pasteable Markdown page. The general i18n-keyless documentation (dashboard, MCP server, the JavaScript SDKs) is at https://docs.i18n-keyless.com/llms.txt.
+
+## Install
+
+```bash
+pip install i18n-keyless      # or: uv add i18n-keyless
+```
+
+```python
+import i18n_keyless as i18n
+i18n.init(api_key="your-key", primary="en", supported=["en", "fr", "es"])   # once, at process start
+```
+
+Requirements: Python >= 3.9. No dependency. Typed.
+
+## Use
+
+```python
+i18n.t("Welcome to our app", "fr")                               # a source string, translated into fr
+i18n.t("Hello {{name}}", "fr", replace={"{{name}}": "Ada"})       # placeholders, replaced after the translation
+i18n.t("8 hours", "fr", context="duration")                      # context: stored as "8 hours__duration"
+i18n.t("Pay", "fr", namespace="checkout")                        # an i18n-keyless namespace
+i18n.t("Hi", "fr", namespace="chat-42", unpersisted_namespace=True)  # transient namespace: never reported
+i18n.t("Hola mundo", "en", origin_language="es")                 # user generated content written in es
+i18n.t("Hello", "fr", force_temporary={"fr": "Salut"})           # overwrite the stored fr cell, permanently
+i18n.t_or_raise("Welcome", "fr")                                 # raises TranslationError on a failed request (scripts)
+i18n.resolve_lang("pt_BR", supported=["pt", "en"], fallback="en")   # "pt": a request tag onto a supported code
+i18n.to_app_store_locale("fr")                                   # "fr-FR"
+i18n.flush_usage()                                               # send the usage analytics now (before a script exits)
+i18n.get_supported_languages()
+```
+
+`t(key, lang, *, context=None, namespace=None, replace=None, force_temporary=None, origin_language=None, unpersisted_namespace=False, debug=False) -> str`. Same signature for `t_or_raise`.
+
+## Behaviour
+
+- `init()` validates the config (`primary`, `supported`, and `api_key` or `api_url` or the two handlers) and loads every language of the default namespace with one `GET {api_url}/translate/?last_refresh=` (`&namespace=<ns>` when `default_namespace` is set), merged into one in-memory store per (namespace, language); another namespace is loaded after its first miss. A failed fetch is logged; the store starts empty.
+- Primary language (or the `origin_language` of a UGC key): the key is returned, no lookup, no request.
+- Other language, hit: the stored translation, at once. An empty stored cell is a miss.
+- Miss: `POST {api_url}/translate` with `{key, context?, namespace? (omitted when default), forceTemporary?, languages: supported, primaryLanguage, originLanguage? (omitted when equal to primary)}`, synchronously; the answer's `data.translation.languages` is cached for every known language and the `lang` cell is returned, else the key. Concurrent misses of one (namespace, key__context, origin) share one request (`force_temporary` calls never do). At most 30 requests in flight, process-wide. When the batch drains, every namespace that missed is refetched (`GET /translate/`, `If-None-Match` replayed, `304` keeps the store) on a daemon thread.
+- `replace` is applied last, to the translation or to the key: literal placeholders, one left-to-right pass in map order, every occurrence, an empty replacement leaves the placeholder, values inserted verbatim.
+- HTTP policy: 10 s timeout per attempt, 3 attempts, 500 ms then 1500 ms backoff on a network error, a timeout, a `429`, a `5xx` or an unparsable `200` body; no retry on any other status; `t()` never raises (source text + error log), `t_or_raise()` raises `TranslationError`.
+- Headers on every request: `Content-Type: application/json`, `Authorization: Bearer <api_key>`, `Version: 3.6.1`, `sdk: python` (a server label, counted like `node`). No `unique_id`, no cookie.
+- Usage analytics (node rule): the UTC date each string was last served is recorded on every call (`namespace` → `key__context` → `YYYY-MM-DD`; `unpersisted_namespace` calls excluded), and the cumulative map is POSTed to `{api_url}/translate/last-used-translations` as `{primaryLanguage, translationsUsageByNamespace}` at most once every 10 s, from a daemon thread that never keeps the process alive. Never cleared. `flush_usage()` sends it now.
+- Custom handlers (mode 1, before `api_url` and the official service): `handle_translate(key)` → `{"ok": True, "data": {"translation": {lang: text}}}`; `get_all_translations_for_all_languages()` → the all-languages envelope; `send_translations_usage(default_bucket)` → `{"ok": True}`.
+
+## Configuration (`i18n.init(...)` or `i18n.init(i18n.Config(...))`)
+
+| field | default | what it is |
+| --- | --- | --- |
+| api_key | required | your project's key (https://i18n-keyless.com/#get-api-key) |
+| primary | required | the language the source strings are written in |
+| supported | required | every language the app serves; the API stores it as the project's list |
+| api_url | https://api.i18n-keyless.com | a self-hosted backend or a proxy, no trailing slash |
+| default_namespace | None (`default`) | the namespace of every call that passes none |
+| debug | False | DEBUG lines on the `i18n_keyless` logger |
+| on_init | None | called once with the primary language |
+| handle_translate, get_all_translations_for_all_languages, send_translations_usage | None | custom handlers |
+| timeout_ms, retry_delays_ms, concurrency, usage_flush_ms | 10000, (500, 1500), 30, 10000 | the protocol constants |
+
+Several projects in one process: `client = i18n.I18nKeyless(); client.init(config); client.t(...)`.
+
+## Languages
+
+48 codes (`i18n.AVAILABLE_LANGS`): ar, bn, ca, zh-Hans, zh-Hant, hr, cs, da, nl, en, en-GB, fi, fr, fr-CA, de, el, gu, he, hi, hu, id, it, ja, kn, ko, ms, ml, mr, no, or, pl, pt, pt-BR, pa, ro, ru, sk, sl, es, es-MX, sv, ta, te, th, tr, uk, ur, vi. `resolve_lang(tag, supported=None, fallback=None)`: exact match first (`pt-BR`, `zh-Hans`), Chinese by region (`zh_CN`, `zh_SG` → `zh-Hans`; `zh_TW`, `zh_HK`, `zh_MO` → `zh-Hant`, never a bare fallback), `es-419` → `es-MX`, then the bare language (`fr_FR` → `fr`, `pt-AO` → `pt`); the first candidate in `supported` wins, else `fallback`, else `None`.
+
+## Frameworks
+
+- Django: a `simple_tag` calling `i18n.t(text, resolve_lang(translation.get_language(), ...), context=...)`; `{% load keyless %}{% t "Welcome to our app" %}`.
+- Flask: `i18n.init()` next to `Flask(__name__)`; `lang = resolve_lang(request.args.get("lang") or request.accept_languages.best, ...)`.
+- FastAPI: `i18n.init()` in the lifespan; `await run_in_threadpool(i18n.t, text, lang)` in an async route.
+
+## Limitations
+
+- Plurals: one call per form with a `context`. The API translates strings, not ICU messages.
+- A miss blocks the call once per string per process (one round trip, at most 3 × 10 s).
+- One store per process: a dashboard edit reaches a process at its next refetch, which follows a miss.
+- `force_temporary` in the primary language sends nothing (the client SDK rule; the node SDK sends it).
+- A source string is capped at 2000 characters (`context` and `namespace` at 200). Long-form content is one translation **per Markdown block** of about 1000 characters, with the same `context` (a one-sentence summary) on every block and one `namespace` per document. https://docs.i18n-keyless.com/docs/guides/long-form-content
+
+## Module
+
+- `i18n_keyless`: `init`, `t`, `t_or_raise`, `flush_usage`, `wait_idle`, `get_supported_languages`, `reset`, `client` (the shared `I18nKeyless`), `Config`, `I18nKeyless`, `TranslationError`, `NotInitialized`, `AVAILABLE_LANGS`, `APP_STORE_LOCALES`, `resolve_lang`, `to_app_store_locale`, `is_lang`, `apply_replace`, `storage_key_for`, `queue_id_for`, `resolve_namespace`, `resolve_origin_language`, `DEFAULT_NAMESPACE`, `DEFAULT_API_URL`, `SDK`, `TIMEOUT_MS`, `RETRY_DELAYS_MS`, `MAX_ATTEMPTS`, `CONCURRENCY`, `USAGE_FLUSH_MS`, `__version__`.
+- `i18n_keyless.I18nKeyless`: `init`, `reset`, `lookup` (the synchronous resolution, no request), `t`, `t_or_raise`, `flush_usage`, `wait_idle`, `get_supported_languages`, `translations(lang)`, `pending_usage`, `pending_namespaces`, `api` (the `ApiClient`).
+- `i18n_keyless.ApiClient`: `fetch`, `fetch_dictionary`, `translate`, `send_usage`, `dictionary_url`, `headers`, `delay_after`; `i18n_keyless.http.decide`, `is_retryable_status`, `http_error_message`, `etag_cache_key`, `urllib_transport`.
+
+## Links
+
+- Get an API key: https://i18n-keyless.com/#get-api-key
+- Dashboard: https://i18n-keyless.com/dashboard
+- Docs: https://docs.i18n-keyless.com

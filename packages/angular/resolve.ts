@@ -32,7 +32,7 @@ export function resolveTranslation(
   // The text renders as-is when the current language is the one it is written in: the
   // primary language, except for UGC (originLanguage), which looks up the map even when
   // the current language is the primary one.
-  const primary = config.languages.primary;
+  const primary = requestScope?.primary ?? config.languages.primary;
   const originLanguage = options?.originLanguage;
   const sourceLanguage = originLanguage && originLanguage !== primary ? originLanguage : primary;
   const translatedText = currentLanguage === sourceLanguage ? sourceText : translation || sourceText;

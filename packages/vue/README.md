@@ -179,6 +179,14 @@ and `useTranslation()` are already correct.
 `<I18nKeylessProvider :lang :translations>` does the same job as the plugin for one
 subtree, when you cannot install the plugin per request.
 
+Both accept `primary`, the language the source strings are written in (≥ 3.6.1). It is
+optional when `init()` runs in the same module graph as the components: the scope then
+defaults to the store's primary. Pass it when that is not guaranteed (a framework that
+server-renders the components in a second module graph, where the store never ran `init()`).
+Without it, on such a store, the resolution would compare the request language with the
+default primary and a request in the app's real primary language would render the
+dictionary instead of the source strings.
+
 ### Nuxt
 
 Nuxt creates one app per request and runs plugins in both environments. A dedicated Nuxt

@@ -1,0 +1,89 @@
+# i18n-keyless for Go
+
+> Keyless translations for Go servers. `client.T(ctx, "Welcome to our app", lang)` (the source string where a key would go) resolves through the i18n-keyless API: AI translation on the first miss, cached in memory, served from there. One module, standard library only, the semantics of the node SDK.
+
+This file is the whole module documentation as one pasteable Markdown page. The general i18n-keyless documentation (dashboard, MCP server, the JavaScript SDKs) is at https://docs.i18n-keyless.com/llms.txt.
+
+## Install
+
+```bash
+go get github.com/arnaudambro/i18n-keyless/ports/go/v3
+```
+
+```go
+import i18nkeyless "github.com/arnaudambro/i18n-keyless/ports/go/v3"
+
+client, err := i18nkeyless.Init(ctx, i18nkeyless.Config{
+	APIKey:    os.Getenv("I18N_KEYLESS_API_KEY"),
+	Languages: i18nkeyless.Languages{Primary: "en", Supported: []string{"en", "fr", "es"}},
+})
+```
+
+Requirements: Go >= 1.21. Module path `github.com/arnaudambro/i18n-keyless/ports/go/v3`, package `i18nkeyless`.
+
+## Use
+
+```go
+client.T(ctx, "Welcome to our app", lang)                                                   // a source string: keyless; never fails
+client.Translate(ctx, "Welcome to our app", lang)                                           // the same, with the error
+client.T(ctx, "Welcome {{name}}", lang, i18nkeyless.WithReplace(map[string]string{"{{name}}": name}))
+client.T(ctx, "8 heures", lang, i18nkeyless.WithContext("duration"))                        // stored as "8 heures__duration"
+client.T(ctx, "Payer", lang, i18nkeyless.WithNamespace("checkout"))                          // an i18n-keyless namespace
+client.T(ctx, "Hola mundo", lang, i18nkeyless.WithOriginLanguage("es"))                     // user generated content
+client.T(ctx, "Bonjour", lang, i18nkeyless.WithForceTemporary(map[string]string{"en": "Hi"})) // your own text, stored by the API
+client.T(ctx, msg, lang, i18nkeyless.WithNamespace("chat-42"), i18nkeyless.WithUnpersistedNamespace()) // no usage recorded
+i18nkeyless.ResolveLang("pt_BR", &i18nkeyless.ResolveOptions{Supported: client.SupportedLanguages(), Fallback: "en"}) // "pt-BR"
+client.FlushUsage(ctx); client.Close()                                                       // a script: report usage, stop the timer
+```
+
+`T(ctx context.Context, key, lang string, opts ...Option) string`; `Translate` returns `(string, error)`. Options: `WithContext`, `WithNamespace`, `WithReplace`, `WithReplaceOrdered`, `WithForceTemporary`, `WithOriginLanguage`, `WithUnpersistedNamespace`.
+
+## Behaviour
+
+- `Init`: `GET {APIURL}/translate/?last_refresh=` (every language of the default namespace, `&namespace=` when configured), merged into one in-memory map per language. A failed fetch is logged, not returned.
+- Primary language: the source string is returned, no lookup, no request.
+- Hit: served from memory. Miss: `POST {APIURL}/translate` in the call, body `{key, context?, namespace?, forceTemporary?, languages, primaryLanguage, originLanguage?}` (the default namespace and an origin equal to the primary are omitted); the answer's `data.translation.languages` is cached for every known language and the text for `lang` is returned, else the source text. Concurrent misses of one storage key (and origin) share one request; `forceTemporary` calls are never shared; at most 30 requests in flight.
+- When the last in-flight request settles, every namespace that missed is fetched again in the background (`GET /translate/?namespace=`), with the previous `ETag` as `If-None-Match`; `304` keeps the store. Keys are never removed.
+- HTTP policy: 10 s timeout per attempt, 3 attempts, backoff 500 ms then 1500 ms on network error, timeout, 429, 5xx; no retry on other 4xx; a 200 with `ok: false` is a failure; never panics; a stored translation is never cleared.
+- Headers on every request: `Authorization: Bearer <APIKey>`, `Content-Type: application/json`, `Version: 3.6.1`, `sdk: go` (a server label, counted like `node`). No `unique_id`.
+- Usage analytics (node rules): the UTC date each string was last served is recorded per namespace and storage key (`key__context`), the cumulative map is POSTed to `{APIURL}/translate/last-used-translations` as `{primaryLanguage, translationsUsageByNamespace}` at most once every 10 s, from a timer; never cleared; `WithUnpersistedNamespace` calls are not recorded; `DisableUsage` switches it off; `FlushUsage` sends now.
+- Custom handlers replace the requests: `HandleTranslate(ctx, key)` (the key only) returns translations by language; `GetAllTranslationsForAllLanguages(ctx)` returns dictionaries by language; `SendTranslationsUsage(ctx, defaultBucket)` receives the default namespace's bucket.
+
+## Configuration (i18nkeyless.Config)
+
+| field | default |
+| --- | --- |
+| APIKey | none: required unless APIURL, or both HandleTranslate and GetAllTranslationsForAllLanguages, are set |
+| APIURL | https://api.i18n-keyless.com |
+| Languages.Primary | required, one of the 48 codes |
+| Languages.Supported | required, every language the app serves; stored by the API as the project's list |
+| DefaultNamespace | default |
+| HTTPClient | http.DefaultClient |
+| Logger | log.Default() |
+| Debug | false |
+| DisableUsage | false |
+| HandleTranslate, GetAllTranslationsForAllLanguages, SendTranslationsUsage | none |
+| OnInit | none |
+
+## Languages
+
+48 codes (`AvailableLangs`): ar, bn, ca, zh-Hans, zh-Hant, hr, cs, da, nl, en, en-GB, fi, fr, fr-CA, de, el, gu, he, hi, hu, id, it, ja, kn, ko, ms, ml, mr, no, or, pl, pt, pt-BR, pa, ro, ru, sk, sl, es, es-MX, sv, ta, te, th, tr, uk, ur, vi. `ResolveLang(tag, opts)`: exact code first (`pt-BR`, any casing, `_` accepted), then Chinese by region (`zh-CN`, `zh-SG` to `zh-Hans`; `zh-TW`, `zh-HK`, `zh-MO` to `zh-Hant`; never another script), `es-419` to `es-MX`, then the bare language (`fr-CH` to `fr`); "" when nothing matches and no fallback. `ToAppStoreLocale("fr")` is `fr-FR`. An unknown code passed to `T` renders the source text with no request.
+
+## Limitations
+
+- Dictionaries are flat per language: two namespaces sharing one source text share one entry.
+- Misses are deduplicated by storage key and origin language (the SDK queue ignores the context).
+- `forceTemporary` in the primary language is sent (the node rule).
+- A source string is capped at 2000 characters (`context` and `namespace` at 200). Long-form content is one translation per Markdown block of about 1000 characters, with the same `context` on every block. https://docs.i18n-keyless.com/docs/guides/long-form-content
+
+## API
+
+- `New(cfg) (*Client, error)`, `Init(ctx, cfg) (*Client, error)`.
+- `(*Client).T`, `Translate`, `FlushUsage`, `Close`, `SupportedLanguages`, `PrimaryLanguage`.
+- Helpers: `StorageKeyFor`, `QueueIDFor`, `ApplyReplace`, `ApplyReplaceOrdered`, `ResolveNamespace`, `ResolveOriginLanguage`, `BuildDictionaryURL`, `EtagCacheKey`, `IsRetryableStatus`, `HTTPErrorMessage`, `DecideStatus`, `DelayAfter`, `IsServerRuntime`, `ResolveLang`, `ToAppStoreLocale`, `IsLang`; constants `Version`, `SDK`, `DefaultAPIURL`, `DefaultNamespace`, `Timeout`, `MaxAttempts`, `RetryDelays`, `AvailableLangs`.
+
+## Links
+
+- Get an API key: https://i18n-keyless.com/#get-api-key
+- Dashboard: https://i18n-keyless.com/dashboard
+- Docs: https://docs.i18n-keyless.com

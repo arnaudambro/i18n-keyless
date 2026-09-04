@@ -43,6 +43,10 @@ const mockStore = vi.hoisted(() => {
 });
 
 // Mock the store module - this is hoisted to the top of the file
+// The hooks live in their own client module (hooks.ts); the components read the store
+// through it, so the same mock serves both.
+vi.mock("../hooks", async () => ({ useI18nKeyless: mockStore }));
+
 vi.mock("../store", async () => {
   return {
     useI18nKeyless: mockStore,

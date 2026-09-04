@@ -241,9 +241,13 @@ Which pieces you need depends on the framework:
   (fed by the root loader) and `runWithI18nKeyless`. Call `getTranslation()` only in
   loaders and `head()`, never in a component body — a component that needs a string calls
   `useTranslation()` (≥ 3.3.0). Requires ≥ 2.3.2.
-- **Next.js App Router / Astro islands** — use the Provider and prefer `<T>`; imperative
-  `getTranslation()` in a server component renders the primary language until the client
-  effect runs.
+- **Astro islands** — use the Provider and prefer `<T>`; imperative `getTranslation()` in
+  a server component renders the primary language until the client effect runs.
+- **Next.js App Router** — use the Provider **with `primary`** (≥ 3.6.1): Next server-renders
+  client components in a second module graph where `init()` never ran, so the provider
+  must carry the primary language. `<T>` renders from a Server Component directly (the
+  package ships `"use client"`). Imperative `getTranslation()` in a server component
+  renders the primary language until the client effect runs — prefer `<T>`.
 
 Read https://docs.i18n-keyless.com/docs/ssr before wiring any of it.
 

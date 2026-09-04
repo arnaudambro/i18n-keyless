@@ -12,7 +12,7 @@ Welcome to **i18n-keyless**! 🚀 This package provides a seamless way to handle
 - [How it works](#-how-it-works)
 - [Installation](#-installation)
 - [Quick Start](#-quick-start)
-  - [React](#react-quick-start), [Node](#node-quick-start), [Vue](#vue-quick-start), [Angular](#angular-quick-start), [Browser](#browser-quick-start), [Laravel](#laravel-quick-start), [Rails](#rails-quick-start), [Flutter](#flutter-quick-start)
+  - [React](#react-quick-start), [Node](#node-quick-start), [Vue](#vue-quick-start), [Angular](#angular-quick-start), [Browser](#browser-quick-start), [Laravel](#laravel-quick-start), [Rails](#rails-quick-start), [Flutter](#flutter-quick-start), [Python](#python-quick-start), [Go](#go-quick-start), [Kotlin](#kotlin-quick-start), [Swift](#swift-quick-start)
 - [Usage](#-usage)
   - [React](#-react-usage-i18n-keyless-react)
   - [Node](#-node-usage-i18n-keyless-node)
@@ -129,6 +129,10 @@ the full reference for that package.
 | Laravel 11, 12, 13 | `i18n-keyless/laravel` (Composer) | `composer require i18n-keyless/laravel` | [ports/laravel](./ports/laravel/README.md) |
 | Ruby on Rails 7, 8 | `i18n-keyless-rails` (RubyGems) | `bundle add i18n-keyless-rails` | [ports/rails](./ports/rails/README.md) |
 | Flutter, Dart | `i18n_keyless` (pub.dev) | `flutter pub add i18n_keyless` | [ports/flutter](./ports/flutter/README.md) |
+| Python >= 3.9: Django, Flask, FastAPI, scripts | `i18n-keyless` (PyPI) | `pip install i18n-keyless` | [ports/python](./ports/python/README.md) |
+| Go >= 1.21: net/http, Gin, templates, CLIs | `github.com/arnaudambro/i18n-keyless/ports/go/v3` | `go get github.com/arnaudambro/i18n-keyless/ports/go/v3` | [ports/go](./ports/go/README.md) |
+| Swift: iOS, macOS, SwiftUI, UIKit, Vapor | `I18nKeyless` (SwiftPM) | `.package(url: "https://github.com/arnaudambro/i18n-keyless-swift.git", from: "3.6.1")` | [ports/swift](./ports/swift/README.md) |
+| Kotlin: Android, Compose, JVM, Ktor, Spring | `io.github.arnaudambro:i18n-keyless-kotlin` (Maven Central) | `implementation("io.github.arnaudambro:i18n-keyless-kotlin:3.6.1")` | [ports/kotlin](./ports/kotlin/README.md) |
 | Any stack, shared engine | `i18n-keyless-core` | `npm install i18n-keyless-core` | [packages/core](./packages/core), [docs/PROTOCOL.md](./docs/PROTOCOL.md) |
 
 ---
@@ -433,6 +437,100 @@ I18nKeyless.of(context).setCurrentLanguage(Lang.fr);
 ```
 
 Full reference: [ports/flutter/README.md](./ports/flutter/README.md).
+
+### **Python Quick Start**
+
+A server, a script or a build step: `t("Welcome", lang)` resolves through the API, a miss is
+translated once and served from memory from then on. No `.po` file, no catalogue.
+
+```bash
+pip install i18n-keyless        # or: uv add i18n-keyless
+```
+
+```python
+import i18n_keyless as i18n
+
+i18n.init(api_key="<YOUR_API_KEY>", primary="en", supported=["en", "fr", "es"])  # once, at start
+i18n.t("Welcome to our app", "fr")                          # "Bienvenue dans notre application"
+i18n.t("8 hours", "fr", context="duration")                 # context, when one string has two meanings
+i18n.t("Hello {name}", "es", replace={"{name}": user.name}) # placeholders, replaced after translation
+i18n.t_or_raise("Welcome", "de")                            # a script: raise instead of falling back
+```
+
+Full reference (Django, Flask and FastAPI snippets, the three network modes, `flush_usage()`): [ports/python/README.md](./ports/python/README.md).
+
+### **Go Quick Start**
+
+Standard library only: one client per process, `T()` in a handler or a template func map. A
+miss is translated in the call and served from memory from then on.
+
+```bash
+go get github.com/arnaudambro/i18n-keyless/ports/go/v3
+```
+
+```go
+import i18nkeyless "github.com/arnaudambro/i18n-keyless/ports/go/v3"
+
+client, err := i18nkeyless.Init(ctx, i18nkeyless.Config{
+	APIKey:    "<YOUR_API_KEY>",
+	Languages: i18nkeyless.Languages{Primary: "en", Supported: []string{"en", "fr", "es"}},
+})
+client.T(ctx, "Welcome to our app", "fr")                                           // "Bienvenue dans notre application"
+client.T(ctx, "8 hours", "fr", i18nkeyless.WithContext("duration"))                 // context, when one string has two meanings
+client.T(ctx, "Hello {name}", "es", i18nkeyless.WithReplace(map[string]string{"{name}": name}))
+text, err := client.Translate(ctx, "Welcome", "de")                                 // the error, for a build step
+```
+
+Full reference (Gin, `html/template`, the three network modes, `FlushUsage()`, `Close()`): [ports/go/README.md](./ports/go/README.md).
+
+### **Swift Quick Start**
+
+Foundation only, iOS 15 / macOS 12. A device port: a persisted id, `UserDefaults` storage by
+default, an `ObservableObject` store so SwiftUI re-renders when a translation lands.
+
+```swift
+// Package.swift, or Xcode > Add Package: https://github.com/arnaudambro/i18n-keyless-swift
+.package(url: "https://github.com/arnaudambro/i18n-keyless-swift.git", from: "3.6.1")
+```
+
+```swift
+import I18nKeyless
+
+try I18nKeyless.configure(.init(apiKey: "<YOUR_API_KEY>",
+    languages: .init(primary: .en, supported: [.en, .fr, .es])))
+I18nKeylessText("Welcome to our app")                                  // SwiftUI, re-renders when it lands
+let title = I18nKeyless.t("Your profile")                              // a String, anywhere (UIKit, a label)
+I18nKeyless.t("8 hours", context: "duration")                          // context, when one string has two meanings
+I18nKeyless.t("Hello {name}", replace: ["{name}": user.name])
+await I18nKeyless.setLanguage(.fr)                                     // switch
+```
+
+On a server (Vapor, Hummingbird) pass `server: true`: no device id, no usage analytics.
+Full reference (the storage protocol, the `server` flag, custom handlers): [ports/swift/README.md](./ports/swift/README.md).
+
+### **Kotlin Quick Start**
+
+Pure JVM, zero dependencies, so it loads in any Android app without a duplicate-class clash.
+A device port: a persisted id, a storage adapter, translations cached on disk.
+
+```kotlin
+implementation("io.github.arnaudambro:i18n-keyless-kotlin:3.6.1")
+```
+
+```kotlin
+I18nKeyless.initBlocking(I18nKeylessConfig(
+    apiKey = "<YOUR_API_KEY>",
+    languages = LanguagesConfig(primary = Lang.EN, supported = listOf(Lang.EN, Lang.FR, Lang.ES)),
+    storage = FileStorage(context.filesDir.resolve("i18n-keyless")),   // or a 6-line SharedPreferences adapter
+))
+I18nKeyless.t("Welcome to our app")                                   // the current language
+I18nKeyless.t("8 hours", context = "duration")                       // context, when one string has two meanings
+I18nKeyless.t("Hello {name}", replace = mapOf("{name}" to user.name))
+I18nKeyless.setLanguage(Lang.FR)                                      // listeners fire; Compose recomposes
+```
+
+On a server (Ktor, Spring) pass `server = true`: no device id, one client per language.
+Full reference (the Compose snippet, the SharedPreferences adapter, the `server` flag): [ports/kotlin/README.md](./ports/kotlin/README.md).
 
 ---
 
@@ -1044,7 +1142,8 @@ await init({
 ## 🔌 **Protocol and ports**
 
 Every package and port speaks the same wire protocol to the same API, so a project can mix
-them (a Laravel or Rails backend and a Vue front end, a Flutter app and a Node cron) on one API key
+them (a Laravel, Rails, Python or Go backend and a Vue front end, a Flutter, Swift or Kotlin app
+and a Node cron) on one API key
 and one dashboard, and an app migrating from one package to another keeps its cache and its
 device id.
 
@@ -1053,15 +1152,16 @@ device id.
   usage analytics, identity (`sdk` and `unique_id`), the 48 language codes. Verified against
   the API source.
 - [`conformance/`](./conformance): JSON test vectors that every SDK replays. The TypeScript
-  core, the Laravel, Rails and Flutter ports run them in their test suites.
-- [`docs/PORT_CHECKLIST.md`](./docs/PORT_CHECKLIST.md): what a new port (Python, ...)
-  must ship before it is called conformant.
+  core and the Laravel, Rails, Flutter, Python, Go, Swift and Kotlin ports run them in their
+  test suites.
+- [`docs/PORT_CHECKLIST.md`](./docs/PORT_CHECKLIST.md): what a new port must ship before it
+  is called conformant.
 
 Runtime labels sent in the `sdk` header: `react-client` / `react-server`, `vue-client` /
-`vue-server`, `angular-client` / `angular-server`, `browser`, `node`, `laravel`, `rails`,
-`flutter`. A `*-server` label, `node`, `laravel` and `rails` are servers (counted by
-connection, no device id);
-everything else is a device.
+`vue-server`, `angular-client` / `angular-server`, `swift-client` / `swift-server`,
+`kotlin-client` / `kotlin-server`, `browser`, `node`, `laravel`, `rails`, `flutter`, `python`,
+`go`. A `*-server` label, `node`, `laravel`, `rails`, `python` and `go` are servers (counted
+by connection, no device id); everything else is a device.
 
 ---
 

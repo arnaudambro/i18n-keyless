@@ -8,6 +8,75 @@ All notable changes to i18n-keyless are documented here. The npm packages
 This project follows [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
 
+## [3.6.1] - 2026-09-04
+
+### Added
+
+- **Four new ports of protocol v3**, so every stack a team runs shares one API key and one
+  dashboard. The API and core register the new `sdk` labels; the conformance vectors
+  (`usage-reporting.json`) and `docs/PROTOCOL.md` section 10.1 list them.
+  - **`i18n-keyless`** (`ports/python`, PyPI, Python >= 3.9, zero dependencies): the node
+    model for a server. `init(...)`, `t(key, lang, context=, namespace=, replace=, ...)` that
+    translates on a miss and falls back to the source text, `t_or_raise(...)`; usage on the
+    10 s debounce; label `python`. Django, Flask and FastAPI snippets in its README.
+  - **`github.com/arnaudambro/i18n-keyless/ports/go/v3`** (`ports/go`, Go >= 1.21, stdlib
+    only): the same server model, `New(Config)`, `T(ctx, key, lang, opts...)`,
+    `Translate(...)` with the error, functional options; label `go`; versioned by the tag
+    `ports/go/vX.Y.Z`.
+  - **`I18nKeyless`** (`ports/swift`, SwiftPM, iOS 15 / macOS 12, Foundation only): the
+    device model of the Flutter port (storage adapter, `UserDefaults` by default, persisted
+    device id, translate-on-miss queue, ETag, usage once per init), an `ObservableObject`
+    store and the `I18nKeylessText` SwiftUI view; `server: true` for Vapor. Labels
+    `swift-client` / `swift-server`. Published from the mirror repository
+    `arnaudambro/i18n-keyless-swift`.
+  - **`io.github.arnaudambro:i18n-keyless-kotlin`** (`ports/kotlin`, Maven Central, pure JVM,
+    zero dependencies, `HttpURLConnection` and an internal JSON codec so it loads in any
+    Android app): the same device model with `MemoryStorage` / `FileStorage` and a six-line
+    `SharedPreferences` adapter, listeners for Compose; `server = true` for Ktor and Spring.
+    Labels `kotlin-client` / `kotlin-server`.
+- `scripts/set-version.mjs` and `scripts/publish.mjs` cover the four ports (`--skip-python`,
+  `--skip-go`, `--skip-swift`, `--skip-kotlin`).
+
+## [3.6.1] — 2026-09-03
+
+### Fixed
+
+- **`i18n-keyless-react`** under Next.js App Router. Next server-renders client components in
+  a second module graph (the SSR layer) where the page's `init()` never ran, so the store
+  there holds the default config. Three gaps, found wiring the SDK into a Next.js 15 app on
+  the edge runtime:
+  - `<I18nKeylessProvider>` takes a `primary` prop, the language the source strings are
+    written in. `<I18nKeylessText>` and `useTranslation` (both forms) compare the request
+    language with the **provider's** primary, never the store's. Before, a French-primary app
+    rendered the English source text under `<I18nKeylessProvider lang="fr">` in the SSR
+    layer (the store's default primary is `fr`), while `lang="de"` worked by accident. The
+    prop is optional where the provider shares `init()`'s module graph (Remix, TanStack
+    Start, Astro): it then defaults to the store's primary. Pass it under Next.js. The
+    provider warns in development when `primary` is missing on a store that never ran
+    `init()`. `useI18nKeylessContext()` exposes it.
+  - `I18nKeylessText`, `I18nKeylessProvider` and `useTranslation` ship the `"use client"`
+    directive in `dist`, so a Server Component renders `<T>` directly instead of re-exporting
+    it from a client module. `init`, `getServerTranslations` and the request-scope helpers
+    carry no directive and stay callable from Server Components.
+  - `getServerTranslations` no longer caches `{}` after a failed or timed-out fetch for the
+    life of the process: only a successful, non-empty response is cached, a failure answers
+    `{}` for that request and is retried on the next one. A rejected fetch now returns `{}`
+    instead of throwing.
+- **`i18n-keyless-vue`**: the same `primary` on `<I18nKeylessProvider>` and on the
+  `I18nKeyless` plugin options (defaults to `config.languages.primary` when the plugin
+  receives `config`), read by `<T>`, `t()` and `useTranslation()` before the store's; the same
+  development warning; `getServerTranslations` no longer caches a failed fetch.
+- **`i18n-keyless-angular`**: `I18nRequestScope` (hence `provideI18nKeylessServer`) accepts
+  `primary`; `<i18n-t>`, the `t` pipe and `resolveTranslation` read it before the store's.
+- Every npm package now has a suite that runs with a primary language other than the store
+  default (`en` instead of `fr`) and a target language equal to that default: a code path
+  that falls back to the default primary fails those tests instead of passing by coincidence
+  (`primary-not-default.test.ts` in core, node, browser and angular; the provider and server
+  suites in vue; `ssr-render.test.tsx` in react).
+- `examples/nextjs`: `<Providers>` passes `primary`; the `[lang]` page is a Server Component
+  rendering `<T>` directly; the bare `/` redirect lives in a `(root)` route group with its own
+  root layout, so `next build` passes.
+
 ## [3.6.0] — 2026-09-03
 
 ### Added

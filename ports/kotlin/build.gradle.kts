@@ -5,6 +5,7 @@ plugins {
     kotlin("jvm") version "2.4.10"
     `java-library`
     id("com.vanniktech.maven.publish") version "0.37.0"
+    signing
 }
 
 // One shared version with the JavaScript SDKs and the other ports; it is also the wire
@@ -49,14 +50,16 @@ tasks.test {
 // The plugin signs every publication when a key is configured and uploads the bundle;
 // `./gradlew publishToMavenLocal` needs neither the key nor the credentials, so a release
 // dry run works on any machine. Properties (PUBLISH.md, one-time setup):
-// mavenCentralUsername, mavenCentralPassword, signingInMemoryKey, signingInMemoryKeyId,
-// signingInMemoryKeyPassword.
+// mavenCentralUsername, mavenCentralPassword, signingInMemoryKeyId, signingInMemoryKeyPassword.
+// The key itself is NOT a property (a single-line-escaped armored key in gradle.properties
+// is fragile to hand-edit); it's read straight from the armored export file below.
+val signingKeyFile = File(System.getProperty("user.home"), ".gradle/signing-key.asc")
 mavenPublishing {
     // The plugin builds the sources jar and an empty javadoc jar (Central requires one;
     // Dokka is not worth a dependency for KDoc that the sources jar already carries).
     configure(KotlinJvm(javadocJar = JavadocJar.Empty(), sourcesJar = true))
     publishToMavenCentral()
-    if (project.hasProperty("signingInMemoryKey")) signAllPublications()
+    if (signingKeyFile.exists()) signAllPublications()
     coordinates(group.toString(), "i18n-keyless-kotlin", version.toString())
     pom {
         name.set("i18n-keyless-kotlin")
@@ -80,5 +83,11 @@ mavenPublishing {
             connection.set("scm:git:https://github.com/arnaudambro/i18n-keyless.git")
             developerConnection.set("scm:git:git@github.com:arnaudambro/i18n-keyless.git")
         }
+    }
+}
+
+if (signingKeyFile.exists()) {
+    signing {
+        useInMemoryPgpKeys(signingKeyFile.readText(), project.property("signingInMemoryKeyPassword") as String)
     }
 }

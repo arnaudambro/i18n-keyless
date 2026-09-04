@@ -22,9 +22,11 @@ Welcome to **i18n-keyless**! 🚀 This package provides a seamless way to handle
 - [Supported Languages](#-supported-languages)
 - [Setup](#️-setup-with-i18n-keyless-service)
 - [Protocol and ports](#-protocol-and-ports)
+- [Self-hosting the server](#-self-hosting-the-server)
 - [Custom Component Example](#️-custom-component-example)
 - [What pains does it solve?](#-what-pains-does-it-solve)
 - [Contact](#-contact)
+- [License](#-license)
 
 ---
 
@@ -49,7 +51,7 @@ per-translation options, the SSR traps, and the gotchas. It links to `llms.txt` 
 
 First, you should read the [What pains does it solve?](#-what-pains-does-it-solve) section to understand the pains you have with the current i18n solutions.
 
-i18n-keyless is a library, combined with an API service (I [provide one](https://i18n-keyless.com), but [you can use your own](#%EF%B8%8F-setup-with-your-own-api)) that allows you to translate your text without the need to use keys.
+i18n-keyless is a library, combined with an API service (I [provide one](https://i18n-keyless.com), you can [run the same server yourself](#-self-hosting-the-server) — its source is public — or [use your own](#%EF%B8%8F-setup-with-your-own-api)) that allows you to translate your text without the need to use keys.
 
 By calling `I18nKeyless.init` you [initialize](#%EF%B8%8F-setup-with-i18n-keyless-service) an object that will be used to translate your text.
 If your primary language is `en` and the user's language is `fr`, the object would look like this:
@@ -985,9 +987,16 @@ This is the easiest way to get started. Provide your `API_KEY` during initializa
 
 *(Node Setup Example - Covered in Quick Start)*
 
+### **Self-hosting the i18n-keyless server**
+
+The server behind i18n-keyless.com — the API, the dashboard and the MCP server — is open
+source: [ambroselli-io/i18n-keyless-server](https://github.com/ambroselli-io/i18n-keyless-server).
+Run it as one Docker container on your own machine and point `API_URL` at it; the SDKs need
+nothing else. See [Self-hosting the server](#-self-hosting-the-server).
+
 ### **Using your own API**
 
-If you prefer to host your own translation backend, you can configure `i18n-keyless` to point to your API endpoints.
+If you prefer to write your own translation backend, you can configure `i18n-keyless` to point to your API endpoints.
 
 #### **Using `API_URL`**
 
@@ -1162,6 +1171,24 @@ Runtime labels sent in the `sdk` header: `react-client` / `react-server`, `vue-c
 `kotlin-client` / `kotlin-server`, `browser`, `node`, `laravel`, `rails`, `flutter`, `python`,
 `go`. A `*-server` label, `node`, `laravel`, `rails`, `python` and `go` are servers (counted
 by connection, no device id); everything else is a device.
+
+---
+
+## 🏠 **Self-hosting the server**
+
+The server that runs [i18n-keyless.com](https://i18n-keyless.com) is open source, under the
+Elastic License 2.0: [ambroselli-io/i18n-keyless-server](https://github.com/ambroselli-io/i18n-keyless-server).
+It is one Docker image — the translation API, the dashboard and the MCP server — on SQLite or
+Postgres, with the AI provider of your choice (Mistral, OpenAI, Anthropic, Google, or any
+OpenAI-compatible endpoint).
+
+- Free to install, and one project is free forever. A [€30 lifetime licence](https://i18n-keyless.com/self-hosted)
+  unlocks unlimited projects on an instance; it is checked offline, the server never calls home.
+- Install with [ONCE](https://once.com) or `docker compose`:
+  [docs.i18n-keyless.com/docs/guides/self-hosting](https://docs.i18n-keyless.com/docs/guides/self-hosting).
+- Then set `API_URL` to your instance in `init` and keep your `API_KEY` from its dashboard.
+
+Not sure whether to self-host or subscribe? [The FAQ answers it](https://docs.i18n-keyless.com/docs/faq).
 
 ---
 
@@ -1364,5 +1391,11 @@ Need help or have questions? Reach out to:
 
 ---
 
-© 2025 i18n-keyless
+## 📄 **License**
+
+Every SDK and port in this repository is [MIT](./LICENSE.md). The server is a separate
+repository, [ambroselli-io/i18n-keyless-server](https://github.com/ambroselli-io/i18n-keyless-server),
+under the Elastic License 2.0.
+
+© 2026 i18n-keyless
 

@@ -11,7 +11,7 @@ plugins {
 // One shared version with the JavaScript SDKs and the other ports; it is also the wire
 // `Version` header (`Version.kt`). `scripts/set-version.mjs` rewrites both lines.
 group = "io.github.arnaudambro"
-version = "3.7.0"
+version = "3.8.0"
 
 repositories {
     mavenCentral()

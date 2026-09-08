@@ -8,7 +8,7 @@ package io.i18nkeyless
  * (`cn`, `cz`). This port speaks v3, so it shares the JavaScript SDKs' version line. Keep it
  * equal to `version` in `build.gradle.kts` (`scripts/set-version.mjs` rewrites both).
  */
-const val VERSION = "3.7.0"
+const val VERSION = "3.8.0"
 
 /**
  * The `sdk` header of a device: an Android app, a desktop app, a JVM process that acts for

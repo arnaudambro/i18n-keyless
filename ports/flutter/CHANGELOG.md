@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 3.8.0
 
 - **The precompiled bundle** (`docs/PROTOCOL.md` sections 4.5 and 7.4): ship the translations
   with the app and keep the API for the misses. Export the files with the MCP `export_bundle`

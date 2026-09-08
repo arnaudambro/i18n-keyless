@@ -5,7 +5,7 @@
 /// (`cn`, `cz`). This port speaks v3, so it shares the JavaScript SDKs' version line
 /// (`scripts/set-version.mjs` rewrites this constant with every release).
 public enum I18nKeylessVersion {
-    public static let string = "3.7.0"
+    public static let string = "3.8.0"
 }
 
 /// The `sdk` header values of this port (docs/PROTOCOL.md, section 10.1).

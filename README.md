@@ -570,8 +570,42 @@ import { I18nKeylessText } from "i18n-keyless-react";
 
 ### **Plural and gender**
 
-We didn't build any complicated internal system for plural and gender management. 
-For now, you need to use JavaScript to switch between cases, and maybe context to specify plural and gender.
+A ternary written in your language cannot produce the forms another language needs:
+Russian has four plural forms, Arabic six, and a `count === 1 ? ... : ...` gives two.
+So you write **one** form, with `{count}` where the number goes, and the model writes the
+forms each language needs — the primary language included:
+
+```jsx
+<I18nKeylessText count={cart.length}>{"{count} articles dans votre panier"}</I18nKeylessText>
+// fr: "1 article dans votre panier" / "3 articles dans votre panier"
+// ru: "1 товар в корзине" / "3 товара в корзине" / "5 товаров в корзине" / "21 товар в корзине"
+```
+
+Behind it, the API stores one ICU MessageFormat message per language with exactly the
+CLDR categories that language uses, and the SDK picks the branch with `Intl.PluralRules`
+(built into every browser and Node — nothing to ship). `{count}` is filled like a `replace`
+placeholder; your own `replace` map wins if it sets `{count}` (a formatted number).
+
+Add `ordinal` for a rank (1st, 2nd, `1er`):
+
+```jsx
+<I18nKeylessText count={rank} ordinal>{"Vous êtes {count}e"}</I18nKeylessText>
+// en: "You are 1st" / "You are 22nd" / "You are 103rd"
+```
+
+For a gender, a role, a day of the week — a closed set of values that changes the wording —
+use `select`. The model writes one variant per value, in every language:
+
+```jsx
+<I18nKeylessText select={{ gender: user.gender }}>Il est connecté</I18nKeylessText>
+// fr: "Elle est connectée" for female, "Il est connecté" for male
+// pl: "Jest zalogowana" / "Jest zalogowany"
+```
+
+A value the row never saw is added the first time it is rendered; the row renders its
+`other` variant meanwhile. A name (an open value) stays a `replace`: no library declines an
+unknown proper noun, and the model is asked to keep such a placeholder where the language
+needs no inflection.
 
 ### **React Hooks and Methods**
 

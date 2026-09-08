@@ -3,6 +3,9 @@ import {
   type TranslationOptions,
   type I18nKeylessRequestBody,
   resolveOriginLanguage,
+  resolveMessageFormat,
+  hasRequestedFormat,
+  formatTranslation,
   AVAILABLE_LANGS,
   DEFAULT_NAMESPACE,
   I18nKeylessAllTranslationsResponse,
@@ -170,27 +173,6 @@ export async function sendTranslationsUsageToI18nKeyless(): Promise<{ ok: boolea
 }
 
 /**
- * Applies the `replace` map to a text: keys are regex-escaped and replaced in a single pass.
- */
-function applyReplace(text: string, replace?: TranslationOptions["replace"]): string {
-  if (!replace) {
-    return text;
-  }
-  // Create a regex that matches all keys to replace
-  // Escape special regex characters in keys
-  const pattern = Object.keys(replace)
-    .map((key) => key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-    .join("|");
-  if (!pattern) {
-    return text;
-  }
-  const regex = new RegExp(pattern, "g");
-
-  // Replace all occurrences in a single pass
-  return text.replace(regex, (matched) => replace[matched] || matched);
-}
-
-/**
  * Keeps only the entries that name a language we know.
  *
  * A custom `handleTranslate` is free to return whatever it wants, and it must not grow
@@ -330,7 +312,9 @@ async function fetchTranslationFromApi(
     // primary-language AI translation and keeps the raw key for originLanguage viewers.
     // The bulk-fetch dictionaries also index UGC rows by the raw key, so store lookups
     // keep working for every language (identity for originLanguage itself).
-    originLanguage: resolveOriginLanguage(options, config)
+    originLanguage: resolveOriginLanguage(options, config),
+    // `count` / `select`: the API writes ICU messages instead of plain text.
+    ...resolveMessageFormat(options)
   };
   const apiUrl = config.API_URL || "https://api.i18n-keyless.com";
   const url = `${apiUrl}/translate`;
@@ -397,7 +381,6 @@ async function awaitForTranslationFn(
   const context = options?.context;
   const namespace = options?.namespace || config.defaultNamespace || DEFAULT_NAMESPACE;
   const debug = options?.debug;
-  const replace = options?.replace;
 
   try {
     // Ensure config is initialized enough for either API call or custom handler
@@ -439,12 +422,14 @@ async function awaitForTranslationFn(
     // on the client, except that an explicit `forceTemporary` for that very language still
     // goes through, to keep registering the override. Usage is still recorded above, so the
     // backend doesn't prune keys that only ever render in their source language.
+    // A `count` / `select` key is the other exception: its source-language cell holds the
+    // forms the model wrote, so it looks the store up (and POSTs on a miss) in every language.
     const sourceLanguage = resolveOriginLanguage(options, config) ?? config.languages.primary;
-    if (currentLanguage === sourceLanguage && !forceTemporaryLang) {
+    if (currentLanguage === sourceLanguage && !forceTemporaryLang && !resolveMessageFormat(options)) {
       if (debug) {
         console.log(`i18n-keyless: "${translationKey}" is already in "${currentLanguage}", returning it as-is`);
       }
-      return applyReplace(key, replace);
+      return formatTranslation(key, currentLanguage, options);
     }
 
     // Safe navigation for potentially undefined language store
@@ -453,12 +438,13 @@ async function awaitForTranslationFn(
     if (debug) {
       console.log("i18n-keyless: translation", translation);
     }
-    // Return existing translation if found and not forced temporary
-    if (translation && !forceTemporaryLang) {
+    // Return existing translation if found and not forced temporary — and, for a `count` /
+    // `select` call, already in the ICU shape it asks for (else the API upgrades the row).
+    if (translation && !forceTemporaryLang && hasRequestedFormat(translation, options)) {
       if (debug) {
         console.log(`i18n-keyless: Translation found in store for key: "${translationKey}"`);
       }
-      return applyReplace(translation, replace);
+      return formatTranslation(translation, currentLanguage, options);
     }
     if (debug) {
       console.log(`i18n-keyless: Translation not found in store for key: "${translationKey}"`);
@@ -479,7 +465,7 @@ async function awaitForTranslationFn(
         if (debug) {
           console.log(`i18n-keyless: Translation found for key "${translationKey}" after handleTranslate`);
         }
-        return applyReplace(updatedTranslation, replace);
+        return formatTranslation(updatedTranslation, currentLanguage, options);
       }
       // If still not found after custom handler, return original key
       if (debug) {
@@ -494,7 +480,8 @@ async function awaitForTranslationFn(
     // Collapse concurrent misses of the same key: a server handling N simultaneous requests
     // would otherwise fire N identical POSTs before the first one comes back and fills the
     // store. `forceTemporary` calls are never shared (they carry a caller-specific value).
-    const dedupKey = `${namespace}:${translationKey}:${options?.originLanguage ?? ""}`;
+    const format = resolveMessageFormat(options);
+    const dedupKey = `${namespace}:${translationKey}:${options?.originLanguage ?? ""}:${format ? JSON.stringify(format) : ""}`;
     const canDedup = !options?.forceTemporary;
     let request = canDedup ? inFlightTranslations.get(dedupKey) : undefined;
     if (!request) {
@@ -518,7 +505,7 @@ async function awaitForTranslationFn(
         `i18n-keyless: Translation for lang "${currentLanguage}" not found in API response for key "${key}". Returning original key.`
       );
     }
-    return applyReplace(fetchedTranslation || key, replace);
+    return formatTranslation(fetchedTranslation || key, currentLanguage, options);
   } catch (error) {
     // Log the specific error during translation attempt
     console.error(`i18n-keyless: Error during awaitForTranslationFn for key "${key}":`, error);
@@ -620,7 +607,7 @@ export async function awaitForTranslationOrFallbackToOriginal(
   try {
     return await awaitForTranslationFn(key, currentLanguage, options);
   } catch {
-    return applyReplace(key, options?.replace);
+    return formatTranslation(key, currentLanguage, options);
   }
 }
 

@@ -132,7 +132,8 @@ whole text content of the element is replaced by the translation. Other attribut
 ## Per-translation options
 
 Same as the React package: `context`, `replace`, `namespace`, `unpersistedNamespace`,
-`forceTemporary`, `originLanguage`, `debug`. See the
+`forceTemporary`, `originLanguage`, `count` / `ordinal` (attributes on `<i18n-t>`),
+`select` (a property, like `replace`), `debug`. See the
 [main README](https://github.com/arnaudambro/i18n-keyless#readme) for the details.
 
 ## Languages

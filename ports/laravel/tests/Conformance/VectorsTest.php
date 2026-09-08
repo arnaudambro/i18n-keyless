@@ -266,6 +266,9 @@ final class VectorsTest extends TestCase
             if (isset($case['expected']['handler']) || isset($options['forceTemporary']) || isset($options['originLanguage'])) {
                 continue; // not exposed by this package
             }
+            if (isset($options['count']) || isset($options['select'])) {
+                continue; // plurals / select (`count`, `ordinal`, `select`) are not exposed by this package yet
+            }
             $config = $case['input']['config'];
             $http = new Factory;
             $http->fake(['*' => Http::response(['ok' => true, 'data' => ['translation' => []], 'error' => '', 'message' => ''])]);

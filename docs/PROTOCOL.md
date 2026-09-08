@@ -225,6 +225,8 @@ Request body (`I18nKeylessRequestBody`); a field whose value is absent is not se
 | `languages` | `Lang[]` | `languages.supported`, in config order |
 | `primaryLanguage` | `Lang` | `languages.primary` |
 | `originLanguage` | `Lang`? | the per-call `originLanguage`, **omitted when absent or equal to the primary** |
+| `plural` | `"cardinal"` \| `"ordinal"`? | present when the call carries `count`: `"ordinal"` with `ordinal: true`, `"cardinal"` otherwise (section 5.4) |
+| `select` | `Record<string, string>`? | present when the call carries a non-empty `select`: the current value of each variable, as given (section 5.4) |
 
 ```json
 { "key": "8 heures", "context": "time", "namespace": "checkout", "languages": ["fr", "en", "es"], "primaryLanguage": "fr" }
@@ -414,19 +416,24 @@ Vectors: `usage-request.json`.
 
 Inputs: `key`, the store (`currentLanguage`, `config`, flat `translations` map) and the
 options (`context`, `namespace`, `unpersistedNamespace`, `debug`, `forceTemporary`,
-`replace`, `originLanguage`). The function is synchronous and MUST return a string.
+`replace`, `originLanguage`, `count`, `ordinal`, `select`). The function is synchronous and
+MUST return a string.
 
 1. If `config.API_KEY` is empty: throw `i18n-keyless: config is not initialized`.
 2. `sourceLanguage` = `originLanguage` when given and different from the primary, else the
    primary language.
-3. If `currentLanguage === sourceLanguage`: `text = key`. No lookup, no request, even when
-   `forceTemporary[currentLanguage]` is set.
+3. If `currentLanguage === sourceLanguage` **and the call carries neither `count` nor a
+   non-empty `select`**: `text = key`. No lookup, no request, even when
+   `forceTemporary[currentLanguage]` is set. (A `count` / `select` key looks the map up in
+   its source language too: that cell holds the forms the model wrote, section 5.4.)
 4. Else:
    1. if `forceTemporary[currentLanguage]` is set: queue a translate request (section 6),
    2. `text = translations[storageKeyFor(key, context)]`,
-   3. if `text` is missing **or an empty string**: queue a translate request, and `text = key`.
+   3. if `text` is missing **or an empty string**: queue a translate request, and `text = key`;
+   4. else if the call carries `count` / `select` and `text` does not carry what it asks
+      for (`hasRequestedFormat`, section 5.4): queue a translate request, keep `text`.
    A context miss never falls back to the entry without context.
-5. Apply `replace` to `text` (section 5.2) and return it.
+5. Render `text` (section 5.4, then section 5.2) and return it.
 
 `forceTemporary` never changes what is rendered: its value only travels to the API, which
 stores it; the override arrives with the next dictionary fetch.
@@ -460,6 +467,54 @@ The component path (`<T>`, `useTranslation`) trims the source text (`text.trim()
 everything else and warns in development when it had surrounding whitespace. The function
 path (`getTranslation`) and the node SDK do not trim. A port MUST trim in its component /
 template path and MUST NOT trim in its imperative function.
+
+### 5.4 Plurals, ordinals and select (`count`, `ordinal`, `select`)
+
+A call carrying `count` (a number) or a non-empty `select` (`{ gender: "female" }`) asks
+for a text whose wording depends on a value. The source text is written in **one** form,
+with `{count}` where the number goes (`"{count} articles"`, `"Il est connecté"`); the API
+writes, for every language including the source language, an ICU MessageFormat message
+holding the forms that language needs, and stores it in the cell:
+
+```
+{count, plural, one {{count} товар} few {{count} товара} many {{count} товаров} other {{count} товара}}
+{count, selectordinal, one {{count}er} other {{count}e}}
+{gender, select, male {Il est connecté} female {Elle est connectée} other {Connecté}}
+```
+
+The subset a client MUST render (`packages/core/message-format.ts`, vectors
+`message-format.json`):
+
+- a **block** is `{variable, kind, key {body} key {body} ...}` with `kind` one of `plural`,
+  `selectordinal`, `select`; a text may hold any number of blocks, and a body may hold
+  placeholders and nested blocks. A `{` that does not open a well-formed block (`{name}`)
+  is plain text. No apostrophe escaping, no `offset:`, no other argument type.
+- **branch selection** for `plural` / `selectordinal` on the number `n` of the variable: an
+  exact `=N` branch first, then the CLDR category of `n` in the *current language*
+  (`Intl.PluralRules(lang, { type })`, `cardinal` for `plural`, `ordinal` for
+  `selectordinal`), then `other`. For `select`: the branch named by the value, then
+  `other`. A block whose variable has no value falls back to `other`. A block with no
+  usable branch is left as it is.
+- inside a `plural` / `selectordinal` body, `#` is the number.
+- the plain placeholders are then filled by `replace` (section 5.2), with `{count}` =
+  `String(count)` and `{variable}` = the select value added **under** the caller's own map
+  (the caller wins on a clash). This rendering runs on every text that contains a `{`,
+  also at a call site without `count` / `select`: a row upgraded by one call site still
+  reads at the others, on its `other` branches.
+- a runtime without `Intl.PluralRules` MUST fall back to the categories `one` (n = 1) /
+  `other` for cardinals and `other` for ordinals, and never throw.
+
+On the wire (section 4.1) the call sends `plural: "cardinal" | "ordinal"` and / or
+`select: { variable: value }`. The API asks the model for exactly the CLDR categories of
+each language (plus `other` for a select, and every value it has seen for that variable),
+validates the answer against `Intl.PluralRules` and stores it. The client re-sends a key
+whose stored text lacks the requested block, or a `select` branch for the current value
+(`hasRequestedFormat`): the API upgrades or extends the row, and the next dictionary fetch
+brings it. Meanwhile the stored text renders as it is, and a missing row renders the key
+(`"3 articles"` in every language, the source form).
+
+A port that does not implement this section MUST still store and return such a cell
+verbatim; it renders the raw message until it does.
 
 ## 6. The translate-on-miss queue (`translateKey`, `MyPQueue`)
 

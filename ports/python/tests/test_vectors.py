@@ -219,6 +219,8 @@ def test_translate_request() -> None:
     for case in load_vector("translate-request")["cases"]:
         inp, expected = case["input"], case["expected"]
         config, options = inp["config"], inp.get("options") or {}
+        if "count" in options or "select" in options:
+            continue  # plurals / select (count, ordinal, select) are not exposed by this port yet
         if "handler" in expected:
             calls: List[Any] = []
             client = make_client(

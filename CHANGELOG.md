@@ -9,6 +9,26 @@ All notable changes to i18n-keyless are documented here. The npm packages
 This project follows [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
 
+## [3.7.0] — 2026-09-08
+
+### Added
+
+- **Plurals, ordinals and gender-like choices** (`count`, `ordinal`, `select`), the answer
+  to "a ternary written in French cannot produce the four Russian forms". The source text
+  is written in **one** form with `{count}` where the number goes; the API writes, for every
+  language *including the primary one*, an ICU MessageFormat message with exactly the CLDR
+  categories that language needs (validated against `Intl.PluralRules`), and the client
+  picks the branch with `Intl.PluralRules` — zero dependencies, no plural table shipped.
+  `<T count={n}>{"{count} articles"}</T>`, `<T count={rank} ordinal>`,
+  `<T select={{ gender: user.gender }}>Il est connecté</T>`; the same options on
+  `useTranslation`, `getTranslation`, `t()`, the `<i18n-t>` element (`count` / `ordinal`
+  attributes, `select` property) and the node functions. A key rendered with `count` /
+  `select` is looked up in the primary language too; a row that predates the option, or a
+  select value the row never saw, is re-sent once and upgraded server-side. Core exports
+  the formatter (`formatIcuMessage`, `formatTranslation`, `pluralCategoriesFor`, ...) and
+  `docs/PROTOCOL.md` section 5.4 plus `conformance/vectors/message-format.json` specify it.
+  The ports do not render it yet: they store and return such a cell verbatim.
+
 ## [3.6.1] — 2026-09-04
 
 ### Added

@@ -159,6 +159,11 @@ options argument of `getTranslation(text, options)` / `watchTranslation(text, op
 - `replace`: interpolation. **The keys include the literal delimiters**:
   `getTranslation("Bonjour {name}", { replace: { "{name}": user.name } })`. On `<i18n-t>`
   it is a property, not an attribute: `el.replace = { "{name}": user.name }`.
+- `count`: plurals. Write **one** form with `{count}`; every language gets the forms it
+  needs, the primary one too: `<i18n-t count="3">{count} articles</i18n-t>` renders
+  "1 article" / "3 articles". The `ordinal` attribute for a rank.
+- `select`: a closed set of values that changes the wording. A property on `<i18n-t>`:
+  `el.select = { gender: user.gender }`; an option in JS: `{ select: { gender } }`.
 - `namespace`: a fetch/storage partition, not a semantic key. Splits a large site so a page
   downloads and persists only the slice it renders. Fixes the localStorage quota error.
   Reserved default: `"default"`. Set a site-wide one with `defaultNamespace` in `init`

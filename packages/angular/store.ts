@@ -14,6 +14,7 @@ import {
   sendTranslationsUsageToI18nKeyless,
   resolveNamespace,
   resolveOriginLanguage,
+  resolveMessageFormat,
   generateUniqueId,
   isUniqueId,
   setUniqueId,
@@ -585,7 +586,7 @@ export function getTranslation(key: string, options?: TranslationOptions): strin
   if (!isServerEnv() && !base.config.ssr) {
     queueMicrotask(() => {
       setTranslationUsage(key, options?.context, options?.namespace, options?.unpersistedNamespace);
-      if (resolveOriginLanguage(options, base.config)) {
+      if (resolveOriginLanguage(options, base.config) || resolveMessageFormat(options)) {
         registerOriginNamespace(resolveNamespace(options, base.config), !!options?.unpersistedNamespace);
       }
     });

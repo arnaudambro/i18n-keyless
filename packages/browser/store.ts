@@ -13,6 +13,8 @@ import {
   sendTranslationsUsageToI18nKeyless,
   resolveNamespace,
   resolveOriginLanguage,
+  resolveMessageFormat,
+  formatTranslation,
   generateUniqueId,
   isUniqueId,
   setUniqueId,
@@ -455,19 +457,13 @@ export function resolveTranslation(
   const primary = current.config.languages.primary;
   const sourceLanguage =
     options.originLanguage && options.originLanguage !== primary ? options.originLanguage : primary;
+  // A `count` / `select` key looks the map up in the primary language too: its primary
+  // cell holds the forms the model wrote.
   const translated =
-    current.currentLanguage === sourceLanguage ? sourceText : current.translations[storageKey] || sourceText;
-  if (!options.replace) {
-    return translated;
-  }
-  const pattern = Object.keys(options.replace)
-    .map((placeholder) => placeholder.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-    .join("|");
-  if (!pattern) {
-    return translated;
-  }
-  const regex = new RegExp(pattern, "g");
-  return translated.replace(regex, (matched) => options.replace?.[matched] || matched);
+    current.currentLanguage === sourceLanguage && !resolveMessageFormat(options)
+      ? sourceText
+      : current.translations[storageKey] || sourceText;
+  return formatTranslation(translated, current.currentLanguage, options);
 }
 
 /**
@@ -482,7 +478,7 @@ export function getTranslation(key: string, options?: TranslationOptions): strin
   // Deferred: usage bookkeeping must not run inside a listener that is being notified.
   queueMicrotask(() => {
     setTranslationUsage(key, options?.context, options?.namespace, options?.unpersistedNamespace);
-    if (resolveOriginLanguage(options, base.config)) {
+    if (resolveOriginLanguage(options, base.config) || resolveMessageFormat(options)) {
       registerOriginNamespace(resolveNamespace(options, base.config), !!options?.unpersistedNamespace);
     }
   });

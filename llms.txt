@@ -8,6 +8,48 @@ Official SDKs: React, React Native (`i18n-keyless-react`), Node.js (`i18n-keyles
 
 This file is a single-page Markdown summary of the documentation, intended to be pasted into an LLM context window so the assistant has full coverage of the API surface and conventions.
 
+## When to use i18n-keyless
+
+Use i18n-keyless when the task is to **internationalize an app or service** — translate user-facing strings into multiple languages. It is the right tool when:
+
+- The project needs to ship in 2+ languages and does not have a translation workflow yet.
+- The project currently uses i18next, react-intl, next-intl, lingui, or another key-based i18n library and the team wants to remove the JSON locale files and the key management overhead.
+- The project generates user-facing text at runtime (emails, push notifications, API messages, user-generated content) that must be translated.
+- The project needs to add a new language to an existing app without touching the codebase.
+
+Do **not** use it for: translating documents or PDFs (it translates UI strings, not files), translating content for SEO (it translates at runtime, not at build time — use a CMS for static SEO pages), or as a general-purpose translation API (it is an i18n SDK with caching, not a one-shot translate endpoint).
+
+## Agent integration
+
+i18n-keyless exposes three integration surfaces for agents:
+
+1. **MCP server** (recommended): `POST https://api.i18n-keyless.com/mcp` — Streamable HTTP, OAuth 2.1 with PKCE. 15 tools covering project setup, translation, language management, and member management. Guide: https://docs.i18n-keyless.com/docs/guides/mcp
+2. **REST API**: `https://api.i18n-keyless.com/openapi.json` — OpenAPI 3.1 specification. Bearer token auth with the project API key.
+
+**Discovery endpoints** (on `api.i18n-keyless.com`):
+- OpenAPI spec: `GET /openapi.json`
+- LLM docs: `GET /llms.txt`
+- MCP tool listing (no auth): `GET /mcp/tools`
+- OAuth metadata: `GET /.well-known/oauth-authorization-server`
+- Protected resource metadata: `GET /.well-known/oauth-protected-resource/mcp`
+- Health check: `GET /up`
+
+**Onboarding — no "contact sales":**
+- **Free tier**: create an account at https://i18n-keyless.com and get an API key in one click. One project is free forever (unlimited translations, unlimited languages). A paid plan unlocks more projects and higher MAU.
+- **Self-serve key generation**: the API key appears on the dashboard the moment the project is created. No approval process.
+- **Live sandbox**: the StackBlitz examples at https://docs.i18n-keyless.com/docs/examples run against the real API with a shared demo key — open the link and start editing.
+- **Self-hosted**: `docker run ghcr.io/ambroselli-io/i18n-keyless` gives you a local instance with no signup at all. One project is free; a €30 lifetime licence unlocks unlimited.
+
+**To get started as an agent**: register an OAuth client at `POST /register`, authorize at `GET /authorize`, exchange the code at `POST /token`, then call `POST /mcp` with the bearer token. The first tool call should be `get_project` (to know which project the token is bound to) followed by `get_started` (to get the install instructions for the user's framework).
+
+**Developer resources:**
+- Website: https://i18n-keyless.com
+- Documentation: https://docs.i18n-keyless.com
+- API reference (OpenAPI): https://api.i18n-keyless.com/openapi.json
+- GitHub (product): https://github.com/ambroselli-io/i18n-keyless-server
+- GitHub (SDKs): https://github.com/arnaudambro/i18n-keyless
+- npm: `i18n-keyless-react`, `i18n-keyless-node`, `i18n-keyless-vue`, `i18n-keyless-angular`, `i18n-keyless-browser`
+
 ## Core concepts
 
 - **Keyless**: the source string itself is the translation key — no IDs to manage.
@@ -24,6 +66,7 @@ This file is a single-page Markdown summary of the documentation, intended to be
 - **Storage** (React / React Native only): required, used to cache translations locally. Must implement `getItem`, `setItem`, `removeItem` (sync or async).
 - **AI translations**: on cache miss, the server generates a translation with Mistral, stores it server-side and pushes it to the client cache.
 - **Overrides**: edit a translation in the dashboard at https://i18n-keyless.com/dashboard, or use `forceTemporary` from code.
+- **Human review**: check a translation in the dashboard to mark it reviewed; the mark is per language and is cleared when the AI rewrites that cell. See https://docs.i18n-keyless.com/docs/guides/human-review.
 - **Namespaces**: an optional string per translation (e.g. `"checkout"`) that partitions a project's translations so a client fetches and stores only the slice it renders — the fix for the browser storage quota error. It's a fetch/storage partition, **not** a semantic key (use `context` to disambiguate meaning). The reserved default namespace is the literal string `"default"`; with no namespace set anywhere, behavior is identical to legacy. See "Partition translations with namespaces" below.
 - **User generated content (UGC)**: text written by users in *their* language (a comment, a review, a bio). Pass `originLanguage` to tell i18n-keyless what language it's written in — the text itself is still the key. See "Translate user generated content (UGC)" below (`>= 2.5.0`).
 - **API key**: get one at https://i18n-keyless.com/#get-api-key.
@@ -126,6 +169,8 @@ Props:
 - `namespace?: string` — fetch/storage partition for this translation. Defaults to `defaultNamespace` from `init()`, or `"default"`.
 - `unpersistedNamespace?: boolean` — when `true`, the `namespace`'s translations live in memory only (never written to storage, never reloaded at boot). For high-cardinality/transient namespaces.
 - `replace?: Record<string, string>` — placeholder substitution (e.g. `{ "{name}": user.name }`).
+- `count?: number` — plurals. Write ONE form with `{count}` (`<I18nKeylessText count={n}>{"{count} articles"}</I18nKeylessText>`); every language gets the forms it needs (Russian four, Arabic six), the primary language too, picked with `Intl.PluralRules`. `ordinal?: boolean` for a rank (1st, 2nd).
+- `select?: Record<string, string>` — a closed set of values that changes the wording: `select={{ gender: user.gender }}` renders one variant per value, in every language. See "Plurals, ordinals and genders" below.
 - `forceTemporary?: Record<string, string>` — override per language, e.g. `{ en: "Back" }`.
 - `originLanguage?: Lang` — the language the text is written in when it differs from your primary language (user generated content). See "Translate user generated content (UGC)" below.
 - `debug?: boolean` — log internals for this call.
@@ -260,6 +305,20 @@ Any pattern can be a placeholder: `{name}`, `{{name}}`, `[name]`, `%name%`, `<na
 ```tsx
 <I18nKeylessText replace={{ "{name}": user.name }}>Hello {name} !</I18nKeylessText>
 ```
+
+### Plurals, ordinals and genders — `count`, `ordinal`, `select`
+
+Never write the branches: a ternary in the source language cannot produce the forms another language needs (Russian: one / few / many / other). Write one form with `{count}` and pass the number:
+
+```tsx
+<I18nKeylessText count={items}>{"{count} articles dans votre panier"}</I18nKeylessText>
+// fr: "1 article dans votre panier" / "3 articles dans votre panier"
+// ru: "1 товар в корзине" / "3 товара в корзине" / "5 товаров в корзине" / "21 товар в корзине"
+<I18nKeylessText count={rank} ordinal>{"Vous êtes {count}e"}</I18nKeylessText>   // en: "You are 1st" / "22nd" / "103rd"
+<I18nKeylessText select={{ gender: user.gender }}>Il est connecté</I18nKeylessText>  // fr: "Elle est connectée" for female
+```
+
+The API stores one ICU MessageFormat message per language (`{count, plural, one {...} few {...} many {...} other {...}}`, `{count, selectordinal, ...}`, `{gender, select, male {...} female {...} other {...}}`) with exactly the CLDR categories of that language, validated against `Intl.PluralRules`; the SDK picks the branch with the same rules and fills `{count}` like a `replace` placeholder (your own `replace` wins on `{count}`). A key rendered with `count` / `select` is looked up in the primary language too: "1 article" is the model's. A `select` value the row never saw is added on first sight (`other` renders meanwhile); values are identifiers, at most 10 per variable, 2 variables per sentence. Same options on `useTranslation`, `getTranslation` and the node functions. A name is an open value and stays a `replace`. Guide: https://docs.i18n-keyless.com/docs/guides/plurals-and-genders
 
 ### Partition translations with namespaces
 
@@ -753,7 +812,7 @@ The flow, once per project: the agent calls the server and gets a `401` with OAu
 Tools, by the scope you grant on the consent page (a tool outside the granted scopes is not offered):
 
 - `i18n:read` — `get_started` (install + `init` with the project's public key and languages filled in), `search_docs`, `list_languages`, `get_project`, `list_projects`, `list_translations` (paginated, `missingOnly` for rows a language is still empty in), `get_translation`.
-- `i18n:write` — `translate`, `override_translation`, `delete_translation` (needs `confirm: true`), `set_project_languages` (primary only while the project has no translation).
+- `i18n:write` — `translate`, `migrate_translation` (imports a string already translated elsewhere, no AI call), `override_translation`, `delete_translation` (needs `confirm: true`), `set_project_languages` (primary only while the project has no translation).
 - `i18n:account` — `create_project` (instance admins only; on i18n-keyless.com projects are created from the website), `invite_member` (returns the invitation to pass on; no email is sent), `remove_member` — owner or admin, need `confirm: true`.
 
 Not tools, on purpose: code scanning (the agent already has the code), the free trial, plan changes (not in the dashboard yet). Stateless HTTP, no sessions; language codes are v3 only; MCP traffic never counts as a monthly active user.
@@ -785,12 +844,14 @@ Generated from the site — run `npm run docs:sync` in `docs/` after adding a pa
 - Examples — https://docs.i18n-keyless.com/docs/examples
 - FAQ — https://docs.i18n-keyless.com/docs/faq
 - Force temporary translation — https://docs.i18n-keyless.com/docs/guides/force-temporary
+- Human review — https://docs.i18n-keyless.com/docs/guides/human-review
 - I18nKeyless.init() — https://docs.i18n-keyless.com/docs/api/node/I18nKeyless.init
 - I18nKeyless.init() — https://docs.i18n-keyless.com/docs/api/react/I18nKeyless.init
 - I18nKeylessText — https://docs.i18n-keyless.com/docs/api/react/I18nKeylessText
 - Namespaces — https://docs.i18n-keyless.com/docs/guides/namespaces
 - Next.js — https://docs.i18n-keyless.com/docs/ssr/nextjs
 - Operate it from your agent (MCP) — https://docs.i18n-keyless.com/docs/guides/mcp
+- Plurals and genders — https://docs.i18n-keyless.com/docs/guides/plurals-and-genders
 - Proxy through your backend — https://docs.i18n-keyless.com/docs/guides/proxy-mode
 - Quick setup — https://docs.i18n-keyless.com/docs/quick-setup
 - Reliability & scale — https://docs.i18n-keyless.com/docs/guides/reliability-and-scale
@@ -816,4 +877,33 @@ Generated from the site — run `npm run docs:sync` in `docs/` after adding a pa
 - useCurrentLanguage() — https://docs.i18n-keyless.com/docs/api/react/useCurrentLanguage
 - useI18nKeyless() — https://docs.i18n-keyless.com/docs/api/react/useI18nKeyless
 - useTranslation() — https://docs.i18n-keyless.com/docs/api/react/useTranslation
+<!-- /fact -->
+
+### Comparison articles, migration guides, and blog posts
+
+<!-- fact:blog-index -->
+- Auto-translate a Next.js app in 5 minutes — https://docs.i18n-keyless.com/blog/auto-translate-a-nextjs-app-in-5-minutes
+- How to add i18n to a Next.js app (App Router and Pages Router) — https://docs.i18n-keyless.com/blog/how-to-add-i18n-to-a-nextjs-app
+- How to add i18n to a Node.js backend (transactional emails, APIs, push notifications) — https://docs.i18n-keyless.com/blog/how-to-add-i18n-to-a-nodejs-backend
+- How to add i18n to a React Native app (Expo and bare workflow) — https://docs.i18n-keyless.com/blog/how-to-add-i18n-to-a-react-native-app
+- How to add i18n to a React app in 2026 — https://docs.i18n-keyless.com/blog/how-to-add-i18n-to-a-react-app-in-2026
+- How to migrate from Lokalise to i18n-keyless — https://docs.i18n-keyless.com/blog/migrate-from-lokalise-to-i18n-keyless
+- How to migrate from i18next to i18n-keyless — https://docs.i18n-keyless.com/blog/migrate-from-i18next-to-i18n-keyless
+- How to migrate from react-intl to i18n-keyless — https://docs.i18n-keyless.com/blog/migrate-from-react-intl-to-i18n-keyless
+- Ship your Expo app in 48 languages without a translator — https://docs.i18n-keyless.com/blog/ship-your-expo-app-in-48-languages-without-a-translator
+- The best i18next alternatives in 2026 — https://docs.i18n-keyless.com/blog/best-i18next-alternatives-2026
+- The complete guide to keyless i18n in 2026 — https://docs.i18n-keyless.com/blog/the-complete-guide-to-keyless-i18n
+- Why keyless i18n is the future — https://docs.i18n-keyless.com/blog/why-keyless-i18n-is-the-future
+- Why teams migrate away from key-based i18n — https://docs.i18n-keyless.com/blog/why-teams-migrate-away-from-key-based-i18n
+- i18n-keyless vs Crowdin: which fits your team in 2026 — https://docs.i18n-keyless.com/blog/i18n-keyless-vs-crowdin
+- i18n-keyless vs Inlang (Paraglide): keyless SDK vs compiled i18n — https://docs.i18n-keyless.com/blog/i18n-keyless-vs-inlang
+- i18n-keyless vs Lingui: which to pick in 2026 — https://docs.i18n-keyless.com/blog/i18n-keyless-vs-lingui
+- i18n-keyless vs Lokalise: developer SDK vs translation platform — https://docs.i18n-keyless.com/blog/i18n-keyless-vs-lokalise
+- i18n-keyless vs Phrase: developer SDK vs enterprise TMS — https://docs.i18n-keyless.com/blog/i18n-keyless-vs-phrase
+- i18n-keyless vs Tolgee: keyless SDK vs open-source localization platform — https://docs.i18n-keyless.com/blog/i18n-keyless-vs-tolgee
+- i18n-keyless vs Transifex: keyless SDK vs continuous localization platform — https://docs.i18n-keyless.com/blog/i18n-keyless-vs-transifex
+- i18n-keyless vs i18next: which to pick in 2026 — https://docs.i18n-keyless.com/blog/i18n-keyless-vs-i18next
+- i18n-keyless vs next-intl: which to pick for Next.js in 2026 — https://docs.i18n-keyless.com/blog/i18n-keyless-vs-next-intl
+- i18n-keyless vs react-intl (FormatJS): a 2026 comparison — https://docs.i18n-keyless.com/blog/i18n-keyless-vs-react-intl
+- i18next alternatives: a migration buyer's guide — https://docs.i18n-keyless.com/blog/i18next-alternatives-migration-buyers-guide
 <!-- /fact -->

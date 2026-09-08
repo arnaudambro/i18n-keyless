@@ -146,6 +146,13 @@ Available as props on `<T>` and as the options argument of `useTranslation(text,
   `<T context="duration">8 heures</T>` become two distinct translations.
 - `replace` — interpolation. **The keys include the literal delimiters**:
   `<T replace={{ "{name}": user.name }}>Bonjour {name}</T>`.
+- `count` — plurals. Write **one** form with `{count}` where the number goes; every
+  language gets the forms it needs (Russian four, Arabic six, French two), the primary one
+  too: `<T count={n}>{"{count} articles"}</T>` renders "1 article" / "3 articles". No
+  ternary, no `_one` / `_other` keys. Add `ordinal` for a rank: `<T count={rank} ordinal>{"Vous êtes {count}e"}</T>`.
+- `select` — a closed set of values that changes the wording (a gender, a role):
+  `<T select={{ gender: user.gender }}>Il est connecté</T>` renders "Elle est connectée"
+  for `female`, in every language. A value the row never saw is added on first sight.
 - `namespace` — a fetch/storage partition, not a semantic key. Splits a large project so a
   client downloads and persists only the slice it renders. Fixes the localStorage quota
   error. Reserved default: `"default"`. Set a project-wide one with `defaultNamespace` in

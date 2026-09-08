@@ -1,5 +1,5 @@
 import { isDevMode } from "@angular/core";
-import type { Lang, TranslationOptions } from "i18n-keyless-core";
+import { formatTranslation, resolveMessageFormat, type Lang, type TranslationOptions } from "i18n-keyless-core";
 import { store, getTranslation, isServerEnv } from "./store.ts";
 import { getRequestScope, recordUsedKey, type I18nRequestScope } from "./request-scope.ts";
 
@@ -30,19 +30,21 @@ export function resolveTranslation(
   recordUsedKey(storageKey);
 
   // The text renders as-is when the current language is the one it is written in: the
-  // primary language, except for UGC (originLanguage), which looks up the map even when
-  // the current language is the primary one.
+  // primary language, except for UGC (originLanguage) and for a `count` / `select` key,
+  // which look up the map even when the current language is the primary one.
   const primary = requestScope?.primary ?? config.languages.primary;
   const originLanguage = options?.originLanguage;
   const sourceLanguage = originLanguage && originLanguage !== primary ? originLanguage : primary;
-  const translatedText = currentLanguage === sourceLanguage ? sourceText : translation || sourceText;
+  const translatedText =
+    currentLanguage === sourceLanguage && !resolveMessageFormat(options) ? sourceText : translation || sourceText;
 
-  return { text: applyReplace(translatedText, options?.replace), lang: currentLanguage };
+  return { text: formatTranslation(translatedText, currentLanguage, options), lang: currentLanguage };
 }
 
 /**
  * Regex-safe interpolation: `{ "{name}": "Ada" }` replaces every literal `{name}`.
- * Same implementation as the core, so the pipe and the function path interpolate alike.
+ * Same implementation as the core. Kept exported for compatibility; the lookup above goes
+ * through the core's `formatTranslation`, which also renders `count` / `select`.
  */
 export function applyReplace(text: string, replace: TranslationOptions["replace"]): string {
   if (!replace) {

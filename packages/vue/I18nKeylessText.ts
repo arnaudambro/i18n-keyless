@@ -44,6 +44,12 @@ export interface I18nKeylessTextProps {
    * When the current language IS the origin language, the text is rendered as-is (no API call).
    */
   originLanguage?: TranslationOptions["originLanguage"];
+  /** The number the text talks about: `<T :count="n">{count} articles</T>`. See `TranslationOptions["count"]`. */
+  count?: TranslationOptions["count"];
+  /** With `count`: the number is a rank, so ordinal forms apply. */
+  ordinal?: TranslationOptions["ordinal"];
+  /** A choice among a closed set of values: `<T :select="{ gender }">Il est connecté</T>`. */
+  select?: TranslationOptions["select"];
 }
 
 function isDevelopment(): boolean {
@@ -105,6 +111,9 @@ export const I18nKeylessText = defineComponent({
     debug: { type: Boolean, required: false, default: false },
     forceTemporary: { type: Object as PropType<Partial<Record<Lang, string>>>, required: false },
     originLanguage: { type: String as PropType<Lang>, required: false },
+    count: { type: Number, required: false },
+    ordinal: { type: Boolean, required: false, default: undefined },
+    select: { type: Object as PropType<Record<string, string>>, required: false },
   },
   setup(props, { slots }) {
     const scope = useI18nKeylessContext();

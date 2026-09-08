@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.7.0
+
+No change in the port. The version tracks the JavaScript SDKs: 3.7.0 adds plurals, ordinals and
+`select` choices (ICU MessageFormat, `docs/PROTOCOL.md` section 5.4). The port stores and returns
+such a cell verbatim and does not render it yet.
+
 ## 3.6.1
 
 First release of the Swift port. The version tracks the JavaScript SDKs and the protocol

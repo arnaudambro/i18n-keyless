@@ -194,6 +194,7 @@ class VectorsTest < I18nKeylessTest::Case
     vector("translate-request")["cases"].each do |c|
       options = c["input"]["options"] || {}
       next if c["expected"].key?("handler") || options.key?("forceTemporary") || options.key?("originLanguage")
+      next if options.key?("count") || options.key?("select") # plurals / select are not exposed by this gem yet
 
       WebMock.reset!
       config = c["input"]["config"]

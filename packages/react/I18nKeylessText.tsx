@@ -50,6 +50,21 @@ export interface I18nKeylessTextProps {
    * When the current language IS the origin language, the text is rendered as-is (no API call).
    */
   originLanguage?: TranslationOptions["originLanguage"];
+  /**
+   * The number the text talks about: `<I18nKeylessText count={n}>{"{count} articles"}</I18nKeylessText>`.
+   * Write ONE form with `{count}`; every language gets the forms it needs (Russian four,
+   * French two), chosen by `Intl.PluralRules`. The primary language too: "1 article" is
+   * the model's, not a ternary of yours.
+   */
+  count?: TranslationOptions["count"];
+  /** With `count`: the number is a rank (1st, 2nd, `{count}e`), so ordinal forms apply. */
+  ordinal?: TranslationOptions["ordinal"];
+  /**
+   * A choice among a closed set of values that changes the wording:
+   * `<I18nKeylessText select={{ gender: user.gender }}>Il est connecté</I18nKeylessText>`.
+   * One variant per value, in every language, `other` always there.
+   */
+  select?: TranslationOptions["select"];
 }
 
 /**

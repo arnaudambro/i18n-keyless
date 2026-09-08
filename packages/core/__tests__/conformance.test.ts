@@ -9,7 +9,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { formatIcuMessage, pluralCategoriesFor } from "../message-format.ts";
 import {
+  formatTranslation,
   getTranslationCore,
   translateKey,
   getAllTranslationsFromLanguage,
@@ -163,6 +165,23 @@ describe("vectors/replace", () => {
     for (const { input, expected } of cases) {
       expect(getTranslationCore(input.text, store, { replace: input.replace ?? undefined })).toBe(expected);
     }
+  });
+});
+
+describe("vectors/message-format", () => {
+  const { cases, categories } = load("message-format");
+  it.each(cases)("$name", ({ input, formatted, rendered }) => {
+    expect(formatIcuMessage(input.text, input.lang, input.values)).toBe(formatted);
+    const { count, ...select } = input.values as Record<string, string | number>;
+    const options = {
+      ...(typeof count === "number" ? { count } : {}),
+      ...(Object.keys(select).length ? { select: select as Record<string, string> } : {}),
+      ...(input.replace ? { replace: input.replace } : {})
+    };
+    expect(formatTranslation(input.text, input.lang, options)).toBe(rendered);
+  });
+  it.each(categories.cases)("$lang $type categories", ({ lang, type, expected }) => {
+    expect(pluralCategoriesFor(lang, type)).toEqual(expected);
   });
 });
 
@@ -457,8 +476,13 @@ describe("vectors/translate-request", () => {
 
     if (expected.http === false) {
       expect(spy).not.toHaveBeenCalled();
-      expect(handler).toHaveBeenCalledTimes(1);
-      expect(handler.mock.calls[0]).toEqual(expected.handlerArgs);
+      if (expected.handler) {
+        expect(handler).toHaveBeenCalledTimes(1);
+        expect(handler.mock.calls[0]).toEqual(expected.handlerArgs);
+      } else {
+        // nothing leaves at all: the store already holds what the call asks for
+        expect(handler).not.toHaveBeenCalled();
+      }
       return;
     }
     expect(handler).not.toHaveBeenCalled();

@@ -54,6 +54,12 @@ export class I18nKeylessTextComponent implements AfterContentChecked {
   readonly forceTemporary = input<TranslationOptions["forceTemporary"]>();
   /** For user generated content: the language this text is written in. */
   readonly originLanguage = input<Lang | undefined>();
+  /** The number the text talks about: `<i18n-t [count]="n">{count} articles</i18n-t>`. */
+  readonly count = input<TranslationOptions["count"]>();
+  /** With `count`: the number is a rank, so ordinal forms apply. */
+  readonly ordinal = input<TranslationOptions["ordinal"]>();
+  /** A choice among a closed set of values: `<i18n-t [select]="{ gender }">Il est connecté</i18n-t>`. */
+  readonly select = input<TranslationOptions["select"]>();
 
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly scope = inject(I18N_KEYLESS_REQUEST_SCOPE, { optional: true });
@@ -68,6 +74,9 @@ export class I18nKeylessTextComponent implements AfterContentChecked {
     debug: this.debug(),
     forceTemporary: this.forceTemporary(),
     originLanguage: this.originLanguage(),
+    count: this.count(),
+    ordinal: this.ordinal(),
+    select: this.select(),
   }));
 
   /** The rendered text: the translation when the store (or the request scope) has it, the source otherwise. */

@@ -13,6 +13,7 @@ import {
   sendTranslationsUsageToI18nKeyless,
   resolveNamespace,
   resolveOriginLanguage,
+  resolveMessageFormat,
   generateUniqueId,
   isUniqueId,
   setUniqueId,
@@ -559,9 +560,10 @@ export function getTranslation(key: string, options?: TranslationOptions): strin
   if (!isServerEnv() && !base.config.ssr && base.config.API_KEY) {
     queueMicrotask(() => {
       base.setTranslationUsage(key, options?.context, options?.namespace, options?.unpersistedNamespace);
-      // Remember namespaces that hold UGC keys so switching (or booting) to the primary
-      // language still fetches them (deferred for the same render-safety reason as usage).
-      if (resolveOriginLanguage(options, base.config)) {
+      // Remember namespaces that hold UGC keys — and `count` / `select` keys, whose primary
+      // cell is the model's — so switching (or booting) to the primary language still
+      // fetches them (deferred for the same render-safety reason as usage).
+      if (resolveOriginLanguage(options, base.config) || resolveMessageFormat(options)) {
         base.registerOriginNamespace(resolveNamespace(options, base.config), !!options?.unpersistedNamespace);
       }
     });

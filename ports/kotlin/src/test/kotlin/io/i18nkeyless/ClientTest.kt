@@ -12,6 +12,7 @@ import java.io.File
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -375,7 +376,10 @@ class ClientTest {
         storage.setItem(StorageKeys.TRANSLATIONS, Json.stringify(mapOf("Bonjour" to "Hello")))
         storage.setItem(StorageKeys.CURRENT_LANGUAGE, "en")
         val transport = ScriptedTransport(listOf(mapOf("status" to 500L, "statusText" to "Internal Server Error")))
-        val logs = ArrayList<String>()
+        // CopyOnWriteArrayList, not ArrayList: the retry that logs the failure runs on the
+        // client's worker thread and can still be writing when waitForIdle returns and the
+        // assertion below reads the list — a plain ArrayList throws ConcurrentModificationException.
+        val logs = CopyOnWriteArrayList<String>()
         val client = I18nKeylessClient(api = Api(transport, RecordingSleeper(), timeoutMs = 20))
         client.init(frEnConfig("k-fail", storage, logger = { logs.add(it) })).get()
         client.t("Autre")

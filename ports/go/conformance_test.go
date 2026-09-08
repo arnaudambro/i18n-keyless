@@ -106,6 +106,8 @@ type vectorOptions struct {
 	ForceTemporary       map[string]string `json:"forceTemporary"`
 	Replace              json.RawMessage   `json:"replace"`
 	OriginLanguage       string            `json:"originLanguage"`
+	Count                *float64          `json:"count"`
+	Select               map[string]string `json:"select"`
 }
 
 func (o vectorOptions) options(t *testing.T) []Option {
@@ -646,6 +648,9 @@ func TestVectorTranslateRequest(t *testing.T) {
 		}
 		decode(t, raw, &c)
 		in := c.Input
+		if in.Options.Count != nil || in.Options.Select != nil {
+			continue // plurals / select (count, ordinal, select) are not exposed by this port yet
+		}
 		cfg := Config{APIKey: in.Config.APIKey, APIURL: in.Config.APIURL, DefaultNamespace: in.Config.DefaultNamespace}
 		cfg.Languages = Languages{Primary: in.Config.Languages.Primary, Supported: in.Config.Languages.Supported}
 		var handlerArgs []string

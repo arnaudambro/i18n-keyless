@@ -129,6 +129,10 @@ Inputs of `<i18n-t>` and the second argument of the pipe, `translate()`, `transl
 - `replace`: interpolation. The keys include the delimiters:
   `<i18n-t [replace]="{ '{name}': user.name }">{{ 'Bonjour {name}' }}</i18n-t>`.
   (Wrap a literal `{` in an interpolation: Angular reads a bare `{` as an ICU block.)
+- `count`: plurals. One form with `{count}`; every language gets the forms it needs, the
+  primary one too: `<i18n-t [count]="n">{{ '{count} articles' }}</i18n-t>`. `[ordinal]="true"` for a rank.
+- `select`: a closed set of values that changes the wording:
+  `<i18n-t [select]="{ gender: user.gender }">Il est connecté</i18n-t>`.
 - `namespace`: a fetch/storage partition for large projects. `unpersistedNamespace`: memory only.
 - `forceTemporary`: override the AI translation from code, per language.
 - `originLanguage`: user generated content written in another language than the primary one.

@@ -8,17 +8,19 @@ import { watchTranslation } from "./store.ts";
  * `<I18nKeylessText>`), the element subscribes on connect and unsubscribes on disconnect.
  * Light DOM, no shadow root: the page's CSS applies as if the text were a `<span>`.
  *
- * Attributes: `context`, `namespace`, `origin-language`, `unpersisted-namespace`, `debug`.
- * Properties: `replace` (object, from JS), `text` (the source, to set it before the element
- * is connected without text).
+ * Attributes: `context`, `namespace`, `origin-language`, `unpersisted-namespace`, `debug`,
+ * `count` (a number: `<i18n-t count="3">{count} articles</i18n-t>`), `ordinal`.
+ * Properties: `replace` (object, from JS), `select` (object, from JS: `{ gender: "female" }`),
+ * `text` (the source, to set it before the element is connected without text).
  */
 export class I18nTElement extends HTMLElement {
   static get observedAttributes(): string[] {
-    return ["context", "namespace", "origin-language", "unpersisted-namespace", "debug"];
+    return ["context", "namespace", "origin-language", "unpersisted-namespace", "debug", "count", "ordinal"];
   }
 
   private source: string | null = null;
   private replaceMap: TranslationOptions["replace"] | undefined = undefined;
+  private selectMap: TranslationOptions["select"] | undefined = undefined;
   private stopWatching: (() => void) | null = null;
 
   /** The placeholders to replace in the translation: `{ "{name}": "John" }`. */
@@ -28,6 +30,16 @@ export class I18nTElement extends HTMLElement {
 
   set replace(value: TranslationOptions["replace"] | undefined) {
     this.replaceMap = value;
+    this.rebind();
+  }
+
+  /** The `select` values: `{ gender: "female" }`. */
+  get select(): TranslationOptions["select"] | undefined {
+    return this.selectMap;
+  }
+
+  set select(value: TranslationOptions["select"] | undefined) {
+    this.selectMap = value;
     this.rebind();
   }
 
@@ -45,6 +57,7 @@ export class I18nTElement extends HTMLElement {
   /** The options this element resolves with, read from its attributes and `replace`. */
   get options(): TranslationOptions {
     const originLanguage = this.getAttribute("origin-language");
+    const count = this.getAttribute("count");
     return {
       context: this.getAttribute("context") || undefined,
       namespace: this.getAttribute("namespace") || undefined,
@@ -52,6 +65,9 @@ export class I18nTElement extends HTMLElement {
       unpersistedNamespace: this.hasAttribute("unpersisted-namespace") && this.getAttribute("unpersisted-namespace") !== "false",
       debug: this.hasAttribute("debug") && this.getAttribute("debug") !== "false",
       replace: this.replaceMap,
+      count: count !== null && count.trim() !== "" && !Number.isNaN(Number(count)) ? Number(count) : undefined,
+      ordinal: this.hasAttribute("ordinal") && this.getAttribute("ordinal") !== "false" ? true : undefined,
+      select: this.selectMap,
     };
   }
 

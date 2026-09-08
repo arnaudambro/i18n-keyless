@@ -15,6 +15,7 @@ import MyPQueue from "./my-pqueue.ts";
 import packageJson from "./package.json" with { type: "json" };
 import { api } from "./api.ts";
 import { identityHeaders, whenUniqueIdIsKnown } from "./unique-id.ts";
+import { formatIcuMessage, hasRequestedFormat, messageValuesOf, resolveMessageFormat } from "./message-format.ts";
 
 export const queue = new MyPQueue({ concurrency: 30 });
 
@@ -56,6 +57,21 @@ export function applyReplace(text: string, replace?: TranslationOptions["replace
 
   // Replace all occurrences in a single pass.
   return text.replace(regex, (matched) => replace[matched] || matched);
+}
+
+/**
+ * The whole rendering step, after the lookup: the ICU blocks a `count` / `select` call
+ * switches on (section 5.4 of the protocol), then `replace` — with `{count}` and one
+ * `{variable}` per `select` entry filled first, under the caller's own map. A text with
+ * no block (the regular flow, or a row the API has not upgraded yet) only gets `replace`.
+ */
+export function formatTranslation(text: string, lang: string | null, options?: TranslationOptions): string {
+  const { values, placeholders } = messageValuesOf(options);
+  // A row upgraded to ICU by one call site still reads at a call site without `count` /
+  // `select`: its blocks fall back to `other`. A text without a brace is never parsed.
+  const rendered = text.includes("{") ? formatIcuMessage(text, lang || "en", values) : text;
+  const replace = Object.keys(placeholders).length > 0 ? { ...placeholders, ...options?.replace } : options?.replace;
+  return applyReplace(rendered, replace);
 }
 
 /**
@@ -120,28 +136,32 @@ export function getTranslationCore(key: string, store: FetchTranslationParams, o
   const config = store.config;
   const translations = store.translations;
   if (!config?.API_KEY) {
-    return applyReplace(key, options?.replace);
+    return formatTranslation(key, currentLanguage, options);
   }
   // The language the key is already written in: the primary language, except for UGC
   // (originLanguage). When the current language is that one, the key renders as-is —
   // notably, a UGC key DOES need a lookup/translation when the current language is the
-  // primary one (its primary version is an AI translation, not the key itself).
+  // primary one (its primary version is an AI translation, not the key itself). So does a
+  // `count` / `select` key: its primary-language cell holds the forms the model wrote
+  // ("1 article" / "{count} articles"), which the key alone does not.
   const sourceLanguage = resolveOriginLanguage(options, config) ?? config.languages.primary;
   let translation = key;
-  if (currentLanguage === sourceLanguage) {
+  if (currentLanguage === sourceLanguage && !resolveMessageFormat(options)) {
     translation = key;
   } else {
     if (options?.forceTemporary?.[currentLanguage]) {
       translateKey(key, store, options);
     }
     translation = translations[storageKeyFor(key, options?.context)];
-    if (!translation) {
+    // A row that predates the `count` / `select` option, or that never saw this select
+    // value, is re-requested so the API upgrades it; it renders as it is meanwhile.
+    if (!translation || !hasRequestedFormat(translation, options)) {
       translateKey(key, store, options);
     }
   }
   // `translation` can be undefined when the current language's translation hasn't arrived
   // yet (translateKey was just queued above) — fall back to the key before interpolating.
-  return applyReplace(translation || key, options?.replace);
+  return formatTranslation(translation || key, currentLanguage, options);
 }
 
 const translating: Record<string, boolean> = {};
@@ -175,7 +195,7 @@ export function translateKey(key: string, store: FetchTranslationParams, options
   }
   const forceTemporaryLang = options?.forceTemporary?.[currentLanguage];
   const translation = translations[storageKeyFor(key, context)];
-  if (translation && !forceTemporaryLang) {
+  if (translation && !forceTemporaryLang && hasRequestedFormat(translation, options)) {
     if (debug) {
       console.log("translation exists", `${key}__${context}`);
     }
@@ -215,6 +235,8 @@ export function translateKey(key: string, store: FetchTranslationParams, options
             languages: config.languages.supported,
             primaryLanguage: config.languages.primary,
             originLanguage: resolveOriginLanguage(options, config),
+            // `count` / `select`: the API writes ICU messages instead of plain text.
+            ...resolveMessageFormat(options),
           };
           const apiUrl = config.API_URL || DEFAULT_API_URL;
           const url = `${apiUrl}/translate`;

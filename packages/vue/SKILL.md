@@ -101,6 +101,11 @@ and `getTranslation(text, options)`:
 - `replace`: interpolation. **The keys include the literal delimiters**:
   `<T :replace="{ '{name}': user.name }">Bonjour {name}</T>`. Single braces: Vue's template
   compiler owns `{{ }}`.
+- `count`: plurals. Write **one** form with `{count}`; every language gets the forms it
+  needs, the primary one too: `<T :count="n">{count} articles</T>` renders "1 article" /
+  "3 articles". `ordinal` for a rank.
+- `select`: a closed set of values that changes the wording:
+  `<T :select="{ gender: user.gender }">Il est connecté</T>`.
 - `namespace`: a fetch/storage partition, not a semantic key. Splits a large project so a
   client downloads and persists only the slice it renders. Fixes the localStorage quota
   error. Reserved default: `"default"`. Set a project-wide one with `defaultNamespace` in

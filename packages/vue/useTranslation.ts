@@ -1,5 +1,11 @@
 import { computed, toValue, type ComputedRef, type MaybeRefOrGetter } from "vue";
-import { type Lang, type TranslationOptions, resolveNamespace } from "i18n-keyless-core";
+import {
+  type Lang,
+  type TranslationOptions,
+  resolveNamespace,
+  resolveMessageFormat,
+  formatTranslation
+} from "i18n-keyless-core";
 import { store, getTranslation, setCurrentLanguage, getSupportedLanguages, setState, getState } from "./store.ts";
 import { useI18nKeylessContext, type I18nKeylessContextValue } from "./context.ts";
 import { getRequestScope } from "./request-scope.ts";
@@ -17,19 +23,6 @@ const warnAboutWhitespace = (text: string) => {
     );
   }
 };
-
-function applyReplace(text: string, replace: TranslationOptions["replace"]): string {
-  if (!replace) {
-    return text;
-  }
-  // Create a regex that matches all keys to replace, escaping special regex characters in keys
-  const pattern = Object.keys(replace)
-    .map((key) => key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-    .join("|");
-  const regex = new RegExp(pattern, "g");
-  // Replace all occurrences in a single pass
-  return text.replace(regex, (matched) => replace[matched] || matched);
-}
 
 /**
  * The side effects of showing `sourceText` in a component: translate-on-miss, the usage
@@ -54,7 +47,9 @@ export function createTranslationRequester(): TranslationRequester {
     const lang = getRequestScope()?.lang ?? store.currentLanguage;
     const namespace = resolveNamespace(options, store.config);
     const storageKey = options.context ? `${sourceText}__${options.context}` : sourceText;
-    const memoKey = `${lang}\u0000${namespace}\u0000${storageKey}`;
+    // A `select` value the row never saw must go out once too: it is part of the tuple.
+    const format = resolveMessageFormat(options);
+    const memoKey = `${lang}\u0000${namespace}\u0000${storageKey}\u0000${format ? JSON.stringify(format) : ""}`;
     if (requested.has(memoKey)) {
       return;
     }
@@ -80,7 +75,7 @@ export function resolveTranslation(
   scope: I18nKeylessContextValue | null,
   request: TranslationRequester
 ): { text: string; lang: Lang } {
-  const { replace, context, originLanguage, debug, forceTemporary } = options;
+  const { replace, context, originLanguage, debug, forceTemporary, count, ordinal, select } = options;
 
   // Trim the source text: the key is the trimmed text, always.
   const sourceText = text.trim();
@@ -95,15 +90,19 @@ export function resolveTranslation(
   const translations = requestScope?.translations ?? store.translations;
 
   // The text renders as-is when the current language is the one it's written in: the
-  // primary language, except for UGC (originLanguage), which looks the map up even when
-  // the current language is the primary one. The primary comes from the provided scope
+  // primary language, except for UGC (originLanguage) and for a `count` / `select` key,
+  // which look the map up even when the current language is the primary one (their
+  // primary cell is the model's). The primary comes from the provided scope
   // when it carries one, never from the store in that case: the store may never have run
   // `init()` in this module graph. The AsyncLocalStorage scope shares the store's graph.
   const primary = scope?.primary ?? store.config.languages.primary;
   const sourceLanguage = originLanguage && originLanguage !== primary ? originLanguage : primary;
-  const translatedText = currentLanguage === sourceLanguage ? sourceText : translations[storageKey] || sourceText;
+  const translatedText =
+    currentLanguage === sourceLanguage && !resolveMessageFormat(options)
+      ? sourceText
+      : translations[storageKey] || sourceText;
 
-  const finalText = applyReplace(translatedText, replace);
+  const finalText = formatTranslation(translatedText, currentLanguage, { replace, count, ordinal, select });
 
   if (debug) {
     console.log({

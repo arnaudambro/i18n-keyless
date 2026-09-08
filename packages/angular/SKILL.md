@@ -103,6 +103,11 @@ and `getTranslation()`:
 - `replace`: interpolation. **The keys include the literal delimiters**:
   `<i18n-t [replace]="{ '{name}': user.name }">{{ 'Bonjour {name}' }}</i18n-t>`. Wrap the
   source in `{{ '...' }}` when it contains `{`: Angular reads a bare `{` as an ICU block.
+- `count`: plurals. Write **one** form with `{count}`; every language gets the forms it
+  needs, the primary one too: `<i18n-t [count]="n">{{ '{count} articles' }}</i18n-t>`
+  renders "1 article" / "3 articles". `[ordinal]="true"` for a rank.
+- `select`: a closed set of values that changes the wording:
+  `<i18n-t [select]="{ gender: user.gender }">Il est connecté</i18n-t>`.
 - `namespace`: a fetch/storage partition, not a semantic key. Splits a large project so a
   client downloads and persists only the slice it renders. Set a project-wide one with
   `defaultNamespace` in the config. `unpersistedNamespace`: memory-only namespace for

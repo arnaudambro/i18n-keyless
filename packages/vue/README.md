@@ -82,6 +82,8 @@ Props of `<T>` and the options argument of `t()`, `useTranslation()` and `getTra
 | --- | --- |
 | `context` | Disambiguates meaning. `<T context="heure">8 heures</T>` and `<T context="durée">8 heures</T>` are two translations, stored as `8 heures__heure` and `8 heures__durée`. |
 | `replace` | Interpolation. The keys include the delimiters: `<T :replace="{ '{name}': user.name }">Bonjour {name}</T>`. |
+| `count` | Plurals. One form with `{count}`; every language gets the forms it needs, the primary one too: `<T :count="n">{count} articles</T>`. `ordinal` for a rank. |
+| `select` | A closed set of values that changes the wording: `<T :select="{ gender: user.gender }">Il est connecté</T>`. |
 | `namespace` | A fetch / storage partition. Splits a large project so a client downloads and persists only the slice it renders. Default `"default"`; set a project-wide one with `defaultNamespace` in `init`. |
 | `unpersistedNamespace` | Memory-only namespace, for high-cardinality transient content. |
 | `forceTemporary` | Override the AI translation from code: `{ en: "My own wording" }`. |

@@ -354,6 +354,26 @@ export type TranslationOptions = {
    */
   replace?: Record<string, string>;
   /**
+   * The number the text talks about. The text is written in ONE form, with `{count}` where
+   * the number goes (`"{count} articles"`), and the model writes the forms each language
+   * needs (`one` / `other` in French, `one` / `few` / `many` / `other` in Russian) as an ICU
+   * plural message; this value picks the form with `Intl.PluralRules` and fills `{count}`.
+   * The key is looked up in the primary language too: "1 article" is the model's, not yours.
+   */
+  count?: number;
+  /**
+   * With `count`: the number is a rank ("1st", "2nd", "{count}e"), so the ordinal
+   * categories apply (`selectordinal`) instead of the cardinal ones.
+   */
+  ordinal?: boolean;
+  /**
+   * A choice among a closed set of values that changes the wording — a gender, a role, a
+   * day of the week: `{ gender: "female" }`. The model writes one variant of the text per
+   * value it has seen (an ICU `select` message, `other` always present), and this value
+   * picks one. A value the row never saw is sent to the API, which extends the row.
+   */
+  select?: Record<string, string>;
+  /**
    * The language the text is written in when it differs from the primary language —
    * i.e. user generated content (UGC). The backend translates it into the primary language,
    * keeps the raw text for viewers in that language, and AI-translates all the others.
@@ -377,6 +397,18 @@ export interface I18nKeylessRequestBody {
    * Omitted or equal to `primaryLanguage` means the regular flow.
    */
   originLanguage?: Lang;
+  /**
+   * Present when the key is rendered with `count`: the row's cells become ICU plural
+   * (`cardinal`) or `selectordinal` (`ordinal`) messages on the variable `count`, one branch
+   * per CLDR category of each language. Omitted in the regular flow.
+   */
+  plural?: "cardinal" | "ordinal";
+  /**
+   * Present when the key is rendered with `select`: the current value of each variable
+   * (`{ "gender": "female" }`). The row's cells become ICU `select` messages holding every
+   * value the API has seen for that variable plus `other`. Omitted in the regular flow.
+   */
+  select?: Record<string, string>;
 }
 
 export interface I18nKeylessTranslationsUsageRequestBody {

@@ -520,6 +520,14 @@ void main() {
             skip: 'runtime $runtime is not applicable to a device SDK');
         continue;
       }
+      final vectorOptions =
+          (input['options'] as Map?)?.cast<String, dynamic>() ?? {};
+      if (vectorOptions.containsKey('count') ||
+          vectorOptions.containsKey('select')) {
+        test(nameOf(c), () {},
+            skip: 'plurals / select (count, ordinal, select) are not exposed by this port yet');
+        continue;
+      }
       test(nameOf(c), () async {
         final config = (input['config'] as Map).cast<String, dynamic>();
         final expected = c['expected'] as Map;

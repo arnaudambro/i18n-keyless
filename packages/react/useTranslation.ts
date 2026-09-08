@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { applyReplace, getTranslationCore, type Lang, type TranslationOptions } from "i18n-keyless-core";
+import {
+  formatTranslation,
+  getTranslationCore,
+  resolveMessageFormat,
+  type Lang,
+  type TranslationOptions
+} from "i18n-keyless-core";
 import { useI18nKeyless } from "./hooks.ts";
 import { getTranslation } from "./store.ts";
 import { useI18nKeylessContext, type I18nKeylessContextValue } from "./I18nKeylessProvider.tsx";
@@ -67,8 +73,10 @@ export function useTranslation(
 /**
  * The lookup itself, with no side effect: the text renders as-is when the current language
  * is the one it is written in — the primary language, except for UGC (`originLanguage`),
- * whose key looks up the map even when the current language is the primary one. Otherwise
- * the map wins and the source text is the fallback while a translation is on its way.
+ * whose key looks up the map even when the current language is the primary one, and except
+ * for a `count` / `select` key, whose primary cell holds the forms the model wrote.
+ * Otherwise the map wins and the source text is the fallback while a translation is on
+ * its way.
  *
  * Pure so a provider subtree resolves on a store that never ran `init()` (Next's SSR module
  * graph): `getTranslationCore` returns the key before `init()`, this does not.
@@ -78,10 +86,11 @@ function resolveText(
   translation: string | undefined,
   lang: Lang | null,
   primary: Lang,
-  originLanguage: Lang | undefined
+  options: TranslationOptions
 ): string {
+  const { originLanguage } = options;
   const sourceLanguage = originLanguage && originLanguage !== primary ? originLanguage : primary;
-  return lang === sourceLanguage ? sourceText : translation || sourceText;
+  return lang === sourceLanguage && !resolveMessageFormat(options) ? sourceText : translation || sourceText;
 }
 
 /**
@@ -107,9 +116,10 @@ function useTranslator(defaults: TranslationOptions): TranslateFunction {
         if (!base.config.API_KEY) {
           // The store never ran `init()` in this module graph (Next's SSR layer): resolve
           // from the provider alone, there is nothing to queue a miss against.
-          return applyReplace(
-            resolveText(sourceText, scope.translations[storageKey], scope.lang, scope.primary, merged.originLanguage),
-            merged.replace
+          return formatTranslation(
+            resolveText(sourceText, scope.translations[storageKey], scope.lang, scope.primary, merged),
+            scope.lang,
+            merged
           );
         }
         // Same view of the store that `getTranslation` builds for the AsyncLocalStorage
@@ -143,8 +153,20 @@ function storeViewFor(base: ReturnType<typeof useI18nKeyless.getState>, scope: I
  * package: `useTranslation` is the public surface.
  */
 export function useTranslationState(text: string, options: TranslationOptions = {}): { text: string; lang: string | null } {
-  const { replace, context, namespace, unpersistedNamespace, debug = false, forceTemporary, originLanguage } =
-    options;
+  const {
+    replace,
+    context,
+    namespace,
+    unpersistedNamespace,
+    debug = false,
+    forceTemporary,
+    originLanguage,
+    count,
+    ordinal,
+    select
+  } = options;
+  // `select` is usually an inline literal: key the effects on its content, not its identity.
+  const selectKey = select ? JSON.stringify(select) : undefined;
 
   // Trim the source text immediately. Pure computation, kept above the hooks so the
   // translation selector below can close over this call's own storage key.
@@ -182,31 +204,44 @@ export function useTranslationState(text: string, options: TranslationOptions = 
   // Translate-on-miss. In an effect, so it never runs on the server and never writes to
   // the store during render.
   useEffect(() => {
-    getTranslation(sourceText, { context, namespace, unpersistedNamespace, debug, forceTemporary, originLanguage });
-  }, [sourceText, currentLanguage, context, namespace, unpersistedNamespace, debug, forceTemporary, originLanguage]);
+    getTranslation(sourceText, {
+      context,
+      namespace,
+      unpersistedNamespace,
+      debug,
+      forceTemporary,
+      originLanguage,
+      count,
+      ordinal,
+      select
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `select` by content (selectKey)
+  }, [
+    sourceText,
+    currentLanguage,
+    context,
+    namespace,
+    unpersistedNamespace,
+    debug,
+    forceTemporary,
+    originLanguage,
+    count,
+    ordinal,
+    selectKey
+  ]);
 
   // Record the key for the per-page SSR snapshot (no-op off-server; pure Set.add, no
   // setState, so no render-time update warning). See docs/SSR.md.
   recordUsedKey(storageKey);
 
-  const translatedText = resolveText(sourceText, translation, currentLanguage, primary, originLanguage);
+  const translatedText = resolveText(sourceText, translation, currentLanguage, primary, options);
 
-  const finalText = useMemo(() => {
-    if (!replace) {
-      return translatedText;
-    }
-
-    // Create a regex that matches all keys to replace
-    // Escape special regex characters in keys
-    const pattern = Object.keys(replace)
-      .map((key) => key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-      .join("|");
-
-    const regex = new RegExp(pattern, "g");
-
-    // Replace all occurrences in a single pass
-    return translatedText.replace(regex, (matched) => replace[matched] || matched);
-  }, [translatedText, replace]);
+  // The ICU branch for `count` / `select`, then `replace` — one rule, in core.
+  const finalText = useMemo(
+    () => formatTranslation(translatedText, currentLanguage, { replace, count, ordinal, select }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `select` by content (selectKey)
+    [translatedText, currentLanguage, replace, count, ordinal, selectKey]
+  );
 
   if (debug) {
     console.log({

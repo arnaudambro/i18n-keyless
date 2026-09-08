@@ -32,9 +32,23 @@ export {
   storageKeyFor,
   queueIdFor,
   applyReplace,
+  formatTranslation,
   buildDictionaryUrl,
   etagCacheKey
 } from "./service.ts";
+export {
+  // plurals, ordinals and select (ICU MessageFormat subset), see docs/PROTOCOL.md 5.4
+  findIcuBlock,
+  isIcuMessage,
+  pluralCategoriesFor,
+  pluralCategoryFor,
+  selectIcuBranch,
+  formatIcuMessage,
+  resolveMessageFormat,
+  hasRequestedFormat,
+  messageValuesOf
+} from "./message-format.ts";
+export type { IcuKind, IcuBlock, MessageFormatRequest } from "./message-format.ts";
 export { api, TIMEOUT_MS, RETRY_DELAYS_MS, MAX_ATTEMPTS, isRetryableStatus, httpErrorMessage } from "./api.ts";
 export {
   generateUniqueId,

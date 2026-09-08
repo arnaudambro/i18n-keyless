@@ -244,6 +244,20 @@ export type TranslationOptions = {
    */
   forceTemporary?: Partial<Record<Lang, string>>;
   /**
+   * The number the text talks about. Write the text in ONE form with `{count}` where the
+   * number goes; the model writes the forms each language needs (an ICU plural message),
+   * and this value picks one with `Intl.PluralRules` and fills `{count}`.
+   */
+  count?: number;
+  /** With `count`: the number is a rank (1st, 2nd), so the ordinal categories apply. */
+  ordinal?: boolean;
+  /**
+   * A choice among a closed set of values that changes the wording, `{ gender: "female" }`:
+   * the model writes one variant per value it has seen (an ICU select message), and this
+   * value picks one. A value the row never saw is sent to the API, which extends the row.
+   */
+  select?: Record<string, string>;
+  /**
    * The language the text is written in when it differs from the primary language —
    * i.e. user generated content (UGC). The backend translates it into the primary language,
    * keeps the raw text for viewers in that language, and AI-translates all the others.

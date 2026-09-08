@@ -99,6 +99,67 @@ describe("awaitForTranslationOrThrow", () => {
     ).resolves.toBe("Cost: 10 EUR");
   });
 
+  describe("count / select", () => {
+    const FR = "{count, plural, one {{count} article} other {{count} articles}}";
+    const RU = "{count, plural, one {{count} товар} few {{count} товара} many {{count} товаров} other {{count} товара}}";
+
+    it("looks a `count` key up in the primary language too and renders the model's form", async () => {
+      const { awaitForTranslationOrThrow, api } = await boot({ fr: { "{count} articles": FR } });
+      const spy = vi.spyOn(api, "fetchTranslation");
+      await expect(awaitForTranslationOrThrow("{count} articles", "fr", { count: 1 })).resolves.toBe("1 article");
+      await expect(awaitForTranslationOrThrow("{count} articles", "fr", { count: 3 })).resolves.toBe("3 articles");
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("POSTs `plural` on a miss in the primary language and renders what comes back", async () => {
+      const { awaitForTranslationOrThrow, api } = await boot();
+      const spy = vi.spyOn(api, "fetchTranslation").mockResolvedValue(okOne({ fr: FR, en: "{count, plural, one {{count} item} other {{count} items}}" }));
+      await expect(awaitForTranslationOrThrow("{count} articles", "fr", { count: 1 })).resolves.toBe("1 article");
+      expect(spy).toHaveBeenCalledTimes(1);
+      const body = JSON.parse((spy.mock.calls[0][1] as RequestInit).body as string);
+      expect(body.plural).toBe("cardinal");
+      expect(body.select).toBeUndefined();
+      await expect(awaitForTranslationOrThrow("{count} articles", "en", { count: 2 })).resolves.toBe("2 items");
+      expect(spy).toHaveBeenCalledTimes(1);
+    });
+
+    it("re-sends a plain row once when the call asks for a plural, and renders it meanwhile", async () => {
+      const { awaitForTranslationOrThrow, api } = await boot({ en: { "{count} articles": "{count} items" } });
+      const spy = vi.spyOn(api, "fetchTranslation").mockResolvedValue(okOne({ en: "{count, plural, one {{count} item} other {{count} items}}" }));
+      await expect(awaitForTranslationOrThrow("{count} articles", "en", { count: 1 })).resolves.toBe("1 item");
+      expect(spy).toHaveBeenCalledTimes(1);
+    });
+
+    it("picks the Russian category", async () => {
+      const { awaitForTranslationOrThrow } = await boot(
+        { ru: { "{count} articles": RU } },
+        { languages: { primary: "fr", supported: ["en", "ru"] } }
+      );
+      await expect(awaitForTranslationOrThrow("{count} articles", "ru", { count: 5 })).resolves.toBe("5 товаров");
+      await expect(awaitForTranslationOrThrow("{count} articles", "ru", { count: 3 })).resolves.toBe("3 товара");
+    });
+
+    it("sends the select value and renders the branch", async () => {
+      const { awaitForTranslationOrThrow, api } = await boot();
+      const spy = vi
+        .spyOn(api, "fetchTranslation")
+        .mockResolvedValue(okOne({ en: "{gender, select, male {He is online} female {She is online} other {Online}}" }));
+      await expect(
+        awaitForTranslationOrThrow("Il est connecté", "en", { select: { gender: "female" } })
+      ).resolves.toBe("She is online");
+      const body = JSON.parse((spy.mock.calls[0][1] as RequestInit).body as string);
+      expect(body.select).toEqual({ gender: "female" });
+    });
+
+    it("falls back to the key, count filled, when the POST fails", async () => {
+      const { awaitForTranslationOrFallbackToOriginal, api } = await boot();
+      vi.spyOn(api, "fetchTranslation").mockRejectedValue(new Error("boom"));
+      await expect(
+        awaitForTranslationOrFallbackToOriginal("{count} articles", "en", { count: 3 })
+      ).resolves.toBe("3 articles");
+    });
+  });
+
   it("uses a custom handleTranslate instead of the API", async () => {
     const handleTranslate = vi.fn().mockResolvedValue(okOne({ en: "Hello" }));
     const { awaitForTranslationOrThrow, api } = await boot({}, { handleTranslate });

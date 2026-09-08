@@ -128,6 +128,62 @@ describe("I18nKeylessText", () => {
     expect(screen.getByText("Hello John")).toBeInTheDocument();
   });
 
+  describe("count / ordinal / select", () => {
+    const EN = "{count, plural, one {{count} item} other {{count} items}}";
+    const RU = "{count, plural, one {{count} товар} few {{count} товара} many {{count} товаров} other {{count} товара}}";
+
+    it("renders the model's form in the primary language too, from the store", () => {
+      mockStore.setState({ translations: { "{count} items": EN } });
+      const { rerender } = render(<I18nKeylessText count={1}>{"{count} items"}</I18nKeylessText>);
+      expect(screen.getByText("1 item")).toBeInTheDocument();
+      rerender(<I18nKeylessText count={3}>{"{count} items"}</I18nKeylessText>);
+      expect(screen.getByText("3 items")).toBeInTheDocument();
+    });
+
+    it("renders the source form, count filled, while the row is not there yet", () => {
+      render(<I18nKeylessText count={1}>{"{count} items"}</I18nKeylessText>);
+      expect(screen.getByText("1 items")).toBeInTheDocument();
+    });
+
+    it("picks the Russian category with Intl.PluralRules", () => {
+      mockStore.setState({ currentLanguage: "ru", translations: { "{count} items": RU } });
+      const { rerender } = render(<I18nKeylessText count={3}>{"{count} items"}</I18nKeylessText>);
+      expect(screen.getByText("3 товара")).toBeInTheDocument();
+      rerender(<I18nKeylessText count={5}>{"{count} items"}</I18nKeylessText>);
+      expect(screen.getByText("5 товаров")).toBeInTheDocument();
+      rerender(<I18nKeylessText count={21}>{"{count} items"}</I18nKeylessText>);
+      expect(screen.getByText("21 товар")).toBeInTheDocument();
+    });
+
+    it("renders ordinals", () => {
+      mockStore.setState({
+        translations: { "You are {count}th": "You are {count, selectordinal, one {{count}st} two {{count}nd} few {{count}rd} other {{count}th}}" },
+      });
+      render(<I18nKeylessText count={22} ordinal>{"You are {count}th"}</I18nKeylessText>);
+      expect(screen.getByText("You are 22nd")).toBeInTheDocument();
+    });
+
+    it("renders a select by value, and the other branch for a value the row never saw", () => {
+      mockStore.setState({
+        translations: { "He is online": "{gender, select, male {He is online} female {She is online} other {Online}}" },
+      });
+      const { rerender } = render(<I18nKeylessText select={{ gender: "female" }}>He is online</I18nKeylessText>);
+      expect(screen.getByText("She is online")).toBeInTheDocument();
+      rerender(<I18nKeylessText select={{ gender: "nonbinary" }}>He is online</I18nKeylessText>);
+      expect(screen.getByText("Online")).toBeInTheDocument();
+    });
+
+    it("lets the caller's replace format the number", () => {
+      mockStore.setState({ translations: { "{count} items": EN } });
+      render(
+        <I18nKeylessText count={1000} replace={{ "{count}": "1,000" }}>
+          {"{count} items"}
+        </I18nKeylessText>
+      );
+      expect(screen.getByText("1,000 items")).toBeInTheDocument();
+    });
+  });
+
   it("handles context-specific translations", () => {
     mockStore.setState({
       currentLanguage: "fr",

@@ -58,6 +58,31 @@
       "name": "a custom handleTranslate replaces the request and receives only the key",
       "input": { "runtime": "react-client", "config": { "API_KEY": "k-handler", "handleTranslate": true, "languages": { "primary": "fr", "supported": ["fr", "en"] } }, "currentLanguage": "en", "key": "Bonjour", "options": { "context": "greeting", "namespace": "ns" } },
       "expected": { "handler": "handleTranslate", "handlerArgs": ["Bonjour"], "http": false }
+    },
+    {
+      "name": "a `count` call sends `plural: cardinal`, and goes out in the primary language too",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "k-plural", "languages": { "primary": "fr", "supported": ["fr", "ru"] } }, "currentLanguage": "fr", "key": "{count} articles", "options": { "count": 3 } },
+      "expected": { "url": "https://api.i18n-keyless.com/translate", "method": "POST", "headers": { "Content-Type": "application/json", "Authorization": "Bearer k-plural", "sdk": "react-client", "unique_id": "$DEVICE_ID", "Version": "$SDK_VERSION" }, "body": { "key": "{count} articles", "languages": ["fr", "ru"], "primaryLanguage": "fr", "plural": "cardinal" } }
+    },
+    {
+      "name": "a `count` call with `ordinal` sends `plural: ordinal`",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "k-plural", "languages": { "primary": "fr", "supported": ["fr", "ru"] } }, "currentLanguage": "ru", "key": "Vous êtes {count}e", "options": { "count": 1, "ordinal": true } },
+      "expected": { "url": "https://api.i18n-keyless.com/translate", "method": "POST", "headers": { "Content-Type": "application/json", "Authorization": "Bearer k-plural", "sdk": "react-client", "unique_id": "$DEVICE_ID", "Version": "$SDK_VERSION" }, "body": { "key": "Vous êtes {count}e", "languages": ["fr", "ru"], "primaryLanguage": "fr", "plural": "ordinal" } }
+    },
+    {
+      "name": "a `select` call sends the current value of each variable",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "k-plural", "languages": { "primary": "fr", "supported": ["fr", "ru"] } }, "currentLanguage": "ru", "key": "Il est connecté", "options": { "select": { "gender": "female" } } },
+      "expected": { "url": "https://api.i18n-keyless.com/translate", "method": "POST", "headers": { "Content-Type": "application/json", "Authorization": "Bearer k-plural", "sdk": "react-client", "unique_id": "$DEVICE_ID", "Version": "$SDK_VERSION" }, "body": { "key": "Il est connecté", "languages": ["fr", "ru"], "primaryLanguage": "fr", "select": { "gender": "female" } } }
+    },
+    {
+      "name": "a plain row is re-sent when the call asks for a plural (the API upgrades it)",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "k-plural", "languages": { "primary": "fr", "supported": ["fr", "ru"] } }, "currentLanguage": "ru", "translations": { "{count} articles": "{count} товаров" }, "key": "{count} articles", "options": { "count": 3 } },
+      "expected": { "url": "https://api.i18n-keyless.com/translate", "method": "POST", "headers": { "Content-Type": "application/json", "Authorization": "Bearer k-plural", "sdk": "react-client", "unique_id": "$DEVICE_ID", "Version": "$SDK_VERSION" }, "body": { "key": "{count} articles", "languages": ["fr", "ru"], "primaryLanguage": "fr", "plural": "cardinal" } }
+    },
+    {
+      "name": "an upgraded row is not re-sent",
+      "input": { "runtime": "react-client", "config": { "API_KEY": "k-plural", "languages": { "primary": "fr", "supported": ["fr", "ru"] } }, "currentLanguage": "ru", "translations": { "{count} articles": "{count, plural, one {{count} товар} few {{count} товара} many {{count} товаров} other {{count} товара}}" }, "key": "{count} articles", "options": { "count": 3 } },
+      "expected": { "http": false }
     }
   ]
 }

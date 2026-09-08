@@ -1,0 +1,46 @@
+{
+  "description": "Plurals, ordinals and select (PROTOCOL.md 5.4): the ICU MessageFormat subset a `count` / `select` call renders. `text` is the stored cell, `lang` the language it is rendered in, `values` what the call passes (`count` a number, a select variable a string). `formatIcuMessage` picks the branch — an exact `=N` first, then the CLDR category of `count` in `lang` (`Intl.PluralRules`, `cardinal` for `plural`, `ordinal` for `selectordinal`), then `other`; a select picks the branch named by its value, else `other`; a block whose variable has no value falls back to `other`; `#` inside a plural branch is the number. The plain placeholders (`{count}`, `{gender}`) are NOT filled by this step: `replace` does, afterwards (`replace.json`), with `{count}` and one `{variable}` per select entry under the caller's map. `formatted` is the output of this step alone; `rendered` is the whole thing (`formatTranslation`), when it differs.",
+  "source": "packages/core/message-format.ts: formatIcuMessage(text, lang, values); service.ts: formatTranslation(text, lang, options)",
+  "cases": [
+    { "name": "French one / other", "input": { "text": "{count, plural, one {{count} article} other {{count} articles}}", "lang": "fr", "values": { "count": 1 } }, "formatted": "{count} article", "rendered": "1 article" },
+    { "name": "French: 0 is `one` (CLDR), not a two-form guess", "input": { "text": "{count, plural, one {{count} article} other {{count} articles}}", "lang": "fr", "values": { "count": 0 } }, "formatted": "{count} article", "rendered": "0 article" },
+    { "name": "Russian few", "input": { "text": "{count, plural, one {{count} товар} few {{count} товара} many {{count} товаров} other {{count} товара}}", "lang": "ru", "values": { "count": 3 } }, "formatted": "{count} товара", "rendered": "3 товара" },
+    { "name": "Russian many", "input": { "text": "{count, plural, one {{count} товар} few {{count} товара} many {{count} товаров} other {{count} товара}}", "lang": "ru", "values": { "count": 5 } }, "formatted": "{count} товаров", "rendered": "5 товаров" },
+    { "name": "Russian 21 is one", "input": { "text": "{count, plural, one {{count} товар} few {{count} товара} many {{count} товаров} other {{count} товара}}", "lang": "ru", "values": { "count": 21 } }, "formatted": "{count} товар", "rendered": "21 товар" },
+    { "name": "Arabic zero", "input": { "text": "{count, plural, zero {لا عناصر} one {عنصر واحد} two {عنصران} few {{count} عناصر} many {{count} عنصرًا} other {{count} عنصر}}", "lang": "ar", "values": { "count": 0 } }, "formatted": "لا عناصر", "rendered": "لا عناصر" },
+    { "name": "Arabic two", "input": { "text": "{count, plural, zero {لا عناصر} one {عنصر واحد} two {عنصران} few {{count} عناصر} many {{count} عنصرًا} other {{count} عنصر}}", "lang": "ar", "values": { "count": 2 } }, "formatted": "عنصران", "rendered": "عنصران" },
+    { "name": "Japanese has only other", "input": { "text": "{count, plural, other {{count}件}}", "lang": "ja", "values": { "count": 1 } }, "formatted": "{count}件", "rendered": "1件" },
+    { "name": "an exact =0 branch wins over the category", "input": { "text": "{count, plural, =0 {Aucun article} one {Un article} other {{count} articles}}", "lang": "fr", "values": { "count": 0 } }, "formatted": "Aucun article", "rendered": "Aucun article" },
+    { "name": "text around the block is kept", "input": { "text": "Vous avez {count, plural, one {{count} message} other {{count} messages}} non lus", "lang": "fr", "values": { "count": 4 } }, "formatted": "Vous avez {count} messages non lus", "rendered": "Vous avez 4 messages non lus" },
+    { "name": "# is the number inside a plural branch", "input": { "text": "{count, plural, one {# item} other {# items}}", "lang": "en", "values": { "count": 2 } }, "formatted": "2 items", "rendered": "2 items" },
+    { "name": "English ordinal 1st", "input": { "text": "{count, selectordinal, one {{count}st} two {{count}nd} few {{count}rd} other {{count}th}}", "lang": "en", "values": { "count": 1 } }, "formatted": "{count}st", "rendered": "1st" },
+    { "name": "English ordinal 22nd", "input": { "text": "{count, selectordinal, one {{count}st} two {{count}nd} few {{count}rd} other {{count}th}}", "lang": "en", "values": { "count": 22 } }, "formatted": "{count}nd", "rendered": "22nd" },
+    { "name": "English ordinal 11th", "input": { "text": "{count, selectordinal, one {{count}st} two {{count}nd} few {{count}rd} other {{count}th}}", "lang": "en", "values": { "count": 11 } }, "formatted": "{count}th", "rendered": "11th" },
+    { "name": "English ordinal 103rd", "input": { "text": "{count, selectordinal, one {{count}st} two {{count}nd} few {{count}rd} other {{count}th}}", "lang": "en", "values": { "count": 103 } }, "formatted": "{count}rd", "rendered": "103rd" },
+    { "name": "French ordinal 1er", "input": { "text": "{count, selectordinal, one {{count}er} other {{count}e}}", "lang": "fr", "values": { "count": 1 } }, "formatted": "{count}er", "rendered": "1er" },
+    { "name": "select by value", "input": { "text": "{gender, select, male {Il est connecté} female {Elle est connectée} other {Connecté}}", "lang": "fr", "values": { "gender": "female" } }, "formatted": "Elle est connectée", "rendered": "Elle est connectée" },
+    { "name": "select falls back to other on an unknown value", "input": { "text": "{gender, select, male {Il est connecté} female {Elle est connectée} other {Connecté}}", "lang": "fr", "values": { "gender": "robot" } }, "formatted": "Connecté", "rendered": "Connecté" },
+    { "name": "a block whose variable has no value falls back to other: a call site without `count` still reads", "input": { "text": "{count, plural, one {{count} article} other {{count} articles}}", "lang": "fr", "values": {} }, "formatted": "{count} articles", "rendered": "{count} articles" },
+    { "name": "nested select and plural", "input": { "text": "{gender, select, female {Elle a {count, plural, one {# message} other {# messages}}} other {Il a {count, plural, one {# message} other {# messages}}}}", "lang": "fr", "values": { "gender": "female", "count": 1 } }, "formatted": "Elle a 1 message", "rendered": "Elle a 1 message" },
+    { "name": "two blocks in one text", "input": { "text": "{a, select, x {X} other {O}} and {b, select, y {Y} other {O}}", "lang": "en", "values": { "a": "x", "b": "y" } }, "formatted": "X and Y", "rendered": "X and Y" },
+    { "name": "a plain text is returned as it is", "input": { "text": "Bonjour {name}", "lang": "fr", "values": { "count": 3 } }, "formatted": "Bonjour {name}", "rendered": "Bonjour {name}" },
+    { "name": "a plain placeholder is not a block: the source form renders while the row is not upgraded", "input": { "text": "{count} articles", "lang": "fr", "values": { "count": 3 } }, "formatted": "{count} articles", "rendered": "3 articles" },
+    { "name": "a block with no matching branch and no other is left untouched", "input": { "text": "{count, plural, one {un}}", "lang": "fr", "values": { "count": 3 } }, "formatted": "{count, plural, one {un}}", "rendered": "{count, plural, one {un}}" },
+    { "name": "the caller's replace wins on {count}", "input": { "text": "{count, plural, one {{count} article} other {{count} articles}}", "lang": "fr", "values": { "count": 1000 }, "replace": { "{count}": "1 000" } }, "formatted": "{count} articles", "rendered": "1 000 articles" }
+  ],
+  "categories": {
+    "description": "`pluralCategoriesFor(lang, type)`: the CLDR categories a language uses, sorted. The API validates a model answer against exactly this set (plus any `=N`), the client relies on it to pick a branch. A runtime without `Intl.PluralRules` answers [\"one\", \"other\"] (cardinal) or [\"other\"] (ordinal).",
+    "cases": [
+      { "lang": "en", "type": "cardinal", "expected": ["one", "other"] },
+      { "lang": "fr", "type": "cardinal", "expected": ["many", "one", "other"] },
+      { "lang": "ru", "type": "cardinal", "expected": ["few", "many", "one", "other"] },
+      { "lang": "pl", "type": "cardinal", "expected": ["few", "many", "one", "other"] },
+      { "lang": "ar", "type": "cardinal", "expected": ["few", "many", "one", "other", "two", "zero"] },
+      { "lang": "ja", "type": "cardinal", "expected": ["other"] },
+      { "lang": "zh-Hans", "type": "cardinal", "expected": ["other"] },
+      { "lang": "en", "type": "ordinal", "expected": ["few", "one", "other", "two"] },
+      { "lang": "fr", "type": "ordinal", "expected": ["one", "other"] },
+      { "lang": "ru", "type": "ordinal", "expected": ["other"] }
+    ]
+  }
+}

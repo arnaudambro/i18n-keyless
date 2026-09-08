@@ -278,6 +278,11 @@ class ConformanceTest {
         val input = c["input"].asMap()
         val server = serverFor(input["runtime"] as String)
         assumeTrue(server != null, "runtime ${input["runtime"]} is not applicable to this port")
+        val vectorOptions = (input["options"] as? Map<*, *>) ?: emptyMap<String, Any>()
+        assumeTrue(
+            !vectorOptions.containsKey("count") && !vectorOptions.containsKey("select"),
+            "plurals / select (count, ordinal, select) are not exposed by this port yet",
+        )
         val config = input["config"].asMap()
         val expected = c["expected"].asMap()
         val storage = MemoryStorage()

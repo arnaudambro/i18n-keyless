@@ -60,6 +60,7 @@ i18n.init(
     supported=["en", "fr", "es"],       # every language the app serves; stored by the API as the project's list
     api_url=None,                       # a self-hosted backend or a proxy, no trailing slash
     default_namespace=None,             # the namespace of every call that passes none
+    bundle_path=None,                   # the directory of a precompiled bundle, see below
     debug=False,                        # DEBUG lines on the `i18n_keyless` logger
     on_init=None,                       # called once with the primary language
     handle_translate=None,              # custom handlers, see below
@@ -81,6 +82,23 @@ process, build your own client: `client = i18n.I18nKeyless(); client.init(config
 2. **Self-hosted**: `api_url="https://your.server"`, a backend or a proxy that speaks the
    wire format (https://docs.i18n-keyless.com/docs/guides/proxy-mode).
 3. **The official service**, `https://api.i18n-keyless.com`.
+
+### The precompiled bundle
+
+Export the dictionaries at build time with the MCP `export_bundle` tool or from
+`GET /translate/bundle`: a directory (`i18n-keyless/` by convention) holding `manifest.json`
+and one `<namespace>/<lang>.json` per dictionary. Point `bundle_path` at it:
+
+```python
+i18n.init(api_key="...", primary="en", supported=["en", "fr", "es"], bundle_path="./i18n-keyless")
+```
+
+`init()` reads every dictionary the manifest lists into the store and skips the boot fetch of
+a namespace the manifest covers, so a process whose bundle holds every rendered string makes
+no dictionary request at all. Nothing else changes: a string the bundle does not hold still
+misses and POSTs, and the refetch after a batch of misses still runs. A missing or malformed
+`manifest.json` raises `BundleError` at `init()`; a missing dictionary file is logged and its
+pair fetched as before.
 
 ## Per-call options
 
@@ -197,7 +215,7 @@ Tests run on a scripted transport: no network, no key. `tests/test_vectors.py` r
 every file of the monorepo's shared protocol vectors (`conformance/vectors/*.json`):
 language codes, locale resolution, storage key, `replace`, namespace resolution, retry
 decisions, backoff scenarios, translate, dictionary and usage requests and responses, the
-queue (dedupe and the 30-in-flight cap), the runtime label. `tests/test_integration.py`
+queue (dedupe and the 30-in-flight cap), the runtime label, the precompiled bundle rules. `tests/test_integration.py`
 drives the client end to end.
 
 Deliberate differences from the JavaScript SDKs: a miss is translated on the spot and

@@ -503,6 +503,34 @@ final class ConformanceTests: XCTestCase {
         }
     }
 
+    func testBundleSeed() throws {
+        let vector = try Vectors.load("bundle-seed")
+        let manifest = BundleManifest(json: vector["manifest"] as! [String: Any])
+        func seed(_ raw: [String: Any]) -> BundleSeed {
+            BundleSeed(translations: raw["translations"] as! [String: String], lastRefresh: raw["lastRefresh"] as? String)
+        }
+        for c in Vectors.cases(vector) {
+            let name = Vectors.name(c)
+            let input = c["input"] as! [String: Any]
+            switch c["fn"] as? String {
+            case "bundleCovers":
+                let own: BundleManifest? = input.keys.contains("manifest")
+                    ? (input["manifest"] as? [String: Any]).map { BundleManifest(json: $0) } : manifest
+                XCTAssertEqual(
+                    I18nKeyless.bundleCovers(own, namespace: input["namespace"] as! String, lang: input["lang"] as! String),
+                    c["expected"] as? Bool, name)
+            case "mergeBundleWithStorage":
+                let stored = (input["stored"] as? [String: Any]).map {
+                    StoredSeed(translations: $0["translations"] as! [String: String], lastRefresh: $0["lastRefresh"] as? String, lang: $0["lang"] as! String)
+                }
+                let merged = I18nKeyless.mergeBundleWithStorage(seed(input["bundle"] as! [String: Any]), stored: stored, lang: input["lang"] as! String)
+                XCTAssertEqual(merged, seed(c["expected"] as! [String: Any]), name)
+            default:
+                XCTFail("unknown fn \(c["fn"] ?? "")")
+            }
+        }
+    }
+
     func testStorageKeys() async throws {
         let vector = try Vectors.load("storage-keys")
         let fixed = vector["fixedKeys"] as! [String: [String: Any]]

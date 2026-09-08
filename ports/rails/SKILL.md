@@ -76,10 +76,17 @@ signatures; the `i18nk` helper is mixed into views, controllers, mailers and job
 `I18nKeyless.configure { |c| ... }` in an initializer, or the environment. Keys: `enabled`,
 `api_key`, `api_url`, `primary`, `languages`, `namespace`, `cache`, `cache_ttl`,
 `cache_prefix`, `timeout` (10 s), `retry` (`[500, 1500]` ms), `concurrency` (30), `usage`
-(true), `queue`, `logger`, `rails_key_pattern`.
+(true), `queue`, `logger`, `rails_key_pattern`, `bundle_path`.
 Env: `I18N_KEYLESS_ENABLED`, `I18N_KEYLESS_API_KEY`, `I18N_KEYLESS_API_URL`,
 `I18N_KEYLESS_PRIMARY_LANG`, `I18N_KEYLESS_LANGUAGES`, `I18N_KEYLESS_NAMESPACE`,
-`I18N_KEYLESS_CACHE_TTL`, `I18N_KEYLESS_USAGE`, `I18N_KEYLESS_QUEUE`.
+`I18N_KEYLESS_CACHE_TTL`, `I18N_KEYLESS_USAGE`, `I18N_KEYLESS_QUEUE`,
+`I18N_KEYLESS_BUNDLE_PATH`.
+
+Precompiled bundle: export the dictionaries at build time with the MCP `export_bundle`
+tool or `GET /translate/bundle` (a directory: `manifest.json` plus one
+`<namespace>/<lang>.json` per dictionary) and set `bundle_path` to that directory. Every
+pair the manifest covers is read at boot, never fetched; the cache wins only when it is
+newer. A miss still POSTs. Nothing else changes.
 
 ## Debug
 

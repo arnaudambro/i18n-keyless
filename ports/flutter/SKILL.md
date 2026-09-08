@@ -128,6 +128,22 @@ onto a supported language (`Lang.zhHant`). `toAppStoreLocale(Lang.fr)` is `fr-FR
 The v2 codes `cn` and `cz` do not exist here: the enum spells them `Lang.zhHans` and
 `Lang.cs`, and the `Version: 3.3.0` header makes the API answer in that dialect.
 
+## Ship the translations with the app (optional)
+
+The precompiled bundle: export the files with the MCP `export_bundle` tool or
+`GET /translate/bundle` (`manifest.json` plus one `<namespace>/<lang>.json`), declare the
+directory as assets, and hand the manifest and a loader to `init`:
+
+```dart
+final bundle = await loadI18nKeylessBundleFromAssets('assets/i18n-keyless');
+await i18n.init(I18nKeylessConfig(apiKey: '...', languages: ..., bundle: bundle));
+```
+
+A namespace the manifest covers in the current language is read from the file instead of
+fetched, at boot and on every language switch, with the bundle's cursor; a stored slice wins
+only when newer and in the same language. A miss still POSTs, and the delta fetch after it
+starts from the seeded cursor. Nothing else changes.
+
 ## Gotchas
 
 - `init` must complete before the first `T` renders a translation; a `T` rendered earlier

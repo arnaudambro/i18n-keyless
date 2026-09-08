@@ -1,17 +1,33 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
 import {
   formatTranslation,
   getTranslationCore,
   resolveMessageFormat,
+  resolveNamespace,
+  resolveTranslationStatus,
+  isTranslationPending,
+  subscribeToPendingTranslations,
   type Lang,
-  type TranslationOptions
+  type TranslationOptions,
+  type TranslationStatus
 } from "i18n-keyless-core";
 import { useI18nKeyless } from "./hooks.ts";
 import { getTranslation } from "./store.ts";
 import { useI18nKeylessContext, type I18nKeylessContextValue } from "./I18nKeylessProvider.tsx";
 import { getRequestScope, recordUsedKey } from "./request-scope.ts";
+
+/**
+ * `useSyncExternalStore`'s subscribe argument when a caller doesn't need to react to a
+ * pending flip: the snapshot below is still read fresh on every render this component
+ * renders for any other reason, so `status` is always correct at that point, but this
+ * instance never itself schedules an extra one. `<I18nKeylessText>` without a `pending`
+ * prop, and the plain `useTranslation()` string form, opt out this way — see
+ * __tests__/render-count.test.tsx, which pins the exact re-render count a translation
+ * batch causes and would break if every <T> subscribed to the pending set.
+ */
+const noopSubscribe = () => () => {};
 
 /**
  * The reactive `t` function returned by `useTranslation()` called without a text.
@@ -148,11 +164,24 @@ function storeViewFor(base: ReturnType<typeof useI18nKeyless.getState>, scope: I
 }
 
 /**
- * The hook behind `useTranslation` and `<I18nKeylessText>`. Also hands back the language the
- * text resolved in, which the component uses to key its fragment. Not exported from the
- * package: `useTranslation` is the public surface.
+ * The hook behind `useTranslation`, `<I18nKeylessText>` and `useTranslationStatus`. Also
+ * hands back the language the text resolved in (the component uses it to key its fragment),
+ * the per-(namespace, key) {@link TranslationStatus}, and the trimmed `sourceText` the status
+ * and the pending set are keyed by. Not exported from the package: `useTranslation` and
+ * `useTranslationStatus` are the public surface.
+ *
+ * `reactiveStatus` decides whether THIS call subscribes to pending-set flips
+ * (`subscribeToPendingTranslations`) or reads the pending flag once per render with no
+ * subscription of its own (`noopSubscribe`, above) — the value returned is correct either
+ * way, since `useSyncExternalStore` always re-reads its snapshot on a render the component
+ * commits for any other reason. Only a caller that needs to react to `pending` on its own —
+ * `useTranslationStatus`, and `<I18nKeylessText pending={...}>` — opts in.
  */
-export function useTranslationState(text: string, options: TranslationOptions = {}): { text: string; lang: string | null } {
+export function useTranslationState(
+  text: string,
+  options: TranslationOptions = {},
+  { reactiveStatus = false }: { reactiveStatus?: boolean } = {}
+): { text: string; lang: string | null; status: TranslationStatus; sourceText: string } {
   const {
     replace,
     context,
@@ -196,6 +225,18 @@ export function useTranslationState(text: string, options: TranslationOptions = 
   // default primary. The AsyncLocalStorage scope shares the store's module graph, so the
   // store's config is the right one there.
   const primary = provider?.primary ?? config!.languages.primary;
+
+  // The namespace a translate-on-miss for this key would queue under (docs/PROTOCOL.md
+  // 5.5) — same resolution `translateKey` itself uses, so the pending id matches.
+  const namespaceForStatus = resolveNamespace(options, config!);
+  // `queueIdFor` (core) is keyed on the untrimmed-by-core text the wrappers pass it, i.e.
+  // `sourceText` here, not the raw `text` prop. See translation-status.ts.
+  const pending = useSyncExternalStore(
+    reactiveStatus ? subscribeToPendingTranslations : noopSubscribe,
+    () => isTranslationPending(namespaceForStatus, sourceText),
+    // Server snapshot: never pending on the server (no queue runs a miss there).
+    () => false
+  );
 
   useEffect(() => {
     warnAboutWhitespace(text);
@@ -243,6 +284,17 @@ export function useTranslationState(text: string, options: TranslationOptions = 
     [translatedText, currentLanguage, replace, count, ordinal, selectKey]
   );
 
+  // Same inputs the text above resolved from, so status can never disagree with what
+  // rendered (docs/PROTOCOL.md 5.5).
+  const status = resolveTranslationStatus({
+    translation,
+    currentLanguage,
+    primary,
+    options,
+    pending,
+    initialized: !!config?.API_KEY
+  });
+
   if (debug) {
     console.log({
       text,
@@ -250,6 +302,7 @@ export function useTranslationState(text: string, options: TranslationOptions = 
       currentLanguage,
       translatedText,
       finalText,
+      status,
       replace,
       context,
       forceTemporary,
@@ -257,5 +310,28 @@ export function useTranslationState(text: string, options: TranslationOptions = 
     });
   }
 
-  return { text: finalText, lang: currentLanguage };
+  return { text: finalText, lang: currentLanguage, status, sourceText };
+}
+
+/**
+ * The per-(key, language) {@link TranslationStatus} — `"ready"` / `"pending"` /
+ * `"unavailable"` — so the developer can show a spinner, a blur, or the source text while a
+ * UGC translation is on its way. Same resolution `<I18nKeylessText>` uses, and reactive: the
+ * component re-renders when THIS key's pending flag flips (`subscribeToPendingTranslations`),
+ * never when an unrelated key's does.
+ *
+ * `sourceText` is handed back trimmed, the same string the pending set and the storage key
+ * are keyed by — useful to label a spinner ("Translating…") without re-deriving it.
+ *
+ * ```tsx
+ * const { text, status } = useTranslationStatus(comment.body, { originLanguage: "fr" });
+ * return status === "pending" ? <Spinner /> : <p>{text}</p>;
+ * ```
+ */
+export function useTranslationStatus(
+  text: string,
+  options: TranslationOptions = {}
+): { text: string; status: TranslationStatus; sourceText: string } {
+  const { text: finalText, status, sourceText } = useTranslationState(text, options, { reactiveStatus: true });
+  return { text: finalText, status, sourceText };
 }

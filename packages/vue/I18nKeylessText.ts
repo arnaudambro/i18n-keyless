@@ -1,4 +1,4 @@
-import { defineComponent, createTextVNode, Comment, type PropType, type VNode } from "vue";
+import { defineComponent, createTextVNode, Comment, type PropType, type SlotsType, type VNode } from "vue";
 import { type Lang, type TranslationOptions } from "i18n-keyless-core";
 import { useI18nKeylessContext } from "./context.ts";
 import { resolveTranslation, createTranslationRequester } from "./useTranslation.ts";
@@ -100,6 +100,16 @@ const warnAboutWhitespace = (text: string) => {
  * Reactive on its own: the render reads the reactive store (or the provider scope), so the
  * text updates when the translation lands or the language switches. The miss itself is
  * requested once per instance per language, not on every render.
+ *
+ * A named `pending` slot renders instead of the text while the status is `pending` (a
+ * translate-on-miss queued and not yet settled), with `{ sourceText }` as its slot prop:
+ *
+ *   <T>
+ *     Bonjour
+ *     <template #pending="{ sourceText }">{{ sourceText }} (translating…)</template>
+ *   </T>
+ *
+ * Without the slot, `pending` renders exactly like a miss always has: the source text.
  */
 export const I18nKeylessText = defineComponent({
   name: "I18nKeylessText",
@@ -115,6 +125,11 @@ export const I18nKeylessText = defineComponent({
     ordinal: { type: Boolean, required: false, default: undefined },
     select: { type: Object as PropType<Record<string, string>>, required: false },
   },
+  slots: Object as SlotsType<{
+    default?: () => VNode[];
+    /** Rendered instead of the text while the status is `pending`. */
+    pending?: (props: { sourceText: string }) => VNode[];
+  }>,
   setup(props, { slots }) {
     const scope = useI18nKeylessContext();
     // Per instance: the miss (and the usage record) for a key goes out once per language,
@@ -129,7 +144,10 @@ export const I18nKeylessText = defineComponent({
         lastText = rawText;
         warnAboutWhitespace(rawText);
       }
-      const { text } = resolveTranslation(rawText, props, scope, request);
+      const { text, status } = resolveTranslation(rawText, props, scope, request);
+      if (status === "pending" && slots.pending) {
+        return slots.pending({ sourceText: rawText.trim() });
+      }
       return createTextVNode(text);
     };
   },

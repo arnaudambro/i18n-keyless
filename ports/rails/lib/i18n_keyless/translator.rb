@@ -49,12 +49,15 @@ module I18nKeyless
         default_namespace: config.resolved_namespace,
         queue: config.queue,
         usage_enabled: config.usage?,
-        logger: config.resolved_logger
+        logger: config.resolved_logger,
+        bundle: Bundle.load(config.bundle_path, logger: config.resolved_logger)
       )
     end
 
+    # @param bundle [Bundle, nil] the precompiled bundle (`bundle_path`): every
+    #   (namespace, lang) it covers is seeded now, at boot, and never fetched
     def initialize(store:, api:, primary:, languages: [], default_namespace: DEFAULT_NAMESPACE, queue: nil,
-                   usage_enabled: true, logger: nil)
+                   usage_enabled: true, logger: nil, bundle: nil)
       @store = store
       @api = api
       @primary = primary
@@ -63,13 +66,17 @@ module I18nKeyless
       @queue = queue.to_s.empty? ? nil : queue.to_s
       @usage_enabled = usage_enabled
       @logger = logger
+      @bundle = bundle
       @mutex = Mutex.new
       @loaded = {}      # "lang|namespace" => lines loaded in this process
       @misses = {}      # Miss#id => Miss
       @revalidate = {}  # "lang|namespace" => [lang, namespace]
       @usage = {}       # namespace => lookup key => YYYY-MM-DD
       @warned_no_languages = false
+      seed_bundle!
     end
+
+    attr_reader :bundle
 
     def usage_enabled?
       @usage_enabled
@@ -121,18 +128,20 @@ module I18nKeyless
       key
     end
 
-    # Loads the (lang, namespace) dictionary once per process.
+    # Loads the (lang, namespace) dictionary once per process. A pair the
+    # bundle covers was seeded at boot (`seed_bundle!`); after `I18n.reload!`
+    # it is seeded again here, from the file, never fetched.
     def ensure_loaded(lang, namespace)
       id = "#{lang}|#{namespace}"
       @mutex.synchronize do
         return @loaded[id] if @loaded.key?(id)
 
-        entry = store.get(lang, namespace)
+        entry = seed_from_bundle(lang, namespace) || store.get(lang, namespace)
         if entry.nil?
           # First time ever for this language: the one blocking fetch.
           result = api.fetch_dictionary(lang, namespace, nil)
           entry = if result.ok
-                    store.put(lang, namespace, result.translations, result.etag)
+                    store.put(lang, namespace, result.translations, result.etag, last_refresh: result.last_refresh)
                   else
                     store.put(lang, namespace, {}, nil, failed: true)
                   end
@@ -271,15 +280,51 @@ module I18nKeyless
       result = api.fetch_dictionary(lang, namespace, entry && entry[:etag])
       unless result.ok
         # Remember the failure briefly, so the next requests do not all retry.
-        store.put(lang, namespace, entry ? entry[:translations] : {}, entry && entry[:etag], failed: true)
+        store.put(lang, namespace, entry ? entry[:translations] : {}, entry && entry[:etag], failed: true,
+                                   last_refresh: entry && entry[:last_refresh])
         return
       end
       if result.not_modified
         store.touch(lang, namespace)
         return
       end
-      store.put(lang, namespace, result.translations, result.etag)
+      store.put(lang, namespace, result.translations, result.etag, last_refresh: result.last_refresh)
       refresh_loaded(lang, namespace, result.translations)
+    end
+
+    # Boot (PROTOCOL.md 7.4, the node SDK model): every (namespace, lang) the
+    # manifest covers is read from its file into this process and into the
+    # cache, with the manifest's cursor, so the boot fetch of a covered pair
+    # never happens. The primary language is skipped: this gem never looks a
+    # primary dictionary up. An unreadable file is logged and left to the lazy
+    # path (fetched on first use), never fetched eagerly. Makes no request.
+    def seed_bundle!
+      return if bundle.nil?
+
+      @mutex.synchronize do
+        bundle.pairs.each do |namespace, lang|
+          next if lang == primary || !Locale.lang?(lang)
+
+          entry = seed_from_bundle(lang, namespace)
+          next if entry.nil?
+
+          id = "#{lang}|#{namespace}"
+          @revalidate[id] = [lang, namespace] if store.stale?(entry)
+          @loaded[id] = entry[:translations]
+        end
+      end
+    end
+
+    # The stored entry after the bundle's dictionary is applied to it (the
+    # cache wins only when it is newer), or nil when the bundle does not cover
+    # the pair or its file is unreadable. Called with the mutex held.
+    def seed_from_bundle(lang, namespace)
+      return nil if bundle.nil?
+
+      seed = bundle.seed(namespace, lang, logger: logger)
+      return nil if seed.nil?
+
+      store.seed(lang, namespace, seed)
     end
 
     # Keeps this process's loaded lines current (a long-lived process keeps

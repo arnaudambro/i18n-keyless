@@ -57,6 +57,7 @@ i18n.get_supported_languages()
 | supported | required | every language the app serves; the API stores it as the project's list |
 | api_url | https://api.i18n-keyless.com | a self-hosted backend or a proxy, no trailing slash |
 | default_namespace | None (`default`) | the namespace of every call that passes none |
+| bundle_path | None | the directory of a precompiled bundle (`manifest.json` + `<namespace>/<lang>.json`, from the MCP `export_bundle` tool or `GET /translate/bundle`): read at `init()`, no dictionary request for a covered namespace; a miss still POSTs |
 | debug | False | DEBUG lines on the `i18n_keyless` logger |
 | on_init | None | called once with the primary language |
 | handle_translate, get_all_translations_for_all_languages, send_translations_usage | None | custom handlers |

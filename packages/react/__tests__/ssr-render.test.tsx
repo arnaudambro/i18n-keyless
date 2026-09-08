@@ -14,6 +14,7 @@ const { I18nKeylessProvider } = await import("../I18nKeylessProvider");
 const { I18nKeylessText } = await import("../I18nKeylessText");
 const { useTranslation } = await import("../useTranslation");
 const { runWithI18nKeyless } = await import("../request-scope");
+const { useTranslationStatus } = await import("../useTranslation");
 
 function Placeholder({ text }: { text: string }) {
   return <input placeholder={useTranslation(text)} />;
@@ -112,6 +113,24 @@ describe("server render (renderToString)", () => {
       renderToString(<I18nKeylessText>Hello</I18nKeylessText>)
     );
     expect(html).toContain("Bonjour");
+  });
+
+  it("a missing cell is unavailable, never pending — renderToString runs no effect to queue a miss", () => {
+    // `renderToString` never runs `useEffect`, so nothing ever calls `markTranslationPending`
+    // here: the status resolver's server-runtime rule (docs/PROTOCOL.md 5.5) is one guard,
+    // this is the other — belt and braces, the pending set is simply never touched.
+    function Status({ text }: { text: string }) {
+      const { status } = useTranslationStatus(text);
+      return <span>{status}</span>;
+    }
+    const html = renderToString(
+      <I18nKeylessProvider lang="fr" translations={{ Hello: "Bonjour" }}>
+        <Status text="Hello" />
+        <Status text="Goodbye" />
+      </I18nKeylessProvider>
+    );
+    expect(html).toContain("<span>ready</span>"); // Hello: the provider carries a cell
+    expect(html).toContain("<span>unavailable</span>"); // Goodbye: no cell, and never pending
   });
 
 });

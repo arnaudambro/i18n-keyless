@@ -2,8 +2,11 @@ import { computed, toValue, type ComputedRef, type MaybeRefOrGetter } from "vue"
 import {
   type Lang,
   type TranslationOptions,
+  type TranslationStatus,
   resolveNamespace,
   resolveMessageFormat,
+  resolveTranslationStatus,
+  isTranslationPending,
   formatTranslation
 } from "i18n-keyless-core";
 import { store, getTranslation, setCurrentLanguage, getSupportedLanguages, setState, getState } from "./store.ts";
@@ -74,7 +77,7 @@ export function resolveTranslation(
   options: TranslationOptions,
   scope: I18nKeylessContextValue | null,
   request: TranslationRequester
-): { text: string; lang: Lang } {
+): { text: string; lang: Lang; status: TranslationStatus } {
   const { replace, context, originLanguage, debug, forceTemporary, count, ordinal, select } = options;
 
   // Trim the source text: the key is the trimmed text, always.
@@ -97,12 +100,25 @@ export function resolveTranslation(
   // `init()` in this module graph. The AsyncLocalStorage scope shares the store's graph.
   const primary = scope?.primary ?? store.config.languages.primary;
   const sourceLanguage = originLanguage && originLanguage !== primary ? originLanguage : primary;
+  const cell = translations[storageKey];
   const translatedText =
-    currentLanguage === sourceLanguage && !resolveMessageFormat(options)
-      ? sourceText
-      : translations[storageKey] || sourceText;
+    currentLanguage === sourceLanguage && !resolveMessageFormat(options) ? sourceText : cell || sourceText;
 
   const finalText = formatTranslation(translatedText, currentLanguage, { replace, count, ordinal, select });
+
+  // Reactive dependency: bumped by the store's core-listener whenever a pending flag flips
+  // (see `subscribeToPendingTranslations` in store.ts), so a Vue `computed` / render effect
+  // that ran this function re-evaluates status on the next tick. The read itself is unused.
+  void store.pendingVersion;
+  const namespace = resolveNamespace(options, store.config);
+  const status = resolveTranslationStatus({
+    translation: cell,
+    currentLanguage,
+    primary: sourceLanguage,
+    options,
+    pending: isTranslationPending(namespace, sourceText),
+    initialized: !!store.config?.API_KEY,
+  });
 
   if (debug) {
     console.log({
@@ -111,6 +127,7 @@ export function resolveTranslation(
       currentLanguage,
       translatedText,
       finalText,
+      status,
       replace,
       context,
       forceTemporary,
@@ -118,7 +135,7 @@ export function resolveTranslation(
     });
   }
 
-  return { text: finalText, lang: currentLanguage };
+  return { text: finalText, lang: currentLanguage, status };
 }
 
 /**
@@ -144,13 +161,13 @@ export function useTranslation(
 }
 
 /**
- * The composable behind `useTranslation`: the text AND the language it resolved in. Not
- * exported from the package.
+ * The composable behind `useTranslation` and `useTranslationStatus`: the text, the language
+ * it resolved in, AND its status. Not exported from the package.
  */
 export function useTranslationState(
   text: MaybeRefOrGetter<string>,
   options: MaybeRefOrGetter<TranslationOptions> = {}
-): { text: ComputedRef<string>; lang: ComputedRef<Lang> } {
+): { text: ComputedRef<string>; lang: ComputedRef<Lang>; status: ComputedRef<TranslationStatus> } {
   const scope = useI18nKeylessContext();
   const request = createTranslationRequester();
   let lastWarned: string | undefined;
@@ -165,6 +182,31 @@ export function useTranslationState(
   return {
     text: computed(() => state.value.text),
     lang: computed(() => state.value.lang),
+    status: computed(() => state.value.status),
+  };
+}
+
+/**
+ * The translation status for `text` (`ready` | `pending` | `unavailable`), as a reactive
+ * `computed`, so a developer can show a spinner, a blur, or the source text while a
+ * translation is on its way — see docs/PROTOCOL.md 5.5. Resolved exactly the way
+ * `<I18nKeylessText>` resolves its `pending` slot, from the same `useTranslationState`.
+ *
+ *   const { text, status, sourceText } = useTranslationStatus("Bonjour");
+ *   // status.value === "pending" while the translation is in flight
+ *
+ * `text` and `options` can be plain values, refs or getters, like `useTranslation`. Call it
+ * in `setup()` (or `<script setup>`).
+ */
+export function useTranslationStatus(
+  text: MaybeRefOrGetter<string>,
+  options: MaybeRefOrGetter<TranslationOptions> = {}
+): { text: ComputedRef<string>; status: ComputedRef<TranslationStatus>; sourceText: ComputedRef<string> } {
+  const { text: resolvedText, status } = useTranslationState(text, options);
+  return {
+    text: resolvedText,
+    status,
+    sourceText: computed(() => toValue(text).trim()),
   };
 }
 
@@ -176,6 +218,13 @@ export interface UseI18nKeylessReturn {
    * component instance per key and language, however many times the read re-runs.
    */
   t: (text: string, options?: TranslationOptions) => string;
+  /**
+   * The status of `text`'s translation (`ready` | `pending` | `unavailable`), resolved the
+   * same way `t()` resolves the text itself: the provider scope, then the request scope,
+   * then the store. Not reactive on its own read outside a template / computed — call it
+   * where `t()` is called. See docs/PROTOCOL.md 5.5.
+   */
+  tStatus: (text: string, options?: TranslationOptions) => TranslationStatus;
   /**
    * The language the component renders in: the provider's under a provider, else the store's.
    */
@@ -199,6 +248,7 @@ function useI18nKeylessComposable(): UseI18nKeylessReturn {
   const request = createTranslationRequester();
   return {
     t: (text, options = {}) => resolveTranslation(text, options, scope, request).text,
+    tStatus: (text, options = {}) => resolveTranslation(text, options, scope, request).status,
     currentLanguage: computed(() => scope?.lang ?? store.currentLanguage),
     translations: computed(() => scope?.translations ?? store.translations),
     store,

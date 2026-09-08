@@ -26,6 +26,7 @@ import {
   etagCacheKey,
   DEFAULT_API_URL,
 } from "../service.ts";
+import { bundleCovers, mergeBundleWithStorage, unwrapBundleFile, loadBundleSeed } from "../bundle.ts";
 import { api, TIMEOUT_MS, RETRY_DELAYS_MS, MAX_ATTEMPTS, isRetryableStatus, httpErrorMessage } from "../api.ts";
 import {
   AVAILABLE_LANGS,
@@ -220,6 +221,41 @@ describe("vectors/namespace", () => {
     } else {
       throw new Error(`unknown fn ${fn}`);
     }
+  });
+});
+
+describe("vectors/bundle-seed", () => {
+  const vectors = load("bundle-seed");
+  it.each(vectors.cases)("$name", ({ fn, input, expected }) => {
+    if (fn === "bundleCovers") {
+      const manifest = "manifest" in input ? input.manifest : vectors.manifest;
+      expect(bundleCovers(manifest ?? undefined, input.namespace, input.lang)).toBe(expected);
+    } else if (fn === "mergeBundleWithStorage") {
+      expect(mergeBundleWithStorage(input.bundle, input.stored, input.lang)).toEqual(expected);
+    } else {
+      throw new Error(`unknown fn ${fn}`);
+    }
+  });
+
+  it("unwraps the module of a dynamic import()", () => {
+    expect(unwrapBundleFile({ default: { Bonjour: "Hello" } })).toEqual({ Bonjour: "Hello" });
+    expect(unwrapBundleFile({ Bonjour: "Hello" })).toEqual({ Bonjour: "Hello" });
+    expect(unwrapBundleFile(undefined)).toBeUndefined();
+  });
+
+  it("loadBundleSeed answers the file with the manifest cursor, and undefined off-manifest or on a throw", async () => {
+    const load = vi.fn(async (ns: string, lang: string) => ({ default: { Bonjour: `${ns}:${lang}` } }));
+    const bundle = { manifest: vectors.manifest, load };
+    await expect(loadBundleSeed(bundle, "default", "en")).resolves.toEqual({
+      translations: { Bonjour: "default:en" },
+      lastRefresh: "1757000000000",
+    });
+    await expect(loadBundleSeed(bundle, "checkout", "es")).resolves.toBeUndefined();
+    expect(load).toHaveBeenCalledTimes(1);
+    const throwing = { manifest: vectors.manifest, load: () => Promise.reject(new Error("missing file")) };
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(loadBundleSeed(throwing, "default", "en")).resolves.toBeUndefined();
+    error.mockRestore();
   });
 });
 

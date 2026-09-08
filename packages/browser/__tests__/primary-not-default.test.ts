@@ -1,6 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { resetUniqueIdState } from "i18n-keyless-core";
-import { init, getState, getTranslation, resolveTranslation, watchTranslation, setCurrentLanguage, resetStore } from "../store.ts";
+import { resetUniqueIdState, resetPendingTranslations } from "i18n-keyless-core";
+import {
+  init,
+  getState,
+  getTranslation,
+  getTranslationStatus,
+  resolveTranslation,
+  resolveTranslationStatus,
+  watchTranslation,
+  setCurrentLanguage,
+  resetStore,
+} from "../store.ts";
 import { makeStorage, mockFetch, flush, baseConfig, silenceConsole } from "./helpers.ts";
 import type { StorageAdapter } from "../types.ts";
 
@@ -16,6 +26,7 @@ const enPrimary = (storage: StorageAdapter) =>
 beforeEach(() => {
   resetStore();
   resetUniqueIdState();
+  resetPendingTranslations();
   silenceConsole();
   window.localStorage.clear();
 });
@@ -56,5 +67,28 @@ describe("a primary language other than the store default", () => {
     expect(getTranslation("Hello")).toBe("Hello");
     // No miss left: the primary language never asks, and the dictionary had the key.
     expect(calls.filter((call) => call.method === "POST" && call.url.endsWith("/translate"))).toEqual([]);
+  });
+
+  it("status: ready in the primary language, pending then ready in the target one", async () => {
+    // fixtures are read at call time: the key lands server-side after the first miss.
+    const fixtures: Record<string, Record<string, string>> = { fr: {} };
+    mockFetch(fixtures);
+    await init(enPrimary(makeStorage()));
+    // The default this file guards against: a status resolver that hardcodes "fr" as the
+    // source language would call this "pending" (it isn't — "en" is the primary here).
+    expect(getTranslationStatus("Hello")).toBe("ready");
+    expect(resolveTranslationStatus("Hello")).toBe("ready");
+
+    await setCurrentLanguage("fr");
+    await flush();
+    // No cell for "fr" yet: reading it queues a miss.
+    expect(getTranslation("Hello")).toBe("Hello");
+    expect(getTranslationStatus("Hello")).toBe("pending");
+    expect(resolveTranslationStatus("Hello")).toBe("pending");
+
+    fixtures.fr = { Hello: "Bonjour" };
+    await flush();
+    expect(getTranslationStatus("Hello")).toBe("ready");
+    expect(resolveTranslationStatus("Hello")).toBe("ready");
   });
 });

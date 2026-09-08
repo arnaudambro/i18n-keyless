@@ -15,11 +15,25 @@ from __future__ import annotations
 
 import copy
 import logging
+import os
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, Mapping, Optional, Sequence
+from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Union
 
+from .bundle import (
+    BundleManifest,
+    BundleSeed,
+    StoredSeed,
+    bundle_covers,
+    bundle_covers_namespace,
+    bundle_languages,
+    bundle_last_refresh,
+    bundle_namespaces,
+    merge_bundle_with_storage,
+    read_bundle_file,
+    read_manifest,
+)
 from .http import (
     RETRY_DELAYS_MS,
     TIMEOUT_MS,
@@ -80,6 +94,12 @@ class Config:
     api_url: Optional[str] = None
     #: The namespace of every call that passes none. Absent means ``default``.
     default_namespace: Optional[str] = None
+    #: The directory of a precompiled bundle (``manifest.json`` plus one
+    #: ``<namespace>/<lang>.json`` per dictionary, from the MCP ``export_bundle`` tool or
+    #: ``GET /translate/bundle``). :meth:`I18nKeyless.init` reads every dictionary the manifest
+    #: lists into the store and skips the boot fetch of a namespace the manifest covers. A
+    #: key the bundle does not hold still misses and POSTs as usual.
+    bundle_path: Optional[Union[str, "os.PathLike[str]"]] = None
     #: Log every step at DEBUG level on the ``i18n_keyless`` logger.
     debug: bool = False
     #: Called once at init with the primary language.
@@ -188,6 +208,11 @@ class I18nKeyless:
         Blocks for one ``GET /translate/`` (10 s timeout, retried twice): call it once at
         process start, before the first request is served. A failed fetch is logged and the
         store starts empty: every string is then translated on its first miss.
+
+        With ``bundle_path`` (PROTOCOL.md, section 7.4) every ``(namespace, lang)`` of the
+        manifest is read from the files first, and the boot fetch is skipped when the
+        manifest covers the default namespace. A missing or malformed ``manifest.json`` is a
+        configuration error (:class:`~i18n_keyless.bundle.BundleError`).
         """
         if not config.primary:
             raise ValueError("i18n-keyless: primary is required")
@@ -199,6 +224,7 @@ class I18nKeyless:
                     "i18n-keyless: you didn't provide an api_key nor an api_url nor a handle_translate + "
                     "get_all_translations_for_all_languages function. You need to provide one of them to make i18n-keyless work"
                 )
+        manifest: Optional[BundleManifest] = read_manifest(config.bundle_path) if config.bundle_path is not None else None
         with self._lock:
             self.reset()
             self._config = config
@@ -213,10 +239,44 @@ class I18nKeyless:
             self._translations = {}
         if config.on_init:
             config.on_init(config.primary)
+        if manifest is not None:
+            assert config.bundle_path is not None
+            self._seed_from_bundle(config.bundle_path, manifest)
         # The boot fetch targets the configured namespace, otherwise a project using
         # `default_namespace` boots with the (empty) default one and every key misses.
-        self._refetch(config.default_namespace or DEFAULT_NAMESPACE)
+        boot_namespace = config.default_namespace or DEFAULT_NAMESPACE
+        if bundle_covers_namespace(manifest, boot_namespace):
+            if config.debug:
+                log.debug("i18n-keyless: namespace %s seeded from the bundle, boot fetch skipped", boot_namespace)
+        else:
+            self._refetch(boot_namespace)
         return config
+
+    # -- the precompiled bundle --------------------------------------------------------
+
+    def _seed_from_bundle(self, bundle_path: Union[str, "os.PathLike[str]"], manifest: BundleManifest) -> None:
+        """Read every ``(namespace, lang)`` the manifest lists into the store.
+
+        A file that is missing or malformed is logged and its pair treated as not covered
+        (the boot fetch of its namespace is still skipped, like the node SDK: coverage is
+        the manifest's). The precedence rule of PROTOCOL.md 7.4 is applied against what the
+        store holds for the pair: this port persists nothing and knows no cursor for it, so
+        at init the bundle is always the base and wins.
+        """
+        for namespace in bundle_namespaces(manifest):
+            for lang in bundle_languages(manifest, namespace):
+                if lang not in AVAILABLE_LANGS or not bundle_covers(manifest, namespace, lang):
+                    continue
+                dictionary = read_bundle_file(bundle_path, namespace, lang)
+                if dictionary is None:
+                    continue
+                seed = BundleSeed(dictionary, bundle_last_refresh(manifest, namespace))
+                with self._lock:
+                    bucket = self._translations.setdefault(namespace, {})
+                    held = bucket.get(lang)
+                    stored = StoredSeed(dict(held), None, lang) if held else None
+                    merged = merge_bundle_with_storage(seed, stored, lang)
+                    bucket.setdefault(lang, {}).update(merged.translations)
 
     def reset(self) -> None:
         """Forget the config, the store, the usage and every timer. For tests and reloads."""

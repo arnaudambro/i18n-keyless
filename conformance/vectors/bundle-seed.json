@@ -1,0 +1,97 @@
+{
+  "description": "The precompiled bundle (PROTOCOL.md 7.4). `bundleCovers(manifest, namespace, lang)`: true when the manifest lists the language under the namespace. `mergeBundleWithStorage(bundle, stored, lang)`: the bundle is the base; storage is merged on top (its keys win) and its cursor kept only when its cursor is a strictly larger number than the bundle's AND its language is the one being seeded. Anything else answers the bundle unchanged. A stored cursor that is empty, null or not a number is never newer.",
+  "source": "packages/core/bundle.ts: bundleCovers, mergeBundleWithStorage",
+  "manifest": {
+    "primaryLanguage": "fr",
+    "languages": ["en", "es", "fr"],
+    "exportedAt": "1757000000000",
+    "namespaces": {
+      "default": { "lastRefresh": "1757000000000", "languages": ["en", "es", "fr"] },
+      "checkout": { "lastRefresh": "1757000000000", "languages": ["en"] }
+    }
+  },
+  "cases": [
+    { "name": "a listed pair is covered", "fn": "bundleCovers", "input": { "namespace": "default", "lang": "es" }, "expected": true },
+    { "name": "the primary language is covered when listed", "fn": "bundleCovers", "input": { "namespace": "default", "lang": "fr" }, "expected": true },
+    { "name": "a language the namespace does not list is not covered", "fn": "bundleCovers", "input": { "namespace": "checkout", "lang": "es" }, "expected": false },
+    { "name": "an unknown namespace is not covered", "fn": "bundleCovers", "input": { "namespace": "chat", "lang": "en" }, "expected": false },
+    { "name": "no manifest covers nothing", "fn": "bundleCovers", "input": { "manifest": null, "namespace": "default", "lang": "en" }, "expected": false },
+
+    {
+      "name": "no storage: the bundle as is",
+      "fn": "mergeBundleWithStorage",
+      "input": { "bundle": { "translations": { "Bonjour": "Hello" }, "lastRefresh": "1757000000000" }, "stored": null, "lang": "en" },
+      "expected": { "translations": { "Bonjour": "Hello" }, "lastRefresh": "1757000000000" }
+    },
+    {
+      "name": "storage newer and in the same language: merged on top, its cursor kept",
+      "fn": "mergeBundleWithStorage",
+      "input": {
+        "bundle": { "translations": { "Bonjour": "Hello", "Merci": "Thanks" }, "lastRefresh": "1757000000000" },
+        "stored": { "translations": { "Bonjour": "Hello there" }, "lastRefresh": "1757000600000", "lang": "en" },
+        "lang": "en"
+      },
+      "expected": { "translations": { "Bonjour": "Hello there", "Merci": "Thanks" }, "lastRefresh": "1757000600000" }
+    },
+    {
+      "name": "storage older: the bundle wins",
+      "fn": "mergeBundleWithStorage",
+      "input": {
+        "bundle": { "translations": { "Bonjour": "Hello" }, "lastRefresh": "1757000000000" },
+        "stored": { "translations": { "Bonjour": "Old hello" }, "lastRefresh": "1756000000000", "lang": "en" },
+        "lang": "en"
+      },
+      "expected": { "translations": { "Bonjour": "Hello" }, "lastRefresh": "1757000000000" }
+    },
+    {
+      "name": "storage with the same cursor: the bundle wins",
+      "fn": "mergeBundleWithStorage",
+      "input": {
+        "bundle": { "translations": { "Bonjour": "Hello" }, "lastRefresh": "1757000000000" },
+        "stored": { "translations": { "Bonjour": "Same" }, "lastRefresh": "1757000000000", "lang": "en" },
+        "lang": "en"
+      },
+      "expected": { "translations": { "Bonjour": "Hello" }, "lastRefresh": "1757000000000" }
+    },
+    {
+      "name": "storage newer but in another language: never mixed in",
+      "fn": "mergeBundleWithStorage",
+      "input": {
+        "bundle": { "translations": { "Bonjour": "Hola" }, "lastRefresh": "1757000000000" },
+        "stored": { "translations": { "Bonjour": "Hello" }, "lastRefresh": "1757000600000", "lang": "en" },
+        "lang": "es"
+      },
+      "expected": { "translations": { "Bonjour": "Hola" }, "lastRefresh": "1757000000000" }
+    },
+    {
+      "name": "an empty stored cursor is never newer",
+      "fn": "mergeBundleWithStorage",
+      "input": {
+        "bundle": { "translations": { "Bonjour": "Hello" }, "lastRefresh": "1757000000000" },
+        "stored": { "translations": { "Bonjour": "Stale" }, "lastRefresh": "", "lang": "en" },
+        "lang": "en"
+      },
+      "expected": { "translations": { "Bonjour": "Hello" }, "lastRefresh": "1757000000000" }
+    },
+    {
+      "name": "a null stored cursor is never newer",
+      "fn": "mergeBundleWithStorage",
+      "input": {
+        "bundle": { "translations": { "Bonjour": "Hello" }, "lastRefresh": "1757000000000" },
+        "stored": { "translations": { "Bonjour": "Stale" }, "lastRefresh": null, "lang": "en" },
+        "lang": "en"
+      },
+      "expected": { "translations": { "Bonjour": "Hello" }, "lastRefresh": "1757000000000" }
+    },
+    {
+      "name": "a stored cursor that is not a number is never newer",
+      "fn": "mergeBundleWithStorage",
+      "input": {
+        "bundle": { "translations": { "Bonjour": "Hello" }, "lastRefresh": "1757000000000" },
+        "stored": { "translations": { "Bonjour": "Stale" }, "lastRefresh": "yesterday", "lang": "en" },
+        "lang": "en"
+      },
+      "expected": { "translations": { "Bonjour": "Hello" }, "lastRefresh": "1757000000000" }
+    }
+  ]
+}

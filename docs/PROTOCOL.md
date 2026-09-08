@@ -66,12 +66,13 @@ Contents
 | `storage` | browser: yes, server: no | An adapter (section 11). In a browser (`typeof window !== "undefined"`) a missing storage throws. On a server it defaults to an in-memory `Map` adapter. |
 | `ssr` | no | `false`. When true the SDK behaves as a server: read-only usage, runtime `react-server`, no device id. |
 | `debug` | no | `false`. Console logging only. |
+| `bundle` | no | Absent. `{ manifest, load(namespace, lang) }`: the precompiled bundle, section 7.4. A covered `(namespace, lang)` is seeded from `load` instead of fetched, with the manifest's cursor. |
 | `addMissingTranslations` | no | Forced to `true`. The value is never read by the reference implementation. |
 | `handleTranslate`, `getAllTranslations`, `sendTranslationsUsage` | no | Custom handlers, section 2.2. |
 | `onInit(lang)`, `onSetLanguage(lang)` | no | Callbacks. `onInit` fires after hydration with the resolved current language; `onSetLanguage` fires before every language switch. |
 
 The node SDK (`packages/node/service.ts: init`) has the same `API_KEY`, `API_URL`,
-`languages`, `defaultNamespace`, `debug`, `onInit` and handlers (`handleTranslate`,
+`languages`, `defaultNamespace`, `debug`, `bundle`, `onInit` and handlers (`handleTranslate`,
 `getAllTranslationsForAllLanguages`, `sendTranslationsUsage`), no storage and no `ssr`.
 
 ### 2.2 The three modes, in priority order
@@ -412,6 +413,42 @@ Server rules (`translate.ts:453-545`):
 
 Vectors: `usage-request.json`.
 
+### 4.5 `GET /translate/bundle`: the precompiled bundle (build step, MCP)
+
+URL: `<base>/translate/bundle`, optional `?namespace=<a>,<b>` (a comma-separated list of
+namespaces, **no dialect mapping**: a namespace named `cn` stays `cn`). Default: every
+namespace the project has a row in, `default` first, the others in alphabetical order.
+Bearer key and `Version` header as on every route; no `unique_id`, and the route counts
+no user. `Cache-Control: no-store`, no ETag, no `last_refresh`: this is a build step, not
+a runtime fetch. Declared before `/:lang` on the server, which would otherwise match it.
+
+Response:
+
+```json
+{ "ok": true, "data": { "primaryLanguage": "fr", "languages": ["en", "es", "fr"], "exportedAt": "1757000000000", "namespaces": { "default": { "lastRefresh": "1757000000000", "translations": { "en": { "Bonjour": "Hello" }, "es": { "Bonjour": "Hola" }, "fr": { "Bonjour": "Bonjour" } } }, "checkout": { "lastRefresh": "1757000000000", "translations": { "en": { "Panier": "Cart" }, "es": { "Panier": "" }, "fr": { "Panier": "Panier" } } } } }, "error": "", "message": "" }
+```
+
+- `languages` and every `translations` map follow section 4.3 exactly: the supported list
+  plus the primary, in the client's dialect, every key of the namespace in every language,
+  `""` where never translated, UGC rows under both texts. Per namespace and language the
+  dictionary is **byte-identical** to what `GET /translate/<lang>?namespace=<ns>` answers.
+- `lastRefresh` per namespace and `exportedAt` are the export time, epoch ms as a string —
+  the cursor of section 4.2. A client that seeds it and later asks
+  `?last_refresh=<lastRefresh>` receives an empty map until a row of that namespace changes
+  (with the 10-minute buffer of section 4.2).
+- `400` when the project has no primary language; `401` without a key.
+
+**File layout** (the MCP `export_bundle` tool yields it, `service/bundle.ts: bundleFiles`;
+a script derives it from this response): a directory, `i18n-keyless/` by convention,
+holding `manifest.json` and one `<namespace>/<lang>.json` per dictionary.
+
+```json
+{ "primaryLanguage": "fr", "languages": ["en", "es", "fr"], "exportedAt": "1757000000000", "namespaces": { "default": { "lastRefresh": "1757000000000", "languages": ["en", "es", "fr"] }, "checkout": { "lastRefresh": "1757000000000", "languages": ["en", "es", "fr"] } } }
+```
+
+`manifest.json` is the response without its dictionaries: `languages` per namespace lists
+the files that exist. A file holds one dictionary (`{ "Bonjour": "Hello" }`).
+
 ## 5. Text resolution on the client (`getTranslationCore`)
 
 Inputs: `key`, the store (`currentLanguage`, `config`, flat `translations` map) and the
@@ -516,6 +553,61 @@ brings it. Meanwhile the stored text renders as it is, and a missing row renders
 A port that does not implement this section MUST still store and return such a cell
 verbatim; it renders the raw message until it does.
 
+### 5.5 Translation status (client SDKs)
+
+A missing translation renders the source text and swaps in the translation once it lands
+(section 5). For user generated content a developer needs to know a translation is *on its
+way*, so they can show a spinner, a blur, or the source text — the SDK exposes a status per
+(key, language), it never decides what to render:
+
+```ts
+type TranslationStatus = "ready" | "pending" | "unavailable";
+```
+
+Status is derived on every read, from the same inputs `getTranslationCore` uses for the
+same key (`translations[storageKey]`, `currentLanguage`, the resolved source language,
+`count` / `select`). The ONLY new state the feature adds is the **pending set**: the
+(namespace, key) translate-on-miss requests that have been queued (section 6) and not yet
+settled by the bulk fetch that follows. `ready` and `unavailable` store nothing.
+
+Rules, in order — the first that matches wins:
+
+1. the viewer reads the key's own language (the primary language, or `originLanguage` for
+   UGC) **and** the call asks for neither `count` nor a non-empty `select` → `ready` (no
+   lookup needed at all, same case as section 5 step 3);
+2. a usable cell exists — `translations[storageKey]` is present and carries what `count` /
+   `select` asked for (`hasRequestedFormat`, section 5.4) → `ready`. A `forceTemporary` key
+   with a cell is `ready` too: `forceTemporary` never changes what is rendered (section 5);
+3. the store never initialized (no `API_KEY`) → `unavailable`;
+4. a server runtime (`isServerRuntime(getSdkRuntime())`, section 10.1) → `unavailable`. No
+   queue runs the miss loop there, so a server render is never `pending`;
+5. a translate-on-miss for this (namespace, key) is queued and not yet settled → `pending`;
+6. otherwise (nothing usable, nothing pending — e.g. offline, or the fetch after a miss
+   failed to bring the cell) → `unavailable`.
+
+**The pending set.** A key is marked pending the moment `translateKey` actually queues a
+task for it — right before `queue.add`, after every existing skip (section 6): the queue's
+own dedup rules (the waiting-task check, the per-id `translating` in-flight flag) are
+unchanged, the pending set is parallel bookkeeping, not a second dedup mechanism. A key is
+settled — removed from the pending set — per namespace, at the moment the wrapper triggers
+the bulk fetch that follows the queue's `empty` event for that namespace (section 7.1): the
+ids pending for that namespace are snapshotted right then, and deleted once the fetch
+settles, success or failure alike (a failed fetch still clears them, so a spinner never
+hangs forever offline). An id marked pending **after** the snapshot — queued while that
+fetch is in flight — is not settled by it; it waits for the next drain. A key still missing
+a usable cell after settling derives to `unavailable`, and the next render re-queues it,
+exactly like the existing miss loop.
+
+**Notification.** A reactive status (a hook, a signal) subscribes to the pending set and is
+notified once per microtask, batching every synchronous `mark` / settle in the same tick —
+marking can happen mid-render, and a synchronous notification would re-enter it.
+
+Core (`packages/core/translation-status.ts`) exports the type, the pure resolver
+`resolveTranslationStatus`, the store-based `getTranslationStatusCore` (no side effect: it
+never queues), and the pending-set primitives `markTranslationPending`,
+`isTranslationPending`, `settlePendingTranslationsAfter`, `subscribeToPendingTranslations`.
+No conformance vector yet: the ports do not implement this section.
+
 ## 6. The translate-on-miss queue (`translateKey`, `MyPQueue`)
 
 | Rule | Value |
@@ -580,6 +672,48 @@ Because the flat map is shared across languages, after a language switch a key t
 entry in the new language's dictionary keeps showing the previous language's text until the
 translation arrives.
 
+### 7.4 The precompiled bundle (`packages/core/bundle.ts`)
+
+An app may ship the files of section 4.5 and hand them to `init` as
+`bundle: { manifest, load }`, where `load(namespace, lang)` returns the dictionary of one
+file, or the module of a dynamic `import()` of it (`{ default: dictionary }`), possibly as
+a promise. The SDK then reads, never downloads, what the bundle covers:
+
+- **Coverage**: `bundleCovers(manifest, namespace, lang)` is true when
+  `manifest.namespaces[namespace].languages` lists `lang`. The namespaces of the manifest
+  are **known namespaces** from the first `setLanguage` on (section 8.1), so they are
+  seeded before any component renders a miss.
+- **Seed**: for a covered pair, `setLanguage` calls `load`, unwraps the file
+  (`unwrapBundleFile`: a `default` export wins over the object itself), and merges the
+  result through `setTranslations` (section 7.3) as if it were an `ok` response with
+  `data.lastRefresh = manifest.namespaces[namespace].lastRefresh` and `uniqueId: null`. The
+  slice is persisted and its cursor too, so the next delta fetch (section 7.1) starts from
+  the bundle's cursor.
+- **Precedence** (`mergeBundleWithStorage(bundle, stored, lang)`): the bundle is the base.
+  What storage held for the namespace before the switch is merged on top — its keys win and
+  its cursor is kept — **only** when its cursor is a strictly larger number than the
+  bundle's **and** it is in `lang` (the language the slices were written in: the stored
+  current language after `hydrate()`, the switched-to language after a `setLanguage`). A
+  slice in another language, an equal or older cursor, an empty, null or non-numeric cursor:
+  the bundle unchanged. So a device that fetched after a human review keeps the reviewed
+  text, and a stale bundle never overwrites fresher data of the same language.
+- **Not covered**: a pair the manifest does not list is fetched as before. A `load` that
+  throws or yields nothing is logged and treated as not covered.
+- **Primary language**: a covered primary dictionary is seeded too (its UGC rows hold the AI
+  translation, not the key). The origin namespaces not covered keep their fetch.
+- **Server rendering**: `getServerTranslations(lang)` answers the bundled default-namespace
+  dictionary when covered, cached per process, and never fetches it.
+- **Node SDK** (section 13): `init` seeds every `(namespace, lang)` of the manifest into the
+  per-language maps and skips the boot fetch when the manifest covers `defaultNamespace`.
+  A miss still POSTs and its answer is merged as usual.
+
+Nothing else changes: the miss queue (section 6), the usage analytics (section 9) and the
+delta fetch after a miss run exactly as without a bundle. There is no "offline" switch: an
+app whose bundle covers every rendered key makes no dictionary request at all, and one that
+renders a new key makes the two it always made.
+
+Vectors: `bundle-seed.json`.
+
 ## 8. Language switch and boot sequence
 
 ### 8.1 `setLanguage(lang)` (`packages/react/store.ts`)
@@ -589,11 +723,13 @@ translation arrives.
 2. `currentLanguage = validated`; persist it under `i18n-keyless-current-language`.
 3. Reset every cursor: `lastRefresh = null`, `lastRefreshByNamespace = {}`, and persist the
    empty string under `lastRefreshKeyFor(ns)` for every known persisted namespace.
-4. Known namespaces = `namespaces` when non-empty, else `["default"]`.
-5. If `validated !== primary`: fetch every known namespace in parallel with a null cursor
-   and merge each (section 7.3), persisting unless the namespace is unpersisted.
-   Else, if `originNamespaces` is non-empty: fetch only those (their primary-language text
-   is an AI translation, not the key).
+4. Known namespaces = `namespaces` when non-empty, else `["default"]`; plus the namespaces
+   of `bundle.manifest` when a bundle is configured (deduplicated, in that order).
+5. If `validated !== primary`: for every known namespace in parallel, seed it from the bundle
+   when covered (section 7.4), else fetch it with a null cursor; merge each (section 7.3),
+   persisting unless the namespace is unpersisted.
+   Else: seed every covered namespace from the bundle, and fetch only the `originNamespaces`
+   the bundle does not cover (their primary-language text is an AI translation, not the key).
 
 ### 8.2 `init(config)` sequence
 
@@ -606,7 +742,8 @@ translation arrives.
 
 Consequence: every boot in a non-primary language performs a **full** fetch of each known
 namespace (cursor null, no ETag), because step 5 resets the cursors and the ETag map is
-in-memory. The stored cursor is only used by the in-session `empty` refetch.
+in-memory. The stored cursor is only used by the in-session `empty` refetch. A bundle
+(section 7.4) replaces that boot fetch with a file read for every pair it covers.
 
 ## 9. Usage analytics
 
@@ -779,7 +916,7 @@ Vectors: `storage-keys.json` (replayed by the wrapper packages).
 | Aspect | Node SDK |
 | --- | --- |
 | Store | in memory: `translations[lang][storageKey]`, one flat map per language, no namespace dimension |
-| Boot | `init` awaits `GET /translate/` for `config.defaultNamespace`, merges every known language; never stores the cursor |
+| Boot | `init` awaits `GET /translate/` for `config.defaultNamespace`, merges every known language; never stores the cursor. With `bundle` (section 7.4): every `(namespace, lang)` of the manifest is loaded and merged first, and the boot fetch is skipped when the manifest covers `defaultNamespace` |
 | Resolution | `awaitForTranslationOrThrow(key, lang, options)`: async. Empty key returns `""`. Primary (or origin) language returns `applyReplace(key)` unless `forceTemporary[lang]` is set. Hit returns `applyReplace(translation)`. Miss: `handleTranslate(key)` when configured, else `POST /translate`, then returns `applyReplace(data.translation[lang] || key)`. `awaitForTranslationOrFallbackToOriginal` is the same resolution but never rejects: a failed POST returns `applyReplace(key)`. `awaitForTranslation` is a deprecated alias of `awaitForTranslationOrThrow`. |
 | Dedupe | in-flight map keyed by `namespace + ":" + storageKey + ":" + (originLanguage ?? "")`, never for `forceTemporary` calls; plus the shared queue's `empty` event refetches `GET /translate/` per recorded namespace |
 | Cache after POST | the flat keys of `data.translation` are merged into the store for every known language (unknown keys and empty values dropped). The flat key `id` is the numeric row id, not Indonesian (section 4.1): see section 15, item 9 |

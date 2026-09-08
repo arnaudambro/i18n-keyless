@@ -50,6 +50,7 @@ final class KeylessTranslator
 
     /**
      * @param  list<string>  $languages  every language the app serves (i18n-keyless codes)
+     * @param  Bundle|null  $bundle  the precompiled bundle (`bundle_path`), read instead of fetched for the pairs it covers
      */
     public function __construct(
         private readonly Translator $translator,
@@ -61,12 +62,18 @@ final class KeylessTranslator
         private readonly ?string $queue = null,
         private readonly ?Application $app = null,
         private readonly bool $usageEnabled = true,
+        private readonly ?Bundle $bundle = null,
     ) {
     }
 
     public function usageEnabled(): bool
     {
         return $this->usageEnabled;
+    }
+
+    public function bundle(): ?Bundle
+    {
+        return $this->bundle;
     }
 
     public function primary(): string
@@ -160,6 +167,14 @@ final class KeylessTranslator
      * Loads the (locale, namespace) dictionary once per process and injects it
      * into Laravel's translator.
      *
+     * With a bundle (PROTOCOL.md 7.4) a pair the manifest covers is seeded from
+     * its file the first time this process needs it, with the manifest's
+     * cursor, and the boot fetch is skipped. Seeding is lazy, per pair, rather
+     * than eager at construction, because a php-fpm process is one request:
+     * reading every file of the manifest on each request would cost more than
+     * the fetch it saves. The outcome is the same: a covered pair is never
+     * fetched, and a miss still POSTs.
+     *
      * @return array<string, string>
      */
     public function ensureLoaded(string $locale, string $lang, string $namespace): array
@@ -169,11 +184,16 @@ final class KeylessTranslator
             return $this->loaded[$id];
         }
         $entry = $this->store->get($lang, $namespace);
+        $seed = $this->bundle?->seed($namespace, $lang);
+        if ($seed !== null) {
+            // Covered by the bundle: read, never fetched. The cache wins only when it is newer.
+            $entry = $this->store->seed($lang, $namespace, $seed);
+        }
         if ($entry === null) {
             // First time ever for this language: the one blocking fetch.
             $result = $this->api->fetchDictionary($lang, $namespace, null);
             $entry = $result['ok']
-                ? $this->store->put($lang, $namespace, $result['translations'], $result['etag'])
+                ? $this->store->put($lang, $namespace, $result['translations'], $result['etag'], lastRefresh: $result['lastRefresh'])
                 : $this->store->put($lang, $namespace, [], null, failed: true);
         } elseif ($this->store->isStale($entry)) {
             // Serve what we have now, ask the API after the response.
@@ -368,7 +388,7 @@ final class KeylessTranslator
         $result = $this->api->fetchDictionary($lang, $namespace, $entry['etag'] ?? null);
         if (! $result['ok']) {
             // Remember the failure briefly, so the next requests do not all retry.
-            $this->store->put($lang, $namespace, $entry['translations'] ?? [], $entry['etag'] ?? null, failed: true);
+            $this->store->put($lang, $namespace, $entry['translations'] ?? [], $entry['etag'] ?? null, failed: true, lastRefresh: $entry['last_refresh'] ?? null);
 
             return;
         }
@@ -377,7 +397,7 @@ final class KeylessTranslator
 
             return;
         }
-        $this->store->put($lang, $namespace, $result['translations'], $result['etag']);
+        $this->store->put($lang, $namespace, $result['translations'], $result['etag'], lastRefresh: $result['lastRefresh']);
         $this->refreshLoaded($lang, $namespace, $result['translations']);
     }
 

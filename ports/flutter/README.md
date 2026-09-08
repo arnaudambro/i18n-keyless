@@ -64,6 +64,7 @@ retry on other 4xx.
 | `apiUrl` | `https://api.i18n-keyless.com` | A self-hosted backend, no trailing slash. |
 | `languages` | required | `LanguagesConfig(primary, supported, fallback, initWithDefault, skipCurrentLanguageHydration)`. |
 | `storage` | `MemoryStorage()` | `SharedPreferencesStorage()` on a device. See [Storage adapters](#storage-adapters). |
+| `bundle` | none | `I18nKeylessBundle(manifest:, load:)`, the translations shipped as assets. See [The precompiled bundle](#the-precompiled-bundle). |
 | `defaultNamespace` | `default` | Applied to every call that has no `namespace`. |
 | `sendUsage` | `true` | `false` neither records nor sends usage analytics (the `ssr: true` of the JavaScript SDKs). Translate-on-miss still works. |
 | `handleTranslate`, `getAllTranslations`, `sendTranslationsUsage` | | Custom handlers: they replace the HTTP calls, in that priority. |
@@ -166,6 +167,38 @@ The keys and their serialisation are the ones of the JavaScript SDKs
 `i18n-keyless-current-language`, `i18n-keyless-user-id`, ...). The device id under
 `i18n-keyless-user-id` is what the API counts as one user; `clearStorageAndStore()` keeps it
 on purpose.
+
+## The precompiled bundle
+
+Ship the translations with the app and keep the API for the misses. Export the files with
+the MCP `export_bundle` tool or `GET /translate/bundle`: a directory holding `manifest.json`
+and one `<namespace>/<lang>.json` per dictionary. Declare it as assets and hand the
+manifest and a loader to `init`:
+
+```yaml
+flutter:
+  assets:
+    - assets/i18n-keyless/
+    - assets/i18n-keyless/default/
+```
+
+```dart
+final bundle = await loadI18nKeylessBundleFromAssets('assets/i18n-keyless');
+await i18n.init(I18nKeylessConfig(apiKey: '...', languages: ..., bundle: bundle));
+```
+
+`loadI18nKeylessBundleFromAssets` reads `manifest.json` through `rootBundle` (or the
+`assetBundle` you pass) and builds the loader; in pure Dart, build
+`I18nKeylessBundle(manifest: BundleManifest.fromJson(...), load: (namespace, lang) async => ...)`
+yourself.
+
+A namespace the manifest covers in the current language is seeded from the file instead of
+fetched, at boot and on every language switch, with the bundle's cursor, so the next fetch
+for it is the delta after a miss. What storage holds for the namespace wins only when it is
+strictly newer and in the same language: a device that fetched after a human review keeps
+the reviewed text, and a stale bundle never overwrites fresher data. A pair the manifest
+does not list is fetched as before; a file the loader cannot read is logged and fetched. A
+miss still POSTs. Nothing else changes (`docs/PROTOCOL.md` section 7.4).
 
 ## Server and tests
 

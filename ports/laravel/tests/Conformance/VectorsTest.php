@@ -3,6 +3,7 @@
 namespace I18nKeyless\Laravel\Tests\Conformance;
 
 use I18nKeyless\Laravel\ApiClient;
+use I18nKeyless\Laravel\Bundle;
 use I18nKeyless\Laravel\KeylessTranslator;
 use I18nKeyless\Laravel\Locale;
 use I18nKeyless\Laravel\Miss;
@@ -425,6 +426,25 @@ final class VectorsTest extends TestCase
 
                 return true;
             });
+        }
+    }
+
+    public function test_bundle_seed(): void
+    {
+        $vector = $this->vector('bundle-seed');
+        foreach ($vector['cases'] as $case) {
+            $input = $case['input'];
+            if ($case['fn'] === 'bundleCovers') {
+                $manifest = array_key_exists('manifest', $input) ? $input['manifest'] : $vector['manifest'];
+                $this->assertSame($case['expected'], Bundle::manifestCovers($manifest, $input['namespace'], $input['lang']), $case['name']);
+                continue;
+            }
+            $this->assertSame('mergeBundleWithStorage', $case['fn'], $case['name']);
+            $this->assertSame(
+                $case['expected'],
+                Bundle::mergeWithStorage($input['bundle'], $input['stored'], $input['lang']),
+                $case['name']
+            );
         }
     }
 

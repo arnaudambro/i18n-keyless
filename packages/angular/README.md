@@ -30,7 +30,9 @@ signals.
 - [Setup](#setup)
 - [Three ways to translate](#three-ways-to-translate)
 - [Switch language](#switch-language)
+- [The bundle (optional)](#the-bundle-optional)
 - [Per-translation options](#per-translation-options)
+- [Translation status](#translation-status)
 - [The service](#the-service)
 - [SSR](#ssr)
 - [Storage](#storage)
@@ -119,6 +121,32 @@ this.i18n.getSupportedLanguages();  // ["fr", "en"]
 `AVAILABLE_LANGS` and the `Lang` type are re-exported; `resolveLang(navigator.language, {
 supported, fallback })` maps a BCP-47 tag onto a supported language.
 
+## The bundle (optional)
+
+By default a dictionary is downloaded at boot and the API stays in the loop. To make the app
+independent of the API for every string it already knows, export the dictionaries at build
+time — the MCP `export_bundle` tool, or `GET /translate/bundle` — commit
+`i18n-keyless/manifest.json` plus one `i18n-keyless/<namespace>/<lang>.json` per dictionary,
+and pass them to `provideI18nKeyless` (or `init`) as `bundle: { manifest, load }`:
+
+```ts
+import manifest from "./i18n-keyless/manifest.json";
+
+provideI18nKeyless({
+  API_KEY,
+  languages: { primary: "fr", supported: ["fr", "en"] },
+  bundle: { manifest, load: (namespace, lang) => import(`./i18n-keyless/${namespace}/${lang}.json`) },
+});
+```
+
+`load` is called once per `(namespace, lang)` the manifest covers, so a dynamic `import()`
+ships only the language actually rendered. A namespace the manifest covers in the current
+language is seeded from the file instead of fetched, at boot and on a language switch, with
+the manifest's cursor — so the API is only called for a key the bundle does not have (UGC, a
+new screen) and for the delta that follows. Storage always wins over the bundle when it holds
+a newer slice in the same language (e.g. after a human review from the dashboard). Re-run the
+export before each release.
+
 ## Per-translation options
 
 Inputs of `<i18n-t>` and the second argument of the pipe, `translate()`, `translation()` and
@@ -138,6 +166,41 @@ Inputs of `<i18n-t>` and the second argument of the pipe, `translate()`, `transl
 - `originLanguage`: user generated content written in another language than the primary one.
 - `debug`: logs the resolution of that one string.
 
+## Translation status
+
+A missing translation renders the source text and swaps in once it lands — fine for most UI,
+but for user generated content (a comment written in another language) you may want to show a
+spinner, a blur, or the source text instead, while it is on its way. `TranslationStatus` is
+`"ready" | "pending" | "unavailable"`: `ready` when the text rendered is final (the key's own
+language, or a cell that satisfies `count` / `select`), `pending` while a translate-on-miss for
+it is queued and not yet settled, `unavailable` otherwise (not initialized, a server runtime,
+or a settle that did not bring the cell). The SDK only exposes the status — it never decides
+what to render.
+
+```ts
+@Component({
+  standalone: true,
+  imports: [I18nKeylessTextComponent, I18nKeylessTranslationStatusPipe],
+  template: `
+    <!-- <i18n-t> mirrors it onto data-i18n-status: style it in CSS. -->
+    <i18n-t>{{ comment.text }}</i18n-t>
+
+    <!-- or read it directly, e.g. to render your own placeholder -->
+    @if (('Bonjour' | tStatus) === 'pending') {
+      <span class="skeleton"></span>
+    }
+  `,
+})
+```
+
+`i18n-t[data-i18n-status="pending"] { opacity: 0.5 }` styles every instance without touching a
+template. On the component, `status()` (`Signal<TranslationStatus>`) is available too. The `t`
+pipe has a `tStatus` counterpart (`I18nKeylessTranslationStatusPipe`, impure like `t`, same
+request-memo). `I18nKeylessService` has `translationStatus(text, options)` (a signal, sharing
+`translate()`'s resolution and request-on-miss) and `getTranslationStatus(text, options)`
+(one-shot, non-reactive, no side effect). The bare `getTranslationStatus` export is the
+one-shot form outside a component (store, then the `runWithI18nKeyless` scope).
+
 ## The service
 
 `I18nKeylessService` is `providedIn: "root"`:
@@ -151,7 +214,9 @@ Inputs of `<i18n-t>` and the second argument of the pipe, `translate()`, `transl
 | `currentLanguage$`, `translations$` | `Observable` | rxjs bridges (`toObservable`) |
 | `translate(text, options)` | `string` | reactive: call it in a template, `computed` or `effect` |
 | `translation(text, options)` | `Signal<string>` | `computed(() => translate(...))` |
+| `translationStatus(text, options)` | `Signal<TranslationStatus>` | reactive, shares `translate()`'s resolution |
 | `getTranslation(text, options)` | `string` | one-shot, non-reactive |
+| `getTranslationStatus(text, options)` | `TranslationStatus` | one-shot, non-reactive, no side effect |
 | `setCurrentLanguage(lang)` | `Promise<void>` | |
 | `whenHydrated()` | `Promise<void>` | |
 | `clearStorageAndStore()` | `Promise<void>` | wipes the cache, keeps the device id |

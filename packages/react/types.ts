@@ -9,6 +9,7 @@ import type {
   UniqueId,
   LastRefresh,
   LanguagesConfig,
+  BundleConfig,
 } from "i18n-keyless-core";
 
 type GetStorageFunction = (key: string) => string | null | undefined | Promise<string | null | undefined>;
@@ -83,6 +84,19 @@ export interface I18nConfig {
    * This does NOT affect translate-on-miss — missing keys are still requested. See docs/SSR.md.
    */
   ssr?: boolean;
+  /**
+   * The precompiled bundle: dictionaries exported at build time and shipped with the app
+   * (`manifest.json` plus one `<namespace>/<lang>.json` per dictionary, from the MCP
+   * `export_bundle` tool or `GET /translate/bundle`). A namespace the manifest covers in the
+   * current language is seeded from the bundle instead of fetched, at boot and on a language
+   * switch, with the bundle's cursor — so the API is only called for a missing key (and the
+   * delta that follows it). Storage still wins when it is newer for the same language.
+   *
+   * `load` is called per (namespace, language) and may return the module of a dynamic
+   * `import()`, so a bundler ships only the language actually rendered:
+   * `load: (ns, lang) => import(\`./i18n-keyless/${ns}/${lang}.json\`)`.
+   */
+  bundle?: BundleConfig;
   /**
    * called everytime the language is set, maybe to set also the locale to dayjs or whatever
    */

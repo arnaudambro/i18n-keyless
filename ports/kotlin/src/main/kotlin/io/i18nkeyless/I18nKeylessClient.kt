@@ -66,6 +66,14 @@ class I18nKeylessClient(
     private val usageByNamespace = HashMap<String, MutableMap<String, String>>()
     private val originNamespaces = ArrayList<String>()
 
+    /**
+     * The language the namespace slices currently in memory are written in: the stored
+     * language after hydration (which `skipCurrentLanguageHydration` may differ from), the
+     * switched-to language after a switch. The bundle seed reads it to decide whether a
+     * stored slice is comparable with the bundle (protocol section 7.4).
+     */
+    private var slicesLanguage: String? = null
+
     /** Namespaces that had a miss since the last bulk fetch, mapped to `unpersisted`. */
     private val namespacesToFetch = LinkedHashMap<String, Boolean>()
 
@@ -300,10 +308,13 @@ class I18nKeylessClient(
             }
         }
 
+        // The stored language is also the language the slices above were persisted in.
+        val storedLanguage = read(StorageKeys.CURRENT_LANGUAGE)
+        if (namespaces.isNotEmpty()) slicesLanguage = storedLanguage
         current = if (config.languages.skipCurrentLanguageHydration) {
             initWithDefault
         } else {
-            Lang.fromCode(read(StorageKeys.CURRENT_LANGUAGE)) ?: initWithDefault
+            Lang.fromCode(storedLanguage) ?: initWithDefault
         }
         if (debug) log("hydrate: currentLanguage $current")
         lastRefreshCursor = read(StorageKeys.LAST_REFRESH)
@@ -569,17 +580,47 @@ class I18nKeylessClient(
         return track(switchLanguage(lang))
     }
 
+    /**
+     * What a language switch does once the state is reset: the namespaces to seed from the
+     * bundle, the ones to fetch, and what storage held before (for the precedence rule).
+     */
+    private class SwitchPlan(
+        val validated: Lang,
+        val toSeed: List<String>,
+        val toFetch: List<String>,
+        /**
+         * A covered namespace whose file cannot be read is fetched instead, in a non-primary
+         * language only (the primary fetches nothing but origin namespaces).
+         */
+        val fetchWhenSeedFails: Boolean,
+        val bundle: I18nKeylessBundle?,
+        val previousLanguage: String?,
+        val previousSlices: Map<String, Map<String, String>>,
+        val previousCursors: Map<String, String>,
+    )
+
     private fun switchLanguage(lang: Lang): CompletableFuture<Unit> {
-        val validated: Lang
-        val toFetch: List<String>
+        val plan: SwitchPlan
         lock.withLock {
             val config = configuration
-            validated = if (lang in supported) lang else fallback
+            val validated = if (lang in supported) lang else fallback
             if (config.debug && validated != lang) log("language $lang is not supported, fallback to $validated")
             current = validated
+            // What the slices held before this switch, for the bundle precedence rule: a
+            // stored slice counts only when it is in the language being switched to and
+            // newer than the bundle (protocol section 7.4).
+            val bundle = config.bundle
+            val previousLanguage = slicesLanguage
+            val previousSlices = translationsByNamespace.mapValues { LinkedHashMap(it.value) }
+            val previousCursors = HashMap(lastRefreshByNamespace)
+            slicesLanguage = validated.code
             // Every delta cursor is stale after a language change: reset them all and
-            // refetch the full set of each known namespace.
-            val known = if (namespaces.isNotEmpty()) namespaces.toList() else listOf(DEFAULT_NAMESPACE)
+            // refetch the full set of each known namespace. A namespace the bundle lists is
+            // known too, even before its first miss.
+            val known = LinkedHashSet<String>().apply {
+                addAll(if (namespaces.isNotEmpty()) namespaces else listOf(DEFAULT_NAMESPACE))
+                addAll(bundleNamespaces(bundle?.manifest))
+            }.toList()
             lastRefreshCursor = null
             lastRefreshByNamespace.clear()
             requestedMisses.clear()
@@ -587,24 +628,66 @@ class I18nKeylessClient(
             for (namespace in known) {
                 if (namespace !in unpersistedNamespaces) write(StorageKeys.lastRefreshKeyFor(namespace), "")
             }
-            toFetch = when {
-                validated != primary -> known
-                // The primary language still needs fetched data for the namespaces holding
-                // UGC keys: their primary version is an AI translation, not the key itself.
-                originNamespaces.isNotEmpty() -> originNamespaces.toList()
-                else -> emptyList()
-            }
+            val covered = known.filter { bundleCovers(bundle?.manifest, it, validated.code) }
+            // The primary language still needs fetched data for the namespaces holding UGC
+            // keys: their primary version is an AI translation, not the key itself. A bundled
+            // primary dictionary is seeded for the same reason, from the file.
+            val toFetch = if (validated != primary) known.filter { it !in covered } else originNamespaces.filter { it !in covered }
+            plan = SwitchPlan(
+                validated = validated,
+                toSeed = covered,
+                toFetch = toFetch,
+                fetchWhenSeedFails = validated != primary,
+                bundle = bundle,
+                previousLanguage = previousLanguage,
+                previousSlices = previousSlices,
+                previousCursors = previousCursors,
+            )
         }
         notifyListeners()
-        if (toFetch.isEmpty()) return CompletableFuture.completedFuture(Unit)
-        val fetches = toFetch.map { namespace ->
+        if (plan.toSeed.isEmpty() && plan.toFetch.isEmpty()) return CompletableFuture.completedFuture(Unit)
+        val seeds = plan.toSeed.map { namespace ->
             CompletableFuture.runAsync({
-                val response = fetchLanguage(validated, namespace, null)
-                val changed = lock.withLock { setTranslations(response, namespace, namespace in unpersistedNamespaces) }
-                if (changed) notifyListeners()
+                if (!seedFromBundle(plan, namespace) && plan.fetchWhenSeedFails) fetchAndMerge(plan.validated, namespace)
             }, executor)
         }
-        return CompletableFuture.allOf(*fetches.toTypedArray()).thenApply { }
+        val fetches = plan.toFetch.map { namespace ->
+            CompletableFuture.runAsync({ fetchAndMerge(plan.validated, namespace) }, executor)
+        }
+        return CompletableFuture.allOf(*(seeds + fetches).toTypedArray()).thenApply { }
+    }
+
+    /** Outside the lock: the network, then the merge. */
+    private fun fetchAndMerge(lang: Lang, namespace: String) {
+        val response = fetchLanguage(lang, namespace, null)
+        val changed = lock.withLock { setTranslations(response, namespace, namespace in unpersistedNamespaces) }
+        if (changed) notifyListeners()
+    }
+
+    /**
+     * Seeds one namespace the bundle covers in the switched-to language, with the bundle's
+     * cursor, as if it were a fetched dictionary (protocol section 7.4). Runs the loader
+     * outside the lock. False when the file cannot be read.
+     */
+    private fun seedFromBundle(plan: SwitchPlan, namespace: String): Boolean {
+        val seed = loadBundleSeed(plan.bundle, namespace, plan.validated, ::log) ?: return false
+        val previous = plan.previousSlices[namespace]
+        val stored = if (plan.previousLanguage != null && previous != null) {
+            StoredSeed(previous, plan.previousCursors[namespace], plan.previousLanguage)
+        } else {
+            null
+        }
+        val merged = mergeBundleWithStorage(seed, stored, plan.validated.code)
+        val changed = lock.withLock {
+            if (config?.debug == true) log("setLanguage: seeded from the bundle $namespace ${plan.validated.code}")
+            setTranslations(
+                TranslationsResponse(ok = true, translations = merged.translations, lastRefresh = merged.lastRefresh),
+                namespace,
+                namespace in unpersistedNamespaces,
+            )
+        }
+        if (changed) notifyListeners()
+        return true
     }
 
     // ---------------------------------------------------------------------------
@@ -727,6 +810,7 @@ class I18nKeylessClient(
             originNamespaces.clear()
             requestedMisses.clear()
             etags.clear()
+            slicesLanguage = null
         }
         notifyListeners()
         waitForIdle()

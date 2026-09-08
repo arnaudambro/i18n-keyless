@@ -47,6 +47,11 @@ public final class I18nKeyless: @unchecked Sendable {
     private var lastRefreshByNamespace: [String: String] = [:]
     private var usageByNamespace: [String: TranslationsUsage] = [:]
     private var originNamespaces: [String] = []
+    /// The language the namespace slices currently in memory are written in: the stored
+    /// language after hydration (which `skipCurrentLanguageHydration` may differ from), the
+    /// switched-to language after a switch. The bundle seed reads it to decide whether a
+    /// stored slice is comparable with the bundle (protocol section 7.4).
+    private var slicesLanguage: String?
     /// Namespaces that had a miss since the last bulk fetch, mapped to `unpersisted`.
     private var namespacesToFetch: [String: Bool] = [:]
     /// Keys in flight on `POST /translate`.
@@ -262,10 +267,13 @@ public final class I18nKeyless: @unchecked Sendable {
             }
         }
 
+        // The stored language is also the language the slices above were persisted in.
+        let storedLanguage = read(StorageKeys.currentLanguage)
+        if !namespaces.isEmpty { slicesLanguage = storedLanguage }
         if config.languages.skipCurrentLanguageHydration {
             current = initWithDefault
         } else {
-            current = Lang(code: read(StorageKeys.currentLanguage)) ?? initWithDefault
+            current = Lang(code: storedLanguage) ?? initWithDefault
         }
         if config.debug { log("hydrate: currentLanguage \(current.code)") }
         lastRefreshValue = read(StorageKeys.lastRefresh)
@@ -497,15 +505,41 @@ public final class I18nKeyless: @unchecked Sendable {
         await applyLanguage(lang)
     }
 
+    /// What a language switch does once the state is reset: the namespaces to seed from the
+    /// bundle, the ones to fetch, and what storage held before (for the precedence rule).
+    private struct SwitchPlan: @unchecked Sendable {
+        let validated: Lang
+        let toSeed: [String]
+        let toFetch: [String]
+        /// A covered namespace whose file cannot be read is fetched instead, in a
+        /// non-primary language only (the primary fetches nothing but origin namespaces).
+        let fetchWhenSeedFails: Bool
+        let unpersisted: Set<String>
+        let bundle: I18nKeylessBundle?
+        let previousLanguage: String?
+        let previousSlices: [String: Translations]
+        let previousCursors: [String: String]
+    }
+
     private func applyLanguage(_ lang: Lang) async {
-        let plan: (validated: Lang, toFetch: [String], unpersisted: Set<String>)? = lock.withLock {
+        let plan: SwitchPlan? = lock.withLock {
             guard let config = self.config else { return nil }
             let validated = supported.contains(lang) ? lang : fallback
             if config.debug && validated != lang { log("language \(lang.code) is not supported, fallback to \(validated.code)") }
             current = validated
+            // What the slices held before this switch, for the bundle precedence rule: a
+            // stored slice counts only when it is in the language being switched to and
+            // newer than the bundle (protocol section 7.4).
+            let bundle = config.bundle
+            let previousLanguage = slicesLanguage
+            let previousSlices = translationsByNamespace
+            let previousCursors = lastRefreshByNamespace
+            slicesLanguage = validated.code
             // Every delta cursor is stale after a language change: reset them all and refetch
-            // the full set of each known namespace.
-            let known = namespaces.isEmpty ? [i18nKeylessDefaultNamespace] : namespaces
+            // the full set of each known namespace. A namespace the bundle lists is known
+            // too, even before its first miss.
+            var known = namespaces.isEmpty ? [i18nKeylessDefaultNamespace] : namespaces
+            for namespace in Self.bundleNamespaces(bundle?.manifest) where !known.contains(namespace) { known.append(namespace) }
             lastRefreshValue = nil
             lastRefreshByNamespace.removeAll()
             requestedMisses.removeAll()
@@ -514,23 +548,57 @@ public final class I18nKeyless: @unchecked Sendable {
                 write(StorageKeys.lastRefreshKeyFor(namespace), "")
             }
             notify()
-            if validated != primary { return (validated, known, unpersistedNamespaces) }
+            let covered = known.filter { Self.bundleCovers(bundle?.manifest, namespace: $0, lang: validated.code) }
             // The primary language still needs fetched data for the namespaces holding UGC
-            // keys: their primary version is an AI translation, not the key itself.
-            if !originNamespaces.isEmpty { return (validated, originNamespaces, unpersistedNamespaces) }
-            return nil
+            // keys: their primary version is an AI translation, not the key itself. A bundled
+            // primary dictionary is seeded for the same reason, from the file.
+            let toFetch = validated != primary
+                ? known.filter { !covered.contains($0) }
+                : originNamespaces.filter { !covered.contains($0) }
+            return SwitchPlan(
+                validated: validated, toSeed: covered, toFetch: toFetch,
+                fetchWhenSeedFails: validated != primary, unpersisted: unpersistedNamespaces,
+                bundle: bundle, previousLanguage: previousLanguage, previousSlices: previousSlices,
+                previousCursors: previousCursors)
         }
-        guard let (validated, toFetch, unpersisted) = plan else { return }
+        guard let plan = plan, !(plan.toSeed.isEmpty && plan.toFetch.isEmpty) else { return }
         await withTaskGroup(of: Void.self) { group in
-            for namespace in toFetch {
+            for namespace in plan.toSeed {
                 group.addTask { [self] in
-                    let response = await self.fetchLanguage(validated, namespace: namespace, lastRefresh: nil)
-                    self.lock.withLock {
-                        self.setTranslations(response, namespace: namespace, unpersisted: unpersisted.contains(namespace))
-                    }
+                    if await self.seedFromBundle(plan, namespace: namespace) { return }
+                    if plan.fetchWhenSeedFails { await self.fetchAndMerge(plan, namespace: namespace) }
                 }
             }
+            for namespace in plan.toFetch {
+                group.addTask { [self] in await self.fetchAndMerge(plan, namespace: namespace) }
+            }
         }
+    }
+
+    private func fetchAndMerge(_ plan: SwitchPlan, namespace: String) async {
+        let response = await fetchLanguage(plan.validated, namespace: namespace, lastRefresh: nil)
+        lock.withLock {
+            setTranslations(response, namespace: namespace, unpersisted: plan.unpersisted.contains(namespace))
+        }
+    }
+
+    /// Seeds one namespace the bundle covers in the switched-to language, with the bundle's
+    /// cursor, as if it were a fetched dictionary (protocol section 7.4). False when the
+    /// file cannot be read.
+    private func seedFromBundle(_ plan: SwitchPlan, namespace: String) async -> Bool {
+        guard let seed = await Self.loadBundleSeed(plan.bundle, namespace: namespace, lang: plan.validated, log: log) else { return false }
+        var stored: StoredSeed?
+        if let previousLanguage = plan.previousLanguage, let slice = plan.previousSlices[namespace] {
+            stored = StoredSeed(translations: slice, lastRefresh: plan.previousCursors[namespace], lang: previousLanguage)
+        }
+        let merged = Self.mergeBundleWithStorage(seed, stored: stored, lang: plan.validated.code)
+        lock.withLock {
+            if config?.debug == true { log("setLanguage: seeded from the bundle \(namespace) \(plan.validated.code)") }
+            setTranslations(
+                TranslationsResponse(ok: true, translations: merged.translations, lastRefresh: merged.lastRefresh),
+                namespace: namespace, unpersisted: plan.unpersisted.contains(namespace))
+        }
+        return true
     }
 
     // MARK: - Usage analytics
@@ -637,6 +705,7 @@ public final class I18nKeyless: @unchecked Sendable {
         originNamespaces.removeAll()
         requestedMisses.removeAll()
         etags.removeAll()
+        slicesLanguage = nil
         notify()
     }
 

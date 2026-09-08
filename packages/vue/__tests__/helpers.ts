@@ -47,9 +47,10 @@ export function makeStorage(seed: Record<string, string> = {}) {
 /** A fresh copy of the package (the store is module state) plus the core it links to. */
 export async function load() {
   vi.resetModules();
-  const lib = await import("../index.ts");
   const core = await import("i18n-keyless-core");
   core.resetUniqueIdState();
+  core.resetPendingTranslations();
+  const lib = await import("../index.ts");
   return { ...lib, core };
 }
 

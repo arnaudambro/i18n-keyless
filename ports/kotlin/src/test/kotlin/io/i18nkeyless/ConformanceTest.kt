@@ -484,6 +484,32 @@ class ConformanceTest {
         assertEquals(if (server) SDK_RUNTIME_SERVER else SDK_RUNTIME_CLIENT, request.headers["sdk"])
     }
 
+    @TestFactory
+    fun `bundle-seed json`(): List<DynamicTest> {
+        val vector = loadVector("bundle-seed.json")
+        val manifest = BundleManifest.fromJson(vector["manifest"].asMap())
+        fun seedOf(raw: Map<String, Any?>) = BundleSeed(raw["translations"].asStringMap(), raw["lastRefresh"] as String?)
+        return tests("bundle-seed.json") { c ->
+            val input = c["input"].asMap()
+            when (c["fn"]) {
+                "bundleCovers" -> {
+                    val own = if ("manifest" in input) (input["manifest"] as Map<*, *>?)?.let { BundleManifest.fromJson(it) } else manifest
+                    assertEquals(c["expected"], bundleCovers(own, input["namespace"] as String, input["lang"] as String))
+                }
+                "mergeBundleWithStorage" -> {
+                    val stored = (input["stored"] as Map<*, *>?)?.asMap()?.let {
+                        StoredSeed(it["translations"].asStringMap(), it["lastRefresh"] as String?, it["lang"] as String)
+                    }
+                    val merged = mergeBundleWithStorage(seedOf(input["bundle"].asMap()), stored, input["lang"] as String)
+                    val expected = c["expected"].asMap()
+                    assertEquals(expected["translations"], merged.translations)
+                    assertEquals(expected["lastRefresh"], merged.lastRefresh)
+                }
+                else -> fail("unknown fn ${c["fn"]}")
+            }
+        }
+    }
+
     @Test
     fun `storage-keys json fixed key names`() {
         val fixed = loadVector("storage-keys.json")["fixedKeys"].asMap()

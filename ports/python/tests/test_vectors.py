@@ -19,7 +19,7 @@ from typing import Any, Dict, List
 import pytest
 
 import i18n_keyless as i18n
-from i18n_keyless import ApiClient, Config, I18nKeyless
+from i18n_keyless import ApiClient, BundleSeed, Config, I18nKeyless, StoredSeed
 from i18n_keyless.http import DEFAULT_API_URL, decide, dictionary_url, etag_cache_key
 from i18n_keyless.langs import APP_STORE_LOCALES
 
@@ -114,6 +114,23 @@ def test_queue_id() -> None:
     assert i18n.CONCURRENCY == vector["concurrency"]
     for case in vector["cases"]:
         assert i18n.queue_id_for(case["input"]["namespace"], case["input"]["key"]) == case["expected"], case["name"]
+
+
+def test_bundle_seed() -> None:
+    """The precompiled bundle (PROTOCOL.md 7.4): coverage and the storage precedence rule."""
+    vector = load_vector("bundle-seed")
+    for case in vector["cases"]:
+        inp = case["input"]
+        if case["fn"] == "bundleCovers":
+            manifest = inp["manifest"] if "manifest" in inp else vector["manifest"]
+            assert i18n.bundle_covers(manifest, inp["namespace"], inp["lang"]) == case["expected"], case["name"]
+            continue
+        assert case["fn"] == "mergeBundleWithStorage", case["name"]
+        bundle = BundleSeed(inp["bundle"]["translations"], inp["bundle"]["lastRefresh"])
+        stored = StoredSeed(inp["stored"]["translations"], inp["stored"]["lastRefresh"], inp["stored"]["lang"]) if inp["stored"] else None
+        got = i18n.merge_bundle_with_storage(bundle, stored, inp["lang"])
+        assert {"translations": got.translations, "lastRefresh": got.last_refresh} == case["expected"], case["name"]
+    assert i18n.bundle_namespaces(vector["manifest"]) == ["default", "checkout"]
 
 
 # -- transport ---------------------------------------------------------------------------

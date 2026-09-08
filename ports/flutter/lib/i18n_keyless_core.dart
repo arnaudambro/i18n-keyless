@@ -4,6 +4,7 @@
 library;
 
 export 'src/core/api.dart' show ApiResult, I18nKeylessApi, Sleep;
+export 'src/core/bundle.dart';
 export 'src/core/client.dart'
     show
         I18nKeylessClient,

@@ -20,6 +20,15 @@ export type {
 } from "./types.ts";
 export type { SdkRuntime } from "./unique-id.ts";
 export {
+  // the precompiled bundle (docs/PROTOCOL.md 7.4): seed a namespace from shipped files
+  bundleCovers,
+  bundleNamespaces,
+  unwrapBundleFile,
+  mergeBundleWithStorage,
+  loadBundleSeed
+} from "./bundle.ts";
+export type { BundleManifest, BundleFile, BundleConfig, BundleSeed, StoredSeed } from "./bundle.ts";
+export {
   getTranslationCore,
   getAllTranslationsFromLanguage,
   sendTranslationsUsageToI18nKeyless,
@@ -49,6 +58,18 @@ export {
   messageValuesOf
 } from "./message-format.ts";
 export type { IcuKind, IcuBlock, MessageFormatRequest } from "./message-format.ts";
+export {
+  // per-key translation status (ready / pending / unavailable), see docs/PROTOCOL.md 5.5
+  resolveTranslationStatus,
+  getTranslationStatusCore,
+  markTranslationPending,
+  isTranslationPending,
+  settlePendingTranslationsAfter,
+  subscribeToPendingTranslations,
+  // exported for the SDK test suites: clears the pending set and its listeners
+  resetPendingTranslations
+} from "./translation-status.ts";
+export type { TranslationStatus } from "./translation-status.ts";
 export { api, TIMEOUT_MS, RETRY_DELAYS_MS, MAX_ATTEMPTS, isRetryableStatus, httpErrorMessage } from "./api.ts";
 export {
   generateUniqueId,

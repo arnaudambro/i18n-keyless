@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- **The precompiled bundle** (`docs/PROTOCOL.md` sections 4.5 and 7.4): ship the translations
+  with the app and keep the API for the misses. Export the files with the MCP `export_bundle`
+  tool or `GET /translate/bundle` (`manifest.json` plus one `<namespace>/<lang>.json`), add the
+  folder to the app target, and hand the manifest and an async `load` closure to `configure` as
+  `bundle: I18nKeylessBundle(manifest:load:)` (`I18nKeylessBundle.files(in:)` builds one over a
+  directory of `Bundle.main`). A namespace the manifest covers in the current language is seeded
+  from the file instead of fetched, at boot and on every language switch, with the bundle's
+  cursor; storage wins only when newer and in the same language. A miss still POSTs, and the
+  delta fetch after it starts from the seeded cursor. Nothing else changes.
+  `I18nKeyless.bundleCovers` and `mergeBundleWithStorage` replay
+  `conformance/vectors/bundle-seed.json`.
+
 ## 3.7.0
 
 No change in the port. The version tracks the JavaScript SDKs: 3.7.0 adds plurals, ordinals and

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'api.dart';
+import 'bundle.dart';
 import 'langs.dart';
 import 'pqueue.dart';
 import 'storage.dart';
@@ -127,6 +128,12 @@ class I18nKeylessClient {
   final Map<String, String> _lastRefreshByNamespace = {};
   final Map<String, Map<String, String>> _usageByNamespace = {};
   final List<String> _originNamespaces = [];
+
+  /// The language the namespace slices currently in memory are written in: the stored
+  /// language after hydration (which `skipCurrentLanguageHydration` may differ from), the
+  /// switched-to language after a `_setLanguage`. The bundle seed reads it to decide
+  /// whether a stored slice is comparable with the bundle (protocol section 7.4).
+  String? _slicesLanguage;
 
   /// Namespaces that had a miss since the last bulk fetch, mapped to `unpersisted`.
   final Map<String, bool> _namespacesToFetch = {};
@@ -338,12 +345,13 @@ class I18nKeylessClient {
       }
     }
 
+    // The stored language is also the language the slices above were persisted in.
+    final storedLanguageCode = await _read(StorageKeys.currentLanguage);
+    if (_namespaces.isNotEmpty) _slicesLanguage = storedLanguageCode;
     if (config.languages.skipCurrentLanguageHydration) {
       _currentLanguage = _initWithDefault;
     } else {
-      final storedLanguage =
-          Lang.fromCode(await _read(StorageKeys.currentLanguage));
-      _currentLanguage = storedLanguage ?? _initWithDefault;
+      _currentLanguage = Lang.fromCode(storedLanguageCode) ?? _initWithDefault;
     }
     if (debug) _log('hydrate: currentLanguage $_currentLanguage');
     _lastRefresh = await _read(StorageKeys.lastRefresh);
@@ -627,10 +635,24 @@ class I18nKeylessClient {
       _log('language $lang is not supported, fallback to $validated');
     }
     _currentLanguage = validated;
+    // What the slices held before this switch, for the bundle precedence rule: a stored
+    // slice counts only when it is in the language being switched to and newer than the
+    // bundle (protocol section 7.4).
+    final bundle = config.bundle;
+    final previousSlicesLanguage = _slicesLanguage;
+    final previousSlices = {
+      for (final entry in _translationsByNamespace.entries)
+        entry.key: Map<String, String>.of(entry.value),
+    };
+    final previousCursors = Map<String, String>.of(_lastRefreshByNamespace);
+    _slicesLanguage = validated.code;
     // Every delta cursor is stale after a language change: reset them all and refetch
-    // the full set of each known namespace.
-    final known =
-        _namespaces.isNotEmpty ? List.of(_namespaces) : [defaultNamespace];
+    // the full set of each known namespace. A namespace the bundle lists is known too,
+    // even before its first miss.
+    final known = <String>{
+      ...(_namespaces.isNotEmpty ? _namespaces : [defaultNamespace]),
+      ...bundleNamespaces(bundle?.manifest),
+    }.toList();
     _lastRefresh = null;
     _lastRefreshByNamespace.clear();
     _requestedMisses.clear();
@@ -642,23 +664,65 @@ class I18nKeylessClient {
     }
     _notify();
 
-    List<String> toFetch;
+    // A namespace the bundle covers in this language is seeded from the shipped file
+    // with the bundle's cursor instead of fetched: the next fetch for it is the delta
+    // after a miss.
+    Future<bool> seedFromBundle(String namespace) async {
+      final seed = await loadBundleSeed(bundle, namespace, validated, log: _log);
+      if (seed == null) return false;
+      final previous = previousSlices[namespace];
+      final stored = previousSlicesLanguage != null && previous != null
+          ? StoredSeed(
+              translations: previous,
+              lastRefresh: previousCursors[namespace],
+              lang: previousSlicesLanguage,
+            )
+          : null;
+      final merged = mergeBundleWithStorage(seed, stored, validated.code);
+      if (config.debug) {
+        _log('setLanguage: seeded from the bundle $namespace ${validated.code}');
+      }
+      _setTranslations(
+        TranslationsResponse(
+          ok: true,
+          translations: merged.translations,
+          lastRefresh: merged.lastRefresh,
+        ),
+        namespace,
+        unpersisted: _unpersistedNamespaces.contains(namespace),
+      );
+      return true;
+    }
+
+    Future<void> fetchNamespace(String namespace) =>
+        _fetchLanguage(validated, namespace).then((response) => _setTranslations(
+              response,
+              namespace,
+              unpersisted: _unpersistedNamespaces.contains(namespace),
+            ));
+
+    Future<void> seedOrFetch(String namespace) async {
+      if (!await seedFromBundle(namespace)) await fetchNamespace(namespace);
+    }
+
     if (validated != _primary) {
-      toFetch = known;
-    } else if (_originNamespaces.isNotEmpty) {
-      // The primary language still needs fetched data for the namespaces holding UGC
-      // keys: their primary version is an AI translation, not the key itself.
-      toFetch = List.of(_originNamespaces);
-    } else {
+      await Future.wait(known.map(seedOrFetch));
       return;
     }
-    await Future.wait(toFetch.map((namespace) =>
-        _fetchLanguage(validated, namespace)
-            .then((response) => _setTranslations(
-                  response,
-                  namespace,
-                  unpersisted: _unpersistedNamespaces.contains(namespace),
-                ))));
+    // The primary language still needs fetched data for the namespaces holding UGC
+    // keys: their primary version is an AI translation, not the key itself. A bundled
+    // primary dictionary is seeded for the same reason, from the file.
+    final covered = known
+        .where((namespace) =>
+            bundleCovers(bundle?.manifest, namespace, validated.code))
+        .toList();
+    final toFetch = _originNamespaces
+        .where((namespace) => !covered.contains(namespace))
+        .toList();
+    await Future.wait([
+      ...covered.map(seedFromBundle),
+      ...toFetch.map(fetchNamespace),
+    ]);
   }
 
   // ---------------------------------------------------------------------------
@@ -768,6 +832,7 @@ class I18nKeylessClient {
     _originNamespaces.clear();
     _requestedMisses.clear();
     _etags.clear();
+    _slicesLanguage = null;
     _notify();
     await waitForIdle();
   }

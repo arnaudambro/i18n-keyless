@@ -63,13 +63,19 @@ FastAPI lifespan). It loads every language in one request.
 
 ## Configuration
 
-`i18n.init(api_key, primary, supported, api_url=None, default_namespace=None, debug=False,
-on_init=None, handle_translate=None, get_all_translations_for_all_languages=None,
+`i18n.init(api_key, primary, supported, api_url=None, default_namespace=None, bundle_path=None,
+debug=False, on_init=None, handle_translate=None, get_all_translations_for_all_languages=None,
 send_translations_usage=None)`. Or `i18n.init(i18n.Config(...))`. Several projects in one
 process: `client = i18n.I18nKeyless(); client.init(config); client.t(...)`.
 
 Three network modes, in priority order: the custom handlers, then `api_url` (a self-hosted
 backend or a proxy), then the official service. `api_key` is sent in every mode.
+
+`bundle_path`: the precompiled bundle. The files come from the MCP `export_bundle` tool or
+`GET /translate/bundle` (`manifest.json` plus one `<namespace>/<lang>.json` per dictionary,
+`i18n-keyless/` by convention). Point `bundle_path` at that directory: `init()` reads every
+dictionary the manifest lists and makes no dictionary request for a namespace the manifest
+covers. Nothing else changes: a string the bundle does not hold still misses and POSTs.
 
 ## Frameworks
 

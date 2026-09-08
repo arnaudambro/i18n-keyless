@@ -11,7 +11,12 @@ module I18nKeyless
   # it is served without asking the API. A stale entry is still served, and
   # revalidated with its ETag after the response (a 304 keeps it as is).
   #
-  # Entry: { translations: Hash, etag: String|nil, fetched_at: Integer, failed: Boolean }
+  # Entry: { translations: Hash, etag: String|nil, fetched_at: Integer, failed: Boolean, last_refresh: String|nil }
+  #
+  # `last_refresh` is the API's cursor for the dictionary (epoch ms as a
+  # string, PROTOCOL.md section 4.2), or the bundle's when the entry was seeded
+  # from one. It is never sent on the wire (the ETag carries freshness here):
+  # it decides the precedence between a bundle and the cache (`seed`).
   class DictionaryStore
     # Seconds a failed fetch is remembered before the API is asked again.
     FAILURE_TTL = 60
@@ -40,8 +45,41 @@ module I18nKeyless
       entry[:translations].is_a?(Hash) ? entry : nil
     end
 
-    def put(lang, namespace, translations, etag, failed: false)
-      entry = { translations: translations, etag: etag, fetched_at: Time.now.to_i, failed: failed }
+    def put(lang, namespace, translations, etag, failed: false, last_refresh: nil)
+      entry = { translations: translations, etag: etag, fetched_at: Time.now.to_i, failed: failed, last_refresh: last_refresh }
+      cache.write(key(lang, namespace), entry)
+      entry
+    end
+
+    # Applies one bundle dictionary (PROTOCOL.md 7.4) to the stored entry with
+    # the SDKs' precedence (`Bundle.merge_with_storage`): the bundle is the
+    # base and the stored slice is merged on top, its cursor kept, only when
+    # the cache is strictly newer than the bundle. Otherwise the bundle's lines
+    # win, its cursor is stored, and the entry is fresh: no fetch and no
+    # revalidation until `ttl` seconds pass. Keys the cache has and the bundle
+    # lacks (a merged POST answer) are kept either way. Idempotent: a second
+    # call with the same bundle writes nothing.
+    #
+    # @param seed [Hash] { translations: Hash, last_refresh: String|nil }
+    def seed(lang, namespace, seed)
+      stored = get(lang, namespace)
+      merged = Bundle.merge_with_storage(
+        seed,
+        stored && { translations: stored[:translations], last_refresh: stored[:last_refresh], lang: lang },
+        lang
+      )
+      translations = (stored ? stored[:translations] : {}).merge(merged[:translations])
+      storage_wins = stored && merged[:last_refresh] != seed[:last_refresh]
+      if storage_wins
+        return stored if translations == stored[:translations]
+
+        entry = stored.merge(translations: translations)
+      else
+        return stored if stored && translations == stored[:translations] && stored[:last_refresh] == merged[:last_refresh]
+
+        # The ETag named what the API answered before the export: it no longer matches this content.
+        entry = { translations: translations, etag: nil, fetched_at: Time.now.to_i, failed: false, last_refresh: merged[:last_refresh] }
+      end
       cache.write(key(lang, namespace), entry)
       entry
     end

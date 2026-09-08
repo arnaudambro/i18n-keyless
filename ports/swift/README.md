@@ -105,6 +105,7 @@ Parameters of `I18nKeylessText(...)`, `I18nKeyless.t(...)` and `translate(_:_:)`
 | `apiURL` | `https://api.i18n-keyless.com` | A self-hosted backend, no trailing slash. |
 | `languages` | required | `.init(primary:, supported:, fallback:, initWithDefault:, skipCurrentLanguageHydration:)`. |
 | `storage` | app: `UserDefaultsStorage()`, server: `MemoryStorage()` | See [Storage adapters](#storage-adapters). |
+| `bundle` | none | `I18nKeylessBundle(manifest:load:)`, the translations shipped with the app. See [The precompiled bundle](#the-precompiled-bundle). |
 | `defaultNamespace` | `default` | Applied to every call that has no `namespace`. |
 | `server` | `false` | `true` on server-side Swift (Vapor, a CLI): runtime `swift-server`, no device id, no usage analytics. |
 | `handleTranslate`, `getAllTranslations`, `sendTranslationsUsage` | | Custom handlers that replace the HTTP calls, in that priority. |
@@ -161,6 +162,31 @@ JavaScript SDKs: `i18n-keyless-user-id`, `i18n-keyless-current-language`,
 `i18n-keyless-last-refresh`, `i18n-keyless-last-refresh__<ns>`,
 `i18n-keyless-translations-usage`, `i18n-keyless-namespaces`,
 `i18n-keyless-origin-namespaces`.
+
+## The precompiled bundle
+
+Ship the translations with the app and keep the API for the misses. Export the files with
+the MCP `export_bundle` tool or `GET /translate/bundle`: a directory holding `manifest.json`
+and one `<namespace>/<lang>.json` per dictionary. Add the folder to the app target (as a
+folder reference, so the layout is kept) and hand the manifest and a loader to `configure`:
+
+```swift
+let directory = Bundle.main.resourceURL!.appendingPathComponent("i18n-keyless")
+let bundle = try I18nKeylessBundle.files(in: directory)
+try I18nKeyless.configure(.init(apiKey: "...", languages: ..., bundle: bundle))
+```
+
+`files(in:)` reads `manifest.json` now and each dictionary when it is seeded. To read the
+files another way, build `I18nKeylessBundle(manifest: BundleManifest(data: ...), load: { namespace, lang in ... })`
+with your own async `load` closure (it may throw or return nil: the pair is then fetched).
+
+A namespace the manifest covers in the current language is seeded from the file instead of
+fetched, at boot and on every language switch, with the bundle's cursor, so the next fetch
+for it is the delta after a miss. What storage holds for the namespace wins only when it is
+strictly newer and in the same language: a device that fetched after a human review keeps
+the reviewed text, and a stale bundle never overwrites fresher data. A pair the manifest
+does not list is fetched as before. A miss still POSTs. Nothing else changes
+(`docs/PROTOCOL.md` section 7.4).
 
 ## Languages
 

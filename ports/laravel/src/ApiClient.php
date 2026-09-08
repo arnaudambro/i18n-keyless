@@ -74,11 +74,14 @@ final class ApiClient
      * GET /translate/{lang}: the whole dictionary of one language, or a 304
      * when the ETag still matches.
      *
-     * @return array{ok: bool, notModified: bool, translations: array<string, string>, etag: ?string, error: ?string}
+     * `lastRefresh` is the API's cursor for the dictionary (`data.lastRefresh`,
+     * epoch ms as a string), kept in the cache for the bundle precedence rule.
+     *
+     * @return array{ok: bool, notModified: bool, translations: array<string, string>, etag: ?string, error: ?string, lastRefresh: ?string}
      */
     public function fetchDictionary(string $lang, string $namespace, ?string $etag, ?string $lastRefresh = ''): array
     {
-        $result = ['ok' => false, 'notModified' => false, 'translations' => [], 'etag' => null, 'error' => null];
+        $result = ['ok' => false, 'notModified' => false, 'translations' => [], 'etag' => null, 'error' => null, 'lastRefresh' => null];
         $url = $this->dictionaryUrl($lang, $namespace, $etag, $lastRefresh);
         $call = $this->call(fn () => $this->request($etag)->get($url));
         if ($call['action'] === self::ACTION_NOT_MODIFIED) {
@@ -329,8 +332,8 @@ final class ApiClient
 
     /**
      * @param  array<string, mixed>  $json
-     * @param  array{ok: bool, notModified: bool, translations: array<string, string>, etag: ?string, error: ?string}  $result
-     * @return array{ok: bool, notModified: bool, translations: array<string, string>, etag: ?string, error: ?string}
+     * @param  array{ok: bool, notModified: bool, translations: array<string, string>, etag: ?string, error: ?string, lastRefresh: ?string}  $result
+     * @return array{ok: bool, notModified: bool, translations: array<string, string>, etag: ?string, error: ?string, lastRefresh: ?string}
      */
     private function dictionaryFrom(array $json, Response $response, array $result): array
     {
@@ -347,6 +350,8 @@ final class ApiClient
         $result['ok'] = true;
         $result['translations'] = is_array($translations) ? array_filter($translations, 'is_string') : [];
         $result['etag'] = $response->header('ETag') ?: null;
+        $cursor = $json['data']['lastRefresh'] ?? null;
+        $result['lastRefresh'] = is_scalar($cursor) && (string) $cursor !== '' ? (string) $cursor : null;
 
         return $result;
     }

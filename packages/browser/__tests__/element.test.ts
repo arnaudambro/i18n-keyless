@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from "vitest";
-import { resetUniqueIdState } from "i18n-keyless-core";
+import { resetUniqueIdState, resetPendingTranslations } from "i18n-keyless-core";
 import { init, setState, setCurrentLanguage, resetStore } from "../store.ts";
 import { defineI18nT, I18nTElement } from "../element.ts";
 import { storeKeys } from "../utils.ts";
@@ -12,6 +12,7 @@ beforeAll(() => {
 beforeEach(() => {
   resetStore();
   resetUniqueIdState();
+  resetPendingTranslations();
   silenceConsole();
   document.body.innerHTML = "";
 });
@@ -202,5 +203,36 @@ describe("<i18n-t> options and lifecycle", () => {
     expect(element.textContent).toBe("Good day");
     element.removeAttribute("context");
     expect(element.textContent).toBe("Hello");
+  });
+});
+
+describe("<i18n-t> data-i18n-status", () => {
+  it("is ready in the primary language, no request", async () => {
+    mockFetch();
+    await init(baseConfig(makeStorage()));
+    const element = await mount("<i18n-t>Bonjour</i18n-t>");
+    expect(element.getAttribute("data-i18n-status")).toBe("ready");
+  });
+
+  it("is pending while a miss is in flight, then ready once the fetch merges", async () => {
+    const fixtures: Record<string, Record<string, string>> = { en: {} };
+    mockFetch(fixtures);
+    await init(baseConfig(makeStorage({ [storeKeys.currentLanguage]: "en" })));
+    const element = await mount("<i18n-t>Bonjour</i18n-t>");
+    expect(element.getAttribute("data-i18n-status")).toBe("pending");
+
+    fixtures.en = { Bonjour: "Hello" };
+    await flush();
+    expect(element.textContent).toBe("Hello");
+    expect(element.getAttribute("data-i18n-status")).toBe("ready");
+  });
+
+  it("settles to unavailable when the fetch after the miss does not bring the cell", async () => {
+    mockFetch({ en: {} });
+    await init(baseConfig(makeStorage({ [storeKeys.currentLanguage]: "en" })));
+    const element = await mount("<i18n-t>Bonjour</i18n-t>");
+    expect(element.getAttribute("data-i18n-status")).toBe("pending");
+    await flush();
+    expect(element.getAttribute("data-i18n-status")).toBe("unavailable");
   });
 });

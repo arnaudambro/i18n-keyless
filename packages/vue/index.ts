@@ -1,6 +1,6 @@
 export { I18nKeylessText, T } from "./I18nKeylessText.ts";
 export type { I18nKeylessTextProps } from "./I18nKeylessText.ts";
-export { useTranslation, useI18nKeyless } from "./useTranslation.ts";
+export { useTranslation, useTranslationStatus, useI18nKeyless } from "./useTranslation.ts";
 export type { UseI18nKeylessReturn } from "./useTranslation.ts";
 export {
   init,
@@ -8,6 +8,7 @@ export {
   setCurrentLanguage,
   useCurrentLanguage,
   getTranslation,
+  getTranslationStatus,
   getSupportedLanguages,
   clearI18nKeylessStorageAndStore,
 } from "./store.ts";
@@ -30,6 +31,9 @@ export {
   type Translations,
   type I18nKeylessRequestBody,
   type I18nKeylessResponse,
+  type BundleConfig,
+  type BundleManifest,
+  type TranslationStatus,
   getAllTranslationsFromLanguage,
   resolveLang,
   toAppStoreLocale,

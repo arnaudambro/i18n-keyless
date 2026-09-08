@@ -816,6 +816,51 @@ void main() {
     }
   });
 
+  group('bundle-seed.json', () {
+    final vector = loadVector('bundle-seed.json');
+    final manifest = BundleManifest.fromJson(
+        (vector['manifest'] as Map).cast<String, dynamic>());
+    BundleSeed seedOf(Map raw) => BundleSeed(
+          translations: (raw['translations'] as Map).cast<String, String>(),
+          lastRefresh: raw['lastRefresh'] as String?,
+        );
+    for (final c in casesOf(vector)) {
+      test(nameOf(c), () {
+        final input = (c['input'] as Map).cast<String, dynamic>();
+        switch (c['fn']) {
+          case 'bundleCovers':
+            final own = input.containsKey('manifest')
+                ? (input['manifest'] == null
+                    ? null
+                    : BundleManifest.fromJson(
+                        (input['manifest'] as Map).cast<String, dynamic>()))
+                : manifest;
+            expect(
+                bundleCovers(
+                    own, input['namespace'] as String, input['lang'] as String),
+                c['expected']);
+          case 'mergeBundleWithStorage':
+            final storedRaw = input['stored'] as Map?;
+            final stored = storedRaw == null
+                ? null
+                : StoredSeed(
+                    translations:
+                        (storedRaw['translations'] as Map).cast<String, String>(),
+                    lastRefresh: storedRaw['lastRefresh'] as String?,
+                    lang: storedRaw['lang'] as String,
+                  );
+            final merged = mergeBundleWithStorage(
+                seedOf(input['bundle'] as Map), stored, input['lang'] as String);
+            final expected = c['expected'] as Map;
+            expect(merged.translations, expected['translations']);
+            expect(merged.lastRefresh, expected['lastRefresh']);
+          default:
+            fail('unknown fn ${c['fn']}');
+        }
+      });
+    }
+  });
+
   group('storage-keys.json', () {
     final vector = loadVector('storage-keys.json');
     test('fixed key names', () {

@@ -105,6 +105,14 @@ class I18nKeylessConfig(
     /** Where the cache lives. Defaults to [MemoryStorage]; use [FileStorage] or a `SharedPreferences` adapter on a device. */
     val storage: Storage? = null,
     /**
+     * The precompiled bundle shipped with the app (protocol section 7.4): a manifest and a
+     * loader for its `<namespace>/<lang>.json` files. A namespace the manifest covers in the
+     * current language is seeded from the file instead of fetched, at boot and on every
+     * language switch, with the bundle's cursor. A miss still POSTs. The loader runs on a
+     * worker thread.
+     */
+    val bundle: I18nKeylessBundle? = null,
+    /**
      * `true` on a server (Ktor, Spring, a build step): the `sdk` header becomes
      * `kotlin-server`, no device id is generated or sent, and usage analytics are neither
      * recorded nor sent (the `ssr: true` of the JavaScript SDKs). Translate-on-miss still works.

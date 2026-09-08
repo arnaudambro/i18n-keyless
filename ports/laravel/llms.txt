@@ -59,6 +59,7 @@ App::setLocale('pt_BR');                                   // Laravel locales ar
 | concurrency | | 30 |
 | usage | I18N_KEYLESS_USAGE | true |
 | queue | I18N_KEYLESS_QUEUE | null |
+| bundle_path | I18N_KEYLESS_BUNDLE_PATH | null: the directory of a precompiled bundle (manifest.json + <namespace>/<lang>.json, from the MCP `export_bundle` tool or GET /translate/bundle); a covered dictionary is read from the file, never fetched; a miss still POSTs |
 
 Publish: `php artisan vendor:publish --tag=i18n-keyless-config`.
 

@@ -65,6 +65,14 @@ export interface I18nKeylessTextProps {
    * One variant per value, in every language, `other` always there.
    */
   select?: TranslationOptions["select"];
+  /**
+   * Rendered instead of the text while the translation's status is `"pending"` (a
+   * translate-on-miss has been queued and not yet settled) — a spinner, a blur, or anything
+   * else. A function receives the trimmed source text, in case the placeholder wants to show
+   * it (e.g. "Translating…"). Omit it and pending behaves exactly as before: the source text
+   * shows until the translation lands. See `useTranslationStatus` for the hook form.
+   */
+  pending?: React.ReactNode | ((sourceText: string) => React.ReactNode);
 }
 
 /**
@@ -73,8 +81,15 @@ export interface I18nKeylessTextProps {
  * the two never drift. Reach for the hook where an element will not do (a `placeholder`, a
  * `title`, a string handed to another library).
  */
-export const I18nKeylessText: React.FC<I18nKeylessTextProps> = ({ children, ...options }) => {
+export const I18nKeylessText: React.FC<I18nKeylessTextProps> = ({ children, pending, ...options }) => {
   const rawText = Array.isArray(children) ? children.join("") : String(children ?? "");
-  const { text, lang } = useTranslationState(rawText, options);
+  // Only subscribe to pending-set flips when a `pending` placeholder is actually given: an
+  // unused subscription would re-render every <T> on the page for nothing (see
+  // useTranslation.ts's `noopSubscribe` and __tests__/render-count.test.tsx).
+  const { text, lang, status, sourceText } = useTranslationState(rawText, options, { reactiveStatus: !!pending });
+  if (pending && status === "pending") {
+    const pendingNode = typeof pending === "function" ? pending(sourceText) : pending;
+    return <React.Fragment key={lang}>{pendingNode}</React.Fragment>;
+  }
   return <React.Fragment key={lang}>{text}</React.Fragment>;
 };

@@ -187,6 +187,11 @@ public struct I18nKeylessConfig {
     /// Where the cache lives. Defaults to `UserDefaultsStorage()` in an app and to
     /// `MemoryStorage()` on a server.
     public var storage: I18nKeylessStorage?
+    /// The precompiled bundle shipped with the app (protocol section 7.4): a manifest and
+    /// a loader for its `<namespace>/<lang>.json` files. A namespace the manifest covers in
+    /// the current language is seeded from the file instead of fetched, at boot and on
+    /// every language switch, with the bundle's cursor. A miss still POSTs.
+    public var bundle: I18nKeylessBundle?
     /// A server-side Swift process (Vapor, a CLI): the runtime becomes `swift-server`,
     /// no device id is generated or sent, and usage analytics are neither recorded nor
     /// sent (the `ssr: true` of the JavaScript SDKs). Translate-on-miss still works.
@@ -210,6 +215,7 @@ public struct I18nKeylessConfig {
     public init(
         apiKey: String, languages: LanguagesConfig, apiURL: String? = nil,
         defaultNamespace: String? = nil, storage: I18nKeylessStorage? = nil,
+        bundle: I18nKeylessBundle? = nil,
         server: Bool = false, debug: Bool = false, handleTranslate: HandleTranslate? = nil,
         getAllTranslations: GetAllTranslations? = nil,
         sendTranslationsUsage: SendTranslationsUsage? = nil,
@@ -221,6 +227,7 @@ public struct I18nKeylessConfig {
         self.apiURL = apiURL
         self.defaultNamespace = defaultNamespace
         self.storage = storage
+        self.bundle = bundle
         self.server = server
         self.debug = debug
         self.handleTranslate = handleTranslate

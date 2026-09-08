@@ -20,6 +20,8 @@ export {
   type Lang,
   type PrimaryLang,
   type I18nKeylessResponse,
+  type BundleConfig,
+  type BundleManifest,
   resolveLang,
   toAppStoreLocale,
   queue

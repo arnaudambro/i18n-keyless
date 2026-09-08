@@ -93,6 +93,39 @@ Props of `<T>` and the options argument of `t()`, `useTranslation()` and `getTra
 The slot of `<T>` is trimmed: a multi-line slot and an inline one are the same key. In
 development, leading or trailing whitespace logs a warning.
 
+### Translation status (loading state)
+
+A missing translation renders the source text while the miss is on its way. When you need
+to know that — a spinner, a blur, the raw text, your choice — read the status:
+
+```vue
+<script setup lang="ts">
+import { useTranslationStatus, useI18nKeyless } from "i18n-keyless-vue";
+
+// Reactive: text, status ("ready" | "pending" | "unavailable") and the trimmed source text.
+const { text, status, sourceText } = useTranslationStatus("Bonjour");
+
+// Or from the composable, resolved the same way t() is:
+const { tStatus } = useI18nKeyless();
+</script>
+
+<template>
+  <!-- <T> / <I18nKeylessText>: a named `pending` slot renders instead of the text. -->
+  <T>
+    Bonjour
+    <template #pending="{ sourceText }">{{ sourceText }} (translating…)</template>
+  </T>
+</template>
+```
+
+`getTranslationStatus(text, options)` is the plain, non-reactive form (like `getTranslation`):
+it reads the status but never queues a translation itself, even when the answer is
+`unavailable`. `ready` means the text rendered is final (the source language, or a cell that
+carries what `count` / `select` asked for); `pending` means a translate-on-miss for it is
+queued and not yet settled; `unavailable` covers everything else (no `init()`, a server
+runtime, or a settled fetch that did not bring the cell — the next render re-queues it, as
+a plain miss always has).
+
 ### `init(config)`
 
 | Key | |
@@ -110,7 +143,35 @@ development, leading or trailing whitespace logs a warning.
 | `ssr` | force the read-only server behavior (no usage analytics) |
 | `onInit(lang)`, `onSetLanguage(lang)` | hooks |
 | `handleTranslate`, `getAllTranslations`, `sendTranslationsUsage` | custom handlers instead of the HTTP API |
+| `bundle` | precompiled dictionaries shipped with the app; see below |
 | `debug` | verbose logs |
+
+### Ship the translations in the bundle (optional)
+
+By default a dictionary is downloaded at boot and the API stays in the loop. To make the
+app independent of the API for every string it already knows, export the dictionaries at
+build time — the MCP `export_bundle` tool, or `GET /translate/bundle` with the public key —
+commit `i18n-keyless/manifest.json` plus one `i18n-keyless/<namespace>/<lang>.json` per
+dictionary, and pass them to `init`:
+
+```ts
+import manifest from "./i18n-keyless/manifest.json";
+
+init({
+  API_KEY: "YOUR_API_KEY",
+  storage: window.localStorage,
+  languages: { primary: "fr", supported: ["fr", "en"] },
+  bundle: { manifest, load: (namespace, lang) => import(`./i18n-keyless/${namespace}/${lang}.json`) },
+});
+```
+
+A covered language is read from the file at boot and on a language switch, never downloaded;
+the API is only called for a key the bundle does not have (UGC, a new screen) and for the
+delta after it. Storage wins only when newer and in the same language, so a device that
+fetched after a human review keeps the reviewed text. `getServerTranslations` answers from
+the bundle too, when covered. Always load with a dynamic `import()` per language: the bundle
+sits on the critical path, so for a web app with many languages the default fetch may be the
+better choice. Re-run the export before a release.
 
 ### Store and language
 

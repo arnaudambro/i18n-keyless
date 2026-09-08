@@ -77,10 +77,17 @@ In templates, put `T` in the func map: `{{t .Lang "Welcome to our app"}}`.
 ## Configuration
 
 `Config` fields: `APIKey`, `APIURL` (self-hosted backend, no trailing slash), `Languages`
-(`Primary`, `Supported`), `DefaultNamespace`, `HTTPClient`, `Logger`, `Debug`,
+(`Primary`, `Supported`), `DefaultNamespace`, `BundlePath`, `HTTPClient`, `Logger`, `Debug`,
 `DisableUsage`, the custom handlers `HandleTranslate`, `GetAllTranslationsForAllLanguages`,
 `SendTranslationsUsage`, and `OnInit`. `New(cfg)` validates without the network; `Init(ctx,
 cfg)` also loads the dictionaries (a failed load is logged, not returned).
+
+`BundlePath`: the precompiled bundle. The files come from the MCP `export_bundle` tool or
+`GET /translate/bundle` (`manifest.json` plus one `<namespace>/<lang>.json` per dictionary,
+`i18n-keyless/` by convention). Point `BundlePath` at that directory: `New` reads every
+dictionary the manifest lists and `Init` makes no dictionary request for a namespace the
+manifest covers. Nothing else changes: a string the bundle does not hold still misses and
+POSTs.
 
 ## Debug
 

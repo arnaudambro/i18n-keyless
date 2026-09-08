@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { resetUniqueIdState } from "i18n-keyless-core";
+import { resetUniqueIdState, resetPendingTranslations } from "i18n-keyless-core";
 import { init, getState, setState, setCurrentLanguage, resetStore } from "../store.ts";
 import { translateDom } from "../dom.ts";
 import { storeKeys } from "../utils.ts";
@@ -8,6 +8,7 @@ import { makeStorage, mockFetch, flush, baseConfig, silenceConsole } from "./hel
 beforeEach(() => {
   resetStore();
   resetUniqueIdState();
+  resetPendingTranslations();
   silenceConsole();
   document.body.innerHTML = "";
 });
@@ -137,5 +138,41 @@ describe("translateDom options", () => {
     const stop = translateDom();
     expect(() => stop()).not.toThrow();
     expect(document.body.textContent).toBe("Rien");
+  });
+});
+
+describe("translateDom data-i18n-status", () => {
+  it("is ready in the primary language, no request", async () => {
+    mockFetch();
+    await init(baseConfig(makeStorage()));
+    document.body.innerHTML = `<span data-i18n>Bonjour</span>`;
+    translateDom();
+    expect(document.querySelector("span")!.getAttribute("data-i18n-status")).toBe("ready");
+  });
+
+  it("is pending while a miss is in flight, then ready once the fetch merges", async () => {
+    const fixtures: Record<string, Record<string, string>> = { en: {} };
+    mockFetch(fixtures);
+    await init(baseConfig(makeStorage({ [storeKeys.currentLanguage]: "en" })));
+    document.body.innerHTML = `<span data-i18n>Bonjour</span>`;
+    translateDom();
+    const span = document.querySelector("span")!;
+    expect(span.getAttribute("data-i18n-status")).toBe("pending");
+
+    fixtures.en = { Bonjour: "Hello" };
+    await flush();
+    expect(span.textContent).toBe("Hello");
+    expect(span.getAttribute("data-i18n-status")).toBe("ready");
+  });
+
+  it("settles to unavailable when the fetch after the miss does not bring the cell", async () => {
+    mockFetch({ en: {} });
+    await init(baseConfig(makeStorage({ [storeKeys.currentLanguage]: "en" })));
+    document.body.innerHTML = `<span data-i18n>Bonjour</span>`;
+    translateDom();
+    const span = document.querySelector("span")!;
+    expect(span.getAttribute("data-i18n-status")).toBe("pending");
+    await flush();
+    expect(span.getAttribute("data-i18n-status")).toBe("unavailable");
   });
 });

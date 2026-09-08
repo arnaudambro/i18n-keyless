@@ -324,6 +324,25 @@ class VectorsTest < I18nKeylessTest::Case
     end
   end
 
+  def test_bundle_seed
+    v = vector("bundle-seed")
+    v["cases"].each do |c|
+      input = c["input"]
+      if c["fn"] == "bundleCovers"
+        manifest = input.key?("manifest") ? input["manifest"] : v["manifest"]
+        assert_equal c["expected"], I18nKeyless::Bundle.covers?(manifest, input["namespace"], input["lang"]), c["name"]
+        next
+      end
+      assert_equal "mergeBundleWithStorage", c["fn"], c["name"]
+      bundle = { translations: input["bundle"]["translations"], last_refresh: input["bundle"]["lastRefresh"] }
+      stored = input["stored"] && {
+        translations: input["stored"]["translations"], last_refresh: input["stored"]["lastRefresh"], lang: input["stored"]["lang"]
+      }
+      expected = { translations: c["expected"]["translations"], last_refresh: c["expected"]["lastRefresh"] }
+      assert_equal expected, I18nKeyless::Bundle.merge_with_storage(bundle, stored, input["lang"]), c["name"]
+    end
+  end
+
   def test_a_server_sends_no_device_id
     v = vector("unique-id")
     assert_includes v["description"], "A server runtime sends no id"

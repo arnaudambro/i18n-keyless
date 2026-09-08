@@ -1,4 +1,4 @@
-import { type Lang, type Translations, getAllTranslationsFromLanguage } from "i18n-keyless-core";
+import { type Lang, type Translations, getAllTranslationsFromLanguage, loadBundleSeed, DEFAULT_NAMESPACE } from "i18n-keyless-core";
 import { boundStore } from "./store.ts";
 
 /**
@@ -33,6 +33,12 @@ export async function getServerTranslations(lang: Lang): Promise<Translations> {
   const cached = cache.get(lang);
   if (cached) {
     return cached;
+  }
+  // A bundled dictionary (default namespace) is the answer: no fetch, no cold start.
+  const seed = await loadBundleSeed(store.config.bundle, DEFAULT_NAMESPACE, lang);
+  if (seed) {
+    cache.set(lang, seed.translations);
+    return seed.translations;
   }
   // lastRefresh: null forces a full fetch of the language.
   let response: Awaited<ReturnType<typeof getAllTranslationsFromLanguage>>;

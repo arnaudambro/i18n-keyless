@@ -18,6 +18,7 @@
 library;
 
 export 'i18n_keyless_core.dart';
+export 'src/flutter/asset_bundle.dart';
 export 'src/flutter/context_extension.dart';
 export 'src/flutter/scope.dart';
 export 'src/flutter/t.dart';

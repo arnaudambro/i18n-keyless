@@ -25,10 +25,13 @@ class ConfigTest < Minitest::Test
     env = {
       "I18N_KEYLESS_ENABLED" => "true", "I18N_KEYLESS_API_KEY" => "k", "I18N_KEYLESS_API_URL" => "https://self.hosted/",
       "I18N_KEYLESS_PRIMARY_LANG" => "pt_BR", "I18N_KEYLESS_LANGUAGES" => "pt_BR, en ,xx,en", "I18N_KEYLESS_NAMESPACE" => "app",
-      "I18N_KEYLESS_CACHE_TTL" => "60", "I18N_KEYLESS_USAGE" => "false", "I18N_KEYLESS_QUEUE" => "i18n"
+      "I18N_KEYLESS_CACHE_TTL" => "60", "I18N_KEYLESS_USAGE" => "false", "I18N_KEYLESS_QUEUE" => "i18n",
+      "I18N_KEYLESS_BUNDLE_PATH" => "/srv/app/i18n-keyless"
     }
     c = I18nKeyless::Config.new(env)
     assert c.enabled?
+    assert_equal "/srv/app/i18n-keyless", c.bundle_path
+    assert_nil I18nKeyless::Config.new({}).bundle_path
     assert_equal "https://self.hosted", c.resolved_api_url
     assert_equal "pt-BR", c.resolved_primary
     assert_equal %w[pt-BR en], c.resolved_languages

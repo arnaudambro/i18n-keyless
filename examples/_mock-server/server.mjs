@@ -68,6 +68,26 @@ const server = http.createServer(async (req, res) => {
     return json(res, 200, { ok: true, data: { translation }, error: "", message: "" });
   }
 
+  // GET /translate/bundle — the precompiled bundle (a build step, PROTOCOL.md 4.5).
+  if (method === "GET" && pathname === "/translate/bundle") {
+    const translations = {};
+    for (const lang of Object.keys(fixtures).filter((l) => l !== "_comment")) {
+      translations[lang] = langMap(lang);
+    }
+    const exportedAt = `${Date.now()}`;
+    return json(res, 200, {
+      ok: true,
+      data: {
+        primaryLanguage: PRIMARY,
+        languages: Object.keys(translations),
+        exportedAt,
+        namespaces: { default: { lastRefresh: exportedAt, translations } },
+      },
+      error: "",
+      message: "",
+    });
+  }
+
   // GET /translate/ — ALL languages at once (used by i18n-keyless-node).
   if (method === "GET" && (pathname === "/translate" || pathname === "/translate/")) {
     const translations = {};

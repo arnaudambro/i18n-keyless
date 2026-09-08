@@ -134,6 +134,24 @@ onto a supported language (`Lang.ZH_HANT`). `toAppStoreLocale(Lang.FR)` is `fr-F
 The v2 codes `cn` and `cz` do not exist here: the enum spells them `Lang.ZH_HANS` and
 `Lang.CS`, and the `Version: 3.6.1` header makes the API answer in that dialect.
 
+## Ship the translations with the app (optional)
+
+The precompiled bundle: export the files with the MCP `export_bundle` tool or
+`GET /translate/bundle` (`manifest.json` plus one `<namespace>/<lang>.json`), put them in
+the app's assets, and hand the manifest and a loader to `init`:
+
+```kotlin
+val bundle = I18nKeylessBundle.from { path ->
+    runCatching { context.assets.open("i18n-keyless/$path").bufferedReader().readText() }.getOrNull()
+}
+I18nKeylessConfig(apiKey = "...", languages = ..., bundle = bundle)
+```
+
+A namespace the manifest covers in the current language is read from the file instead of
+fetched, at boot and on every language switch, with the bundle's cursor; a stored slice wins
+only when newer and in the same language. A miss still POSTs, and the delta fetch after it
+starts from the seeded cursor. Nothing else changes.
+
 ## Gotchas
 
 - `t()` before `init` returns the source text (with `replace` applied) and does not throw.

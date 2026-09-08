@@ -63,15 +63,20 @@ describe("resolveTranslation", () => {
   it("reads the store, then an explicit scope, then the runWithI18nKeyless scope", async () => {
     mockFetch();
     await init(baseConfig());
-    expect(resolveTranslation("Bonjour", undefined, undefined)).toEqual({ text: "Bonjour", lang: "fr" });
+    expect(resolveTranslation("Bonjour", undefined, undefined)).toEqual({
+      text: "Bonjour",
+      lang: "fr",
+      status: "ready",
+    });
 
     await setCurrentLanguage("en");
-    expect(resolveTranslation("Bonjour", undefined, null)).toEqual({ text: "Hello", lang: "en" });
+    expect(resolveTranslation("Bonjour", undefined, null)).toEqual({ text: "Hello", lang: "en", status: "ready" });
     expect(resolveTranslation("Inconnu", undefined, null).text).toBe("Inconnu");
 
     expect(resolveTranslation("Bonjour", undefined, { lang: "es", translations: { Bonjour: "Hola" } })).toEqual({
       text: "Hola",
       lang: "es",
+      status: "ready",
     });
     await runWithI18nKeyless({ lang: "es", translations: { Bonjour: "Hola" } }, () => {
       expect(resolveTranslation("Bonjour", undefined, undefined).text).toBe("Hola");

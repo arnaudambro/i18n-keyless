@@ -6,7 +6,7 @@ import { I18nKeylessTranslatePipe } from "../translate.pipe.ts";
 import { provideI18nKeylessServer } from "../provide.ts";
 import { init, store, setCurrentLanguage, getTranslation } from "../store.ts";
 import { resolveTranslation } from "../resolve.ts";
-import { baseConfig, mockFetch, resetAll, renderedText } from "./helpers.ts";
+import { baseConfig, mockFetch, resetAll, renderedText, statusOf } from "./helpers.ts";
 
 /**
  * Every other suite uses the primary "fr", the same value the store holds before
@@ -38,12 +38,15 @@ describe("a primary language other than the store default", () => {
     fixture.detectChanges();
     expect(renderedText(fixture, "h1 i18n-t")).toBe("Hello");
     expect(paragraph(fixture)).toBe("Hello");
+    // The primary language, so no lookup is needed: ready with no request.
+    expect(statusOf(fixture, "h1 i18n-t")).toBe("ready");
 
     await setCurrentLanguage("fr");
     fixture.detectChanges();
     expect(renderedText(fixture, "h1 i18n-t")).toBe("Bonjour");
     expect(paragraph(fixture)).toBe("Bonjour");
     expect(getTranslation("Hello")).toBe("Bonjour");
+    expect(statusOf(fixture, "h1 i18n-t")).toBe("ready");
   });
 
   // The store never ran init(): default config, no key, primary "fr". The request scope
@@ -70,8 +73,14 @@ describe("a primary language other than the store default", () => {
   });
 
   it("resolveTranslation reads the scope's primary before the store's", () => {
-    expect(resolveTranslation("Hello", undefined, { lang: "fr", primary: "en", translations: FR }).text).toBe("Bonjour");
+    const withPrimary = resolveTranslation("Hello", undefined, { lang: "fr", primary: "en", translations: FR });
+    expect(withPrimary.text).toBe("Bonjour");
+    expect(withPrimary.status).toBe("ready");
     // Without a primary in the scope, the store's default ("fr") makes "fr" the source language.
-    expect(resolveTranslation("Hello", undefined, { lang: "fr", translations: FR }).text).toBe("Hello");
+    const withoutPrimary = resolveTranslation("Hello", undefined, { lang: "fr", translations: FR });
+    expect(withoutPrimary.text).toBe("Hello");
+    // "fr" is the source language and no count/select is requested: ready too, but for the
+    // OTHER reason (rule 1, the key's own language) — not because a cell exists.
+    expect(withoutPrimary.status).toBe("ready");
   });
 });

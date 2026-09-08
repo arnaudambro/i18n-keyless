@@ -19,6 +19,14 @@ import {
   setUniqueId,
   setSdkRuntime,
   holdRequestsUntilUniqueIdIsKnown,
+  bundleNamespaces,
+  bundleCovers,
+  loadBundleSeed,
+  mergeBundleWithStorage,
+  getTranslationStatusCore,
+  settlePendingTranslationsAfter,
+  subscribeToPendingTranslations,
+  type TranslationStatus,
 } from "i18n-keyless-core";
 import { shallowReactive, computed, type ComputedRef } from "vue";
 import { type I18nConfig, type TranslationStore } from "./types.ts";
@@ -54,6 +62,14 @@ export function isServerEnv(): boolean {
 let serverSnapshotApplied = false;
 
 /**
+ * The language the namespace slices currently in the store are written in. After `hydrate()`
+ * it is the language storage was persisted in (which `skipCurrentLanguageHydration` may
+ * differ from); after a `setLanguage` it is the language switched to. The bundle seed reads
+ * it to decide whether a stored slice is comparable with the bundle (docs/PROTOCOL.md 7.4).
+ */
+let slicesLanguage: string | null = null;
+
+/**
  * Adopts the id the server echoed back, but only when this device has none.
  *
  * Every request now carries an id we generated ourselves, so the server should only ever
@@ -84,13 +100,27 @@ queue.on("empty", () => {
   // with its own delta cursor, so we never re-download the whole project.
   if (store.config) {
     for (const { namespace, unpersisted } of getNamespacesToFetchAfterTranslationFinished()) {
+      // Snapshot the ids pending for this namespace BEFORE the fetch, and settle them once
+      // it lands — on success AND on failure (`getAllTranslationsFromLanguage` catches and
+      // resolves void), so a `pending` status never gets stuck when the network is down.
+      const settle = settlePendingTranslationsAfter(namespace);
       getAllTranslationsFromLanguage(
         store.currentLanguage,
         { ...snapshot(), lastRefresh: store.lastRefreshByNamespace[namespace] ?? null },
         namespace
-      ).then((response) => store.setTranslations(response, namespace, unpersisted));
+      ).then((response) => {
+        store.setTranslations(response, namespace, unpersisted);
+        settle();
+      });
     }
   }
+});
+
+// Bumps the store's `pendingVersion` whenever core's pending-translation set changes (a
+// miss queued, or settled above), so a `computed` that reads `pendingVersion` re-evaluates.
+// Subscribed once at module level, like `queue.on("empty")` above.
+subscribeToPendingTranslations(() => {
+  store.pendingVersion = store.pendingVersion + 1;
 });
 
 /**
@@ -121,6 +151,7 @@ export const store: TranslationStore = shallowReactive<TranslationStore>({
   lastRefreshByNamespace: {},
   translationsUsageByNamespace: {},
   originNamespaces: [],
+  pendingVersion: 0,
   currentLanguage: "fr",
   config: {
     API_KEY: "",
@@ -276,15 +307,26 @@ export const store: TranslationStore = shallowReactive<TranslationStore>({
     }
 
     // Read what this call needs BEFORE writing: the store is live, not a snapshot.
-    const knownNamespaces = store.namespaces.length ? store.namespaces : [DEFAULT_NAMESPACE];
     const unpersistedNamespaces = store.unpersistedNamespaces;
     const originNamespaces = store.originNamespaces;
     const isUnpersisted = (namespace: string) => unpersistedNamespaces.includes(namespace);
+    // What the slices held before this switch, for the bundle precedence rule: a stored
+    // slice counts only when it is in the language being switched to and newer than the
+    // bundle (docs/PROTOCOL.md 7.4).
+    const previousSlicesLanguage = slicesLanguage;
+    const previousSlices = store.translationsByNamespace;
+    const previousCursors = store.lastRefreshByNamespace;
+    const bundle = store.config.bundle;
 
     store.currentLanguage = validatedLang!;
+    slicesLanguage = validatedLang!;
     // The language changed, so every namespace's delta cursor is stale: reset them all and
     // refetch the full set for each known namespace. The flat lookup map still holds the
     // previous language's values (truthy), so components won't re-queue on their own.
+    // A namespace the bundle lists is known too, even before its first miss.
+    const knownNamespaces = Array.from(
+      new Set([...(store.namespaces.length ? store.namespaces : [DEFAULT_NAMESPACE]), ...bundleNamespaces(bundle?.manifest)])
+    );
     setState({ lastRefresh: null, lastRefreshByNamespace: {} });
     if (store.config.storage) {
       setItem(storeKeys.currentLanguage, validatedLang!, store.config.storage);
@@ -305,26 +347,52 @@ export const store: TranslationStore = shallowReactive<TranslationStore>({
     // they were i18n-keyless spellings, so `resolveLang` returns undefined for both and
     // `validateLanguage` simply falls back. An app carrying a stored `cn` has to map it
     // itself (see the v3 upgrade guide).
+    //
+    // A namespace the bundle covers in this language is seeded from the shipped file with the
+    // bundle's cursor instead of fetched: the next fetch for it is the delta after a miss.
     const fetchParams = { ...snapshot(), lastRefresh: null };
-    if (validatedLang !== store.config.languages.primary) {
-      await Promise.all(
-        knownNamespaces.map((namespace) =>
-          getAllTranslationsFromLanguage(validatedLang!, fetchParams, namespace).then((response) =>
-            store.setTranslations(response, namespace, isUnpersisted(namespace))
-          )
-        )
+    const seedFromBundle = async (namespace: string): Promise<boolean> => {
+      const seed = await loadBundleSeed(bundle, namespace, validatedLang!);
+      if (!seed) {
+        return false;
+      }
+      const stored =
+        previousSlicesLanguage && previousSlices[namespace]
+          ? { translations: previousSlices[namespace], lastRefresh: previousCursors[namespace] ?? null, lang: previousSlicesLanguage }
+          : null;
+      const { translations, lastRefresh } = mergeBundleWithStorage(seed, stored, validatedLang!);
+      if (debug) console.log("i18n-keyless: setLanguage: seeded from the bundle", namespace, validatedLang);
+      store.setTranslations(
+        { ok: true, data: { translations, lastRefresh, uniqueId: null }, error: "", message: "" },
+        namespace,
+        isUnpersisted(namespace)
       );
-    } else if (originNamespaces.length) {
+      return true;
+    };
+    const fetchNamespace = (namespace: string) =>
+      getAllTranslationsFromLanguage(validatedLang!, fetchParams, namespace).then((response) =>
+        store.setTranslations(response, namespace, isUnpersisted(namespace))
+      );
+    const seedOrFetch = async (namespace: string) => {
+      // Without coverage the fetch starts synchronously, as it always did: no bundle, no
+      // extra microtask before the request goes out.
+      if (!bundleCovers(bundle?.manifest, namespace, validatedLang!)) {
+        return fetchNamespace(namespace);
+      }
+      if (!(await seedFromBundle(namespace))) {
+        await fetchNamespace(namespace);
+      }
+    };
+    if (validatedLang !== store.config.languages.primary) {
+      await Promise.all(knownNamespaces.map(seedOrFetch));
+    } else {
       // The primary language needs fetched data too for namespaces containing origin-language
       // (UGC) keys: their primary version is an AI translation, not the key itself, and the
-      // flat lookup map still holds the previous language's values for them.
-      await Promise.all(
-        originNamespaces.map((namespace) =>
-          getAllTranslationsFromLanguage(validatedLang!, fetchParams, namespace).then((response) =>
-            store.setTranslations(response, namespace, isUnpersisted(namespace))
-          )
-        )
-      );
+      // flat lookup map still holds the previous language's values for them. A bundled
+      // primary dictionary is seeded for the same reason, from the file.
+      const covered = knownNamespaces.filter((namespace) => bundleCovers(bundle?.manifest, namespace, validatedLang!));
+      const toFetch = originNamespaces.filter((namespace) => !covered.includes(namespace));
+      await Promise.all([...covered.map(seedFromBundle), ...toFetch.map(fetchNamespace)]);
     }
   },
 });
@@ -439,6 +507,7 @@ async function hydrate() {
     const loadedNamespaces = Object.keys(translationsByNamespace);
     if (loadedNamespaces.length) {
       if (debug) console.log("i18n-keyless: _hydrate", mergedTranslations);
+      slicesLanguage = ((await getItem(storeKeys.currentLanguage, storage)) as string | null) || null;
       setState({
         translations: mergedTranslations,
         translationsByNamespace,
@@ -631,6 +700,22 @@ export function getTranslation(key: string, options?: TranslationOptions): strin
   return getTranslationCore(key, lookup, options);
 }
 
+/**
+ * The status of `key`'s translation outside a `<I18nKeylessText>` component: `ready`,
+ * `pending` (a translate-on-miss for it is queued and not yet settled) or `unavailable`.
+ *
+ * Plain and non-reactive, with NO side effect: it never queues a translate-on-miss request,
+ * even when the answer is `unavailable`. Resolves against the `runWithI18nKeyless` request
+ * scope when one is active, the store otherwise — the same resolution `getTranslation` uses.
+ * Prefer `useTranslationStatus()` / `tStatus()` inside a component: they are reactive.
+ */
+export function getTranslationStatus(key: string, options?: TranslationOptions): TranslationStatus {
+  const base = store;
+  const scope = getRequestScope();
+  const lookup = scope ? { ...base, currentLanguage: scope.lang, translations: scope.translations } : base;
+  return getTranslationStatusCore(key, lookup, options);
+}
+
 export function setCurrentLanguage(lang: I18nConfig["languages"]["supported"][number]) {
   store.config.onSetLanguage?.(lang);
   return store.setLanguage(lang);
@@ -643,6 +728,7 @@ export async function clearI18nKeylessStorageAndStore() {
   if (storage) {
     await clearI18nKeylessStorage(storage);
   }
+  slicesLanguage = null;
   setState({
     translations: {},
     translationsByNamespace: {},

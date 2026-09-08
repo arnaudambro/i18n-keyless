@@ -45,6 +45,22 @@ The test seeds the store with `hydrateFromServer(...)` and asserts both the comp
 function paths render translated text, plus the switcher changes language — no backend
 needed.
 
+## The precompiled bundle
+
+`src/i18n-keyless/` holds the dictionaries exported at build time (`manifest.json` plus one
+`default/<lang>.json`), and `src/i18n.ts` hands them to `init` as `bundle: { manifest, load }`.
+A language the manifest covers is read from its file — never downloaded — and the API is
+only called for a string the bundle does not have. Refresh the files before a release:
+
+```bash
+node scripts/export-bundle.mjs                                # against the local mock server
+VITE_I18N_KEYLESS_API_KEY=... node scripts/export-bundle.mjs  # against the real service
+```
+
+The bundle sits on the critical path (downloaded before the first paint), so it is loaded
+with a dynamic `import()` per language. For a web app with many languages and a good
+network the default runtime fetch is the better choice: delete the `bundle` line.
+
 ## Notes
 
 - This example consumes the library via **`file:../../packages/*`**, so it always builds

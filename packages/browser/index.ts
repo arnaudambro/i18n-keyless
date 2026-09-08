@@ -1,7 +1,9 @@
 export {
   init,
   getTranslation,
+  getTranslationStatus,
   resolveTranslation,
+  resolveTranslationStatus,
   watchTranslation,
   setCurrentLanguage,
   getCurrentLanguage,
@@ -28,4 +30,7 @@ export {
   type LanguagesConfig,
   type I18nKeylessRequestBody,
   type I18nKeylessResponse,
+  type BundleConfig,
+  type BundleManifest,
+  type TranslationStatus,
 } from "i18n-keyless-core";

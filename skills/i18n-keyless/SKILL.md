@@ -118,6 +118,28 @@ store by hand to make `getTranslation` reactive: the function form is that subsc
 Before `init()` runs (Storybook, a unit test, a build step) every path renders the primary
 language and sends nothing: `getTranslation` and `t()` return the text, they do not throw.
 
+### Loading state
+
+By default a missing translation just renders the source text until it lands — often fine.
+For UGC (a comment shown to a viewer who doesn't read its language) show that a translation
+is on its way instead, with the per-key status: `"ready"` / `"pending"` / `"unavailable"`.
+
+```tsx
+import { I18nKeylessText as T, useTranslationStatus } from "i18n-keyless-react";
+
+// <T pending>: swaps in a placeholder while the status is "pending". Nothing else changes.
+<T pending="Translating…" originLanguage="fr">{comment.body}</T>
+<T pending={(sourceText) => <Spinner label={sourceText} />} originLanguage="fr">{comment.body}</T>
+
+// useTranslationStatus: for anywhere else — a bubble, a card, a list row.
+const { text, status } = useTranslationStatus(comment.body, { originLanguage: "fr" });
+return status === "pending" ? <Spinner /> : <p>{text}</p>;
+```
+
+`"unavailable"` means nothing is coming right now (offline, not initialized, or a server
+render — a server never queues a miss). `getTranslationStatus(text, options?)` is the plain,
+non-reactive function form, for outside a component (paired with `getTranslation`).
+
 ### Switch language
 
 ```ts
@@ -126,6 +148,32 @@ import { setCurrentLanguage, getSupportedLanguages } from "i18n-keyless-react";
 setCurrentLanguage("en");
 getSupportedLanguages(); // ["en", "fr", …] — the codes from init(); use Intl.DisplayNames for a picker's labels
 ```
+
+### Ship the translations in the bundle (optional)
+
+By default a dictionary is downloaded at boot and the API stays in the loop. To make the
+app independent of the API for every string it already knows, export the dictionaries at
+build time — the MCP `export_bundle` tool, or `GET /translate/bundle` with the public key —
+commit `i18n-keyless/manifest.json` plus one `i18n-keyless/<namespace>/<lang>.json` per
+dictionary, and pass them to `init`:
+
+```ts
+import manifest from "./i18n-keyless/manifest.json";
+
+init({
+  API_KEY,
+  languages: { primary: "fr", supported: ["fr", "en"] },
+  storage: window.localStorage,
+  bundle: { manifest, load: (namespace, lang) => import(`./i18n-keyless/${namespace}/${lang}.json`) },
+});
+```
+
+A covered language is read from the file at boot and on a language switch, never downloaded;
+the API is only called for a key the bundle does not have (UGC, a new screen) and for the
+delta after it. Storage wins only when newer and in the same language. Always load with a
+dynamic `import()` per language: the bundle sits on the critical path (downloaded before the
+first paint, on every deploy), so for a web app with many languages and a good network the
+default fetch is the better choice. Re-run the export before a release.
 
 ### Node
 
@@ -136,6 +184,13 @@ import { awaitForTranslationOrFallbackToOriginal, awaitForTranslationOrThrow, ty
 const title = await awaitForTranslationOrFallbackToOriginal("Viens voir l'application", user.lang as Lang);
 const title2 = await awaitForTranslationOrThrow("Viens voir l'application", user.lang as Lang); // rejects on failure; for scripts and build steps
 ```
+
+Ship the dictionaries exported by `GET /translate/bundle` (or the MCP `export_bundle` tool)
+with the app and pass them as `bundle: { manifest, load }`: `init` seeds every namespace and
+language the manifest lists straight from the files, and skips the boot fetch once the
+manifest covers `defaultNamespace` — zero dictionary requests at boot. A key the bundle
+doesn't cover still misses and POSTs as usual. `load` may return the parsed JSON, or the
+module of a dynamic `import()` of the file, either directly or as a promise of either.
 
 ## Per-translation options
 

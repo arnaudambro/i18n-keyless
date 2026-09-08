@@ -701,6 +701,20 @@ It has a second job: it subscribes the component to language changes. Call it in
 component that calls `getTranslation()`, even if you ignore the return value. See the
 note above.
 
+**Loading state.** By default a missing translation renders the source text until it lands.
+For UGC, show that a translation is coming instead: `<I18nKeylessText pending>` swaps in a
+placeholder while the status is `"pending"`, and `useTranslationStatus(text, options?)` hands
+back `{ text, status, sourceText }` for anywhere else. `status` is `"ready"` / `"pending"` /
+`"unavailable"` — `getTranslationStatus` is the plain, non-reactive function form.
+
+```javascript
+import { I18nKeylessText as T, useTranslationStatus } from "i18n-keyless-react";
+
+<T pending="Translating…" originLanguage="fr">{comment.body}</T>
+
+const { text, status } = useTranslationStatus(comment.body, { originLanguage: "fr" });
+```
+
 ### **Storage Management**
 
 Clear the i18n-keyless storage:
@@ -1030,6 +1044,38 @@ This is the easiest way to get started. Provide your `API_KEY` during initializa
 *(React Setup Example - Covered in Quick Start)*
 
 *(Node Setup Example - Covered in Quick Start)*
+
+### **Precompiled bundle: no API call for a known string**
+
+Export the dictionaries at build time and ship them with the app. The MCP `export_bundle`
+tool, or one `GET https://api.i18n-keyless.com/translate/bundle` with the public key, yields
+`i18n-keyless/manifest.json` plus one `i18n-keyless/<namespace>/<lang>.json` per dictionary.
+Commit them and hand them to `init`:
+
+```ts
+import manifest from "./i18n-keyless/manifest.json";
+
+init({
+  API_KEY: "your-public-key",
+  languages: { primary: "fr", supported: ["fr", "en", "es"] },
+  storage: window.localStorage,
+  bundle: { manifest, load: (namespace, lang) => import(`./i18n-keyless/${namespace}/${lang}.json`) },
+});
+```
+
+A language the manifest covers is read from the file at boot and on every language switch,
+with the export's cursor, and never downloaded. The API is only called for a string the
+bundle does not have — user generated content, a screen added since the export — and for the
+delta that follows it. Storage wins over the bundle only when it is newer and in the same
+language. The same option exists in the Vue, Angular, browser and Node packages, and in every
+port (a directory path for the server ports, a manifest and an asset loader for the mobile
+ones).
+
+Read this before choosing it: the bundle sits on the critical path — its bytes are
+downloaded before the first paint, on every deploy that changes them — while the default
+dictionary is downloaded after the first paint, once, then served from storage. Always load
+with a dynamic `import()` per language, and prefer the default for a web app with many
+languages and a good network. Guide: https://docs.i18n-keyless.com/docs/guides/precompiled-bundle
 
 ### **Self-hosting the i18n-keyless server**
 

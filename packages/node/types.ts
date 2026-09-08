@@ -5,6 +5,7 @@ import {
   TranslationsUsage,
   PrimaryLang,
   SendTranslationsUsageFunction,
+  BundleConfig,
 } from "i18n-keyless-core";
 
 /**
@@ -56,6 +57,20 @@ export interface I18nKeylessNodeConfig {
    */
   defaultNamespace?: string;
   addMissingTranslations?: true;
+  /**
+   * The precompiled bundle: dictionaries exported at build time (`manifest.json` plus one
+   * `<namespace>/<lang>.json` per dictionary, from the MCP `export_bundle` tool or
+   * `GET /translate/bundle`). On a server there is no per-language code splitting to gain —
+   * every language is loaded either way — so the point is zero dictionary requests at boot:
+   * every `(namespace, lang)` the manifest lists is seeded into the store, and the boot
+   * fetch of `defaultNamespace` is skipped once the manifest covers it. A key `init` never
+   * seeds still misses and POSTs as usual.
+   *
+   * `load` may return the parsed JSON, or the module of a dynamic `import()` of the file
+   * (`{ default: dictionary }`), either directly or as a promise of either:
+   * `load: (ns, lang) => import(\`./i18n-keyless/${ns}/${lang}.json\`)`.
+   */
+  bundle?: BundleConfig;
   /**
    * called right after the store is initialized, maybe to hide screensplash. or init specific default langauge for dayjs, or whatever
    */

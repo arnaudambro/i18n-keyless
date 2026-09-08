@@ -1053,3 +1053,76 @@ func TestVectorStorageKeysNotApplicable(t *testing.T) {
 		t.Skip()
 	}
 }
+
+// TestVectorBundleSeed replays the precompiled bundle rules (PROTOCOL.md 7.4): coverage and
+// the precedence between the bundle and what storage holds. This port persists nothing, so
+// the storage side is always the in-memory store with no cursor; the rule is replayed in
+// full anyway, so a port that grows a storage inherits it verified.
+func TestVectorBundleSeed(t *testing.T) {
+	v := loadVector(t, "bundle-seed")
+	var manifest BundleManifest
+	decode(t, v["manifest"], &manifest)
+	if got := BundleNamespaces(&manifest); !reflect.DeepEqual(got, []string{"default", "checkout"}) {
+		t.Errorf("BundleNamespaces = %v", got)
+	}
+	type seed struct {
+		Translations map[string]string `json:"translations"`
+		LastRefresh  *string           `json:"lastRefresh"`
+		Lang         string            `json:"lang"`
+	}
+	str := func(p *string) string {
+		if p == nil {
+			return ""
+		}
+		return *p
+	}
+	for _, raw := range cases(t, v, "cases") {
+		var c struct {
+			Name  string `json:"name"`
+			Fn    string `json:"fn"`
+			Input struct {
+				Manifest  json.RawMessage `json:"manifest"`
+				Namespace string          `json:"namespace"`
+				Lang      string          `json:"lang"`
+				Bundle    *seed           `json:"bundle"`
+				Stored    *seed           `json:"stored"`
+			} `json:"input"`
+			Expected json.RawMessage `json:"expected"`
+		}
+		decode(t, raw, &c)
+		switch c.Fn {
+		case "bundleCovers":
+			m := &manifest
+			if len(c.Input.Manifest) > 0 {
+				// The case names its own manifest (null: no manifest at all).
+				m = nil
+				if string(c.Input.Manifest) != "null" {
+					m = new(BundleManifest)
+					decode(t, c.Input.Manifest, m)
+				}
+			}
+			var want bool
+			decode(t, c.Expected, &want)
+			if got := BundleCovers(m, c.Input.Namespace, c.Input.Lang); got != want {
+				t.Errorf("%s: %v, want %v", c.Name, got, want)
+			}
+		case "mergeBundleWithStorage":
+			bundle := BundleSeed{Translations: c.Input.Bundle.Translations, LastRefresh: str(c.Input.Bundle.LastRefresh)}
+			var stored *StoredSeed
+			if c.Input.Stored != nil {
+				stored = &StoredSeed{Translations: c.Input.Stored.Translations, LastRefresh: str(c.Input.Stored.LastRefresh), Lang: c.Input.Stored.Lang}
+			}
+			got := MergeBundleWithStorage(bundle, stored, c.Input.Lang)
+			var want struct {
+				Translations map[string]string `json:"translations"`
+				LastRefresh  string            `json:"lastRefresh"`
+			}
+			decode(t, c.Expected, &want)
+			if !reflect.DeepEqual(got.Translations, want.Translations) || got.LastRefresh != want.LastRefresh {
+				t.Errorf("%s: %+v, want %+v", c.Name, got, want)
+			}
+		default:
+			t.Errorf("%s: unknown fn %q", c.Name, c.Fn)
+		}
+	}
+}

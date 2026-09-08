@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- `bundle_path` (`Config.bundle_path`, or `init(bundle_path=...)`): the precompiled bundle of
+  `docs/PROTOCOL.md` section 7.4. Point it at the directory the MCP `export_bundle` tool or
+  `GET /translate/bundle` produced (`manifest.json` plus one `<namespace>/<lang>.json` per
+  dictionary): `init()` reads every dictionary the manifest lists into the store and skips
+  the boot fetch of a namespace the manifest covers. Nothing else changes: a miss still POSTs
+  and the refetch after a batch of misses still runs. A missing or malformed `manifest.json`
+  raises `BundleError` at `init()`; a missing dictionary file is logged and its pair fetched
+  as before. The pure rules `bundle_covers` and `merge_bundle_with_storage` replay
+  `conformance/vectors/bundle-seed.json`.
+
 ## 3.7.0
 
 No change in the port. The version tracks the JavaScript SDKs: 3.7.0 adds plurals, ordinals and

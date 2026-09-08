@@ -1,21 +1,32 @@
 import { isDevMode } from "@angular/core";
-import { formatTranslation, resolveMessageFormat, type Lang, type TranslationOptions } from "i18n-keyless-core";
+import {
+  formatTranslation,
+  resolveMessageFormat,
+  resolveNamespace,
+  resolveTranslationStatus,
+  isTranslationPending,
+  type Lang,
+  type TranslationOptions,
+  type TranslationStatus,
+} from "i18n-keyless-core";
 import { store, getTranslation, isServerEnv } from "./store.ts";
 import { getRequestScope, recordUsedKey, type I18nRequestScope } from "./request-scope.ts";
 
 /**
- * The lookup behind `<i18n-t>`, the `t` pipe and `I18nKeylessService.translate()`.
+ * The lookup behind `<i18n-t>`, the `t` / `tStatus` pipes and `I18nKeylessService.translate()`
+ * / `.translationStatus()`.
  *
  * Pure and reactive: it reads the store *signals* (and the DI request scope when one is
  * given), so a template, a `computed` or an `effect` calling it re-evaluates when the
- * language changes or when a translation lands. It has no side effect: translate-on-miss
- * and usage recording live in `requestTranslation`, so the two never drift.
+ * language changes, when a translation lands, or when the pending-translations set changes
+ * (via `store.pendingVersion`). It has no side effect: translate-on-miss and usage
+ * recording live in `requestTranslation`, so the two never drift.
  */
 export function resolveTranslation(
   sourceText: string,
   options: TranslationOptions | undefined,
   scope: I18nRequestScope | null | undefined
-): { text: string; lang: Lang } {
+): { text: string; lang: Lang; status: TranslationStatus } {
   const context = options?.context;
   const storageKey = context ? `${sourceText}__${context}` : sourceText;
 
@@ -25,6 +36,9 @@ export function resolveTranslation(
   const config = store.config();
   const currentLanguage = requestScope?.lang ?? store.currentLanguage();
   const translation = requestScope ? requestScope.translations[storageKey] : store.translations()[storageKey];
+  // Track the pending-translations version so a `computed` reading the status re-evaluates
+  // when THIS key's pending flag flips, without subscribing every caller to the whole set.
+  store.pendingVersion();
 
   // Record the key for the per-page SSR snapshot (pure Set.add, no-op off-server).
   recordUsedKey(storageKey);
@@ -38,7 +52,19 @@ export function resolveTranslation(
   const translatedText =
     currentLanguage === sourceLanguage && !resolveMessageFormat(options) ? sourceText : translation || sourceText;
 
-  return { text: formatTranslation(translatedText, currentLanguage, options), lang: currentLanguage };
+  // Same inputs the text resolution above used: the status must never drift from what is
+  // actually rendered (docs/PROTOCOL.md 5.5).
+  const namespace = resolveNamespace(options, config);
+  const status = resolveTranslationStatus({
+    translation,
+    currentLanguage,
+    primary: sourceLanguage,
+    options,
+    pending: isTranslationPending(namespace, sourceText),
+    initialized: !!config.API_KEY,
+  });
+
+  return { text: formatTranslation(translatedText, currentLanguage, options), lang: currentLanguage, status };
 }
 
 /**

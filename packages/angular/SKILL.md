@@ -83,6 +83,18 @@ options)` (service method or bare export) is a one-shot, non-reactive read for c
 change detection (a route title resolver, a toast). A value computed with it does not update
 on a language switch.
 
+### Loading state
+
+For content whose translation may still be on its way (typically user generated content), read
+its status: `"ready" | "pending" | "unavailable"`. `<i18n-t>` mirrors it onto
+`data-i18n-status`, so `i18n-t[data-i18n-status="pending"] { opacity: 0.5 }` styles every
+instance in CSS, or read `status()` on the component directly. The `t` pipe has a `tStatus`
+counterpart: `@if (('Bonjour' | tStatus) === 'pending') { <span class="skeleton"></span> }`.
+`I18nKeylessService.translationStatus(text, options)` is the signal form, and
+`getTranslationStatus(text, options)` (service method or bare export) the one-shot,
+non-reactive, no-side-effect read. The SDK only exposes the status — it never decides what to
+render.
+
 ### Switch language
 
 ```ts
@@ -91,6 +103,31 @@ i18n.currentLanguage();        // Signal<Lang>
 i18n.setCurrentLanguage("en"); // persists, fetches, signals update
 i18n.getSupportedLanguages();  // ["en", "fr"], for a picker
 ```
+
+### Ship the translations in the bundle (optional)
+
+By default a dictionary is downloaded at boot and the API stays in the loop. To make the
+app independent of the API for every string it already knows, export the dictionaries at
+build time — the MCP `export_bundle` tool, or `GET /translate/bundle` with the public key —
+commit `i18n-keyless/manifest.json` plus one `i18n-keyless/<namespace>/<lang>.json` per
+dictionary, and pass them to `provideI18nKeyless` (or `init`):
+
+```ts
+import manifest from "./i18n-keyless/manifest.json";
+
+provideI18nKeyless({
+  API_KEY,
+  languages: { primary: "fr", supported: ["fr", "en"] },
+  bundle: { manifest, load: (namespace, lang) => import(`./i18n-keyless/${namespace}/${lang}.json`) },
+});
+```
+
+A covered language is read from the file at boot and on a language switch, never downloaded;
+the API is only called for a key the bundle does not have (UGC, a new screen) and for the
+delta after it. Storage wins only when newer and in the same language. Always load with a
+dynamic `import()` per language: the bundle sits on the critical path (downloaded before the
+first paint, on every deploy), so for a web app with many languages and a good network the
+default fetch is the better choice. Re-run the export before a release.
 
 ## Per-translation options
 

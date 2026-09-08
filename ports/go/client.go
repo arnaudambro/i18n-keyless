@@ -53,6 +53,13 @@ type Config struct {
 	HTTPClient *http.Client
 	// DisableUsage switches usage analytics off (the "last used" dates the dashboard shows).
 	DisableUsage bool
+	// BundlePath is the directory of a precompiled bundle: `manifest.json` plus one
+	// `<namespace>/<lang>.json` per dictionary, from the MCP `export_bundle` tool or
+	// `GET /translate/bundle` (PROTOCOL.md section 7.4). New reads every dictionary the
+	// manifest lists into the store, and Init skips the boot fetch of a namespace the manifest
+	// covers. A key the bundle does not hold still misses and POSTs as usual. Empty means no
+	// bundle; a missing or malformed manifest is a configuration error.
+	BundlePath string
 
 	// HandleTranslate replaces `POST /translate` (mode 1). It receives the source text only
 	// (no context, no namespace, no languages: the handler owns that knowledge) and returns
@@ -76,6 +83,8 @@ type Client struct {
 	apiURL string
 	tr     *transport
 	logger Logger
+	// bundle is the manifest of Config.BundlePath, nil without one.
+	bundle *BundleManifest
 
 	mu sync.Mutex
 	// translations is one flat map per language, keyed by storage key; no namespace
@@ -116,8 +125,9 @@ type flight struct {
 	err    error
 }
 
-// New validates the configuration and returns a client with empty dictionaries. Nothing
-// leaves the process: use Init to also load the dictionaries.
+// New validates the configuration and returns a client whose dictionaries are empty, or
+// seeded from Config.BundlePath when one is set. Nothing leaves the process: use Init to
+// also fetch the dictionaries.
 func New(cfg Config) (*Client, error) {
 	if cfg.Languages.Primary == "" {
 		return nil, errors.New("i18n-keyless: primary is required")
@@ -133,6 +143,13 @@ func New(cfg Config) (*Client, error) {
 	if cfg.APIKey == "" && cfg.APIURL == "" && (cfg.HandleTranslate == nil || cfg.GetAllTranslationsForAllLanguages == nil) {
 		return nil, errors.New("i18n-keyless: you didn't provide an APIKey nor an APIURL nor a HandleTranslate + GetAllTranslationsForAllLanguages function. You need to provide one of them to make i18n-keyless work")
 	}
+	var manifest *BundleManifest
+	if cfg.BundlePath != "" {
+		var err error
+		if manifest, err = ReadBundleManifest(cfg.BundlePath); err != nil {
+			return nil, err
+		}
+	}
 	logger := cfg.Logger
 	if logger == nil {
 		logger = log.Default()
@@ -146,6 +163,7 @@ func New(cfg Config) (*Client, error) {
 		apiURL:            apiURL,
 		tr:                newTransport(cfg.HTTPClient),
 		logger:            logger,
+		bundle:            manifest,
 		translations:      map[string]map[string]string{},
 		etags:             map[string]string{},
 		usage:             map[string]map[string]string{},
@@ -158,13 +176,17 @@ func New(cfg Config) (*Client, error) {
 	for _, lang := range AvailableLangs {
 		c.translations[lang] = map[string]string{}
 	}
+	if manifest != nil {
+		c.seedFromBundle(cfg.BundlePath, manifest)
+	}
 	return c, nil
 }
 
 // Init is New followed by the boot fetch: every language's dictionary of the default
 // namespace, in one `GET /translate/`. A failed fetch is logged, never returned: the
 // client starts empty and translates on miss, so an app boots even when the API is down.
-// The error is a configuration error only.
+// The error is a configuration error only. With Config.BundlePath the boot fetch is
+// skipped when the manifest covers the default namespace: New already seeded it.
 func Init(ctx context.Context, cfg Config) (*Client, error) {
 	c, err := New(cfg)
 	if err != nil {
@@ -175,7 +197,12 @@ func Init(ctx context.Context, cfg Config) (*Client, error) {
 	}
 	// The boot fetch targets the configured namespace, otherwise a project using
 	// DefaultNamespace would boot with the (empty) `default` one and every key would miss.
-	c.refetch(ctx, ResolveNamespace("", cfg.DefaultNamespace))
+	namespace := ResolveNamespace("", cfg.DefaultNamespace)
+	if bundleCoversNamespace(c.bundle, namespace) {
+		c.debugf("namespace %s seeded from the bundle, boot fetch skipped", namespace)
+		return c, nil
+	}
+	c.refetch(ctx, namespace)
 	return c, nil
 }
 

@@ -43,6 +43,12 @@ module I18nKeyless
     attr_accessor :logger
     # The Rails-key rule (see DEFAULT_RAILS_KEY_PATTERN). `nil`: every string is keyless.
     attr_accessor :rails_key_pattern
+    # The precompiled bundle: a directory holding manifest.json and one
+    # <namespace>/<lang>.json per dictionary, as the MCP `export_bundle` tool or
+    # GET /translate/bundle yields it (for example Rails.root.join("i18n-keyless")).
+    # A dictionary the manifest covers is read at boot, never fetched, unless the
+    # cache already holds a newer copy. A miss still POSTs.
+    attr_accessor :bundle_path
 
     def initialize(env = ENV)
       @enabled = truthy?(env.fetch("I18N_KEYLESS_ENABLED", "true"))
@@ -61,6 +67,7 @@ module I18nKeyless
       @queue = env["I18N_KEYLESS_QUEUE"]
       @logger = nil
       @rails_key_pattern = DEFAULT_RAILS_KEY_PATTERN
+      @bundle_path = env["I18N_KEYLESS_BUNDLE_PATH"]
     end
 
     def enabled?

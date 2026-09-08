@@ -36,7 +36,9 @@ module I18nKeyless
       Timeout::Error, SocketError, SystemCallError, EOFError, IOError, OpenSSL::SSL::SSLError
     ].freeze
 
-    Dictionary = Struct.new(:ok, :not_modified, :translations, :etag, :error, keyword_init: true)
+    # `last_refresh`: the API's cursor for the dictionary (`data.lastRefresh`,
+    # epoch ms as a string), kept in the cache for the bundle precedence rule.
+    Dictionary = Struct.new(:ok, :not_modified, :translations, :etag, :error, :last_refresh, keyword_init: true)
     UsageResult = Struct.new(:ok, :sent, :error, keyword_init: true)
     Outcome = Struct.new(:action, :error, :response, :json, keyword_init: true)
 
@@ -310,6 +312,8 @@ module I18nKeyless
       result.translations = translations.is_a?(Hash) ? translations.select { |_, v| v.is_a?(String) } : {}
       etag = response["ETag"].to_s
       result.etag = etag.empty? ? nil : etag
+      cursor = json.dig("data", "lastRefresh")
+      result.last_refresh = cursor.nil? || cursor.to_s.empty? ? nil : cursor.to_s
       result
     end
 

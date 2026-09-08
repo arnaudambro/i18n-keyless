@@ -1,0 +1,19 @@
+{
+  "primaryLanguage": "fr",
+  "languages": [
+    "fr",
+    "en",
+    "es"
+  ],
+  "exportedAt": "1757347200000",
+  "namespaces": {
+    "default": {
+      "lastRefresh": "1757347200000",
+      "languages": [
+        "fr",
+        "en",
+        "es"
+      ]
+    }
+  }
+}

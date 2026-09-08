@@ -60,6 +60,7 @@ panics, and a stored translation is never cleared by a failure.
 | `Languages.Primary` | required | The language your source texts are written in (`en`, `fr`, `pt-BR`, `zh-Hans`...). Set on the project by its first translation, immutable afterwards. |
 | `Languages.Supported` | required | Every language your app serves. A new string is translated into all of them at once, and the API stores the list as the project's languages (it replaces the previous one). |
 | `DefaultNamespace` | `default` | The namespace of calls that pass no `WithNamespace`. |
+| `BundlePath` | none | The directory of a precompiled bundle, see below. |
 | `HTTPClient` | `http.DefaultClient` | Performs the requests. Timeouts are applied per attempt by the port. |
 | `Logger` | `log.Default()` | Receives the `i18n-keyless:` warnings. Any `Printf(format, v...)`. |
 | `Debug` | `false` | Logs every lookup and request. |
@@ -72,6 +73,27 @@ panics, and a stored translation is never cleared by a failure.
 `New(cfg)` validates the configuration and returns an empty client without touching the
 network; `Init(ctx, cfg)` is `New` plus the boot fetch. Both reject an unknown language code
 (`cn` and `cz`, the v2 spellings, are not codes: use `zh-Hans` and `cs`).
+
+### The precompiled bundle
+
+Export the dictionaries at build time with the MCP `export_bundle` tool or from
+`GET /translate/bundle`: a directory (`i18n-keyless/` by convention) holding `manifest.json`
+and one `<namespace>/<lang>.json` per dictionary. Point `BundlePath` at it:
+
+```go
+client, err := i18nkeyless.Init(ctx, i18nkeyless.Config{
+	APIKey:     os.Getenv("I18N_KEYLESS_API_KEY"),
+	Languages:  i18nkeyless.Languages{Primary: "en", Supported: []string{"en", "fr", "es"}},
+	BundlePath: "./i18n-keyless",
+})
+```
+
+`New` reads every dictionary the manifest lists into the store and `Init` skips the boot
+fetch of a namespace the manifest covers, so a process whose bundle holds every rendered
+string makes no dictionary request at all. Nothing else changes: a string the bundle does
+not hold still misses and POSTs, and the refetch after a burst of misses still runs. A
+missing or malformed `manifest.json` is a configuration error from `New` / `Init`; a missing
+dictionary file is logged and its pair fetched as before.
 
 ## Per-call options
 
@@ -183,5 +205,6 @@ Tests run on a scripted `http.RoundTripper` and `httptest`: no network, no key.
 `conformance_test.go` replays the monorepo's shared protocol vectors
 (`conformance/vectors/*.json`): language codes, tag resolution, storage key, namespace and
 origin resolution, replace, retry decisions, backoff scenarios, dictionary and translate
-requests and responses, the queue scenarios, the lookup cases, usage requests and the
-server-label rule. The file comment lists what is not replayed and why.
+requests and responses, the queue scenarios, the lookup cases, usage requests, the
+server-label rule and the precompiled bundle rules. The file comment lists what is not
+replayed and why.

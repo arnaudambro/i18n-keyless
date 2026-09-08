@@ -12,7 +12,7 @@ import {
   type AfterContentChecked,
 } from "@angular/core";
 import { isPlatformBrowser } from "@angular/common";
-import type { Lang, TranslationOptions } from "i18n-keyless-core";
+import type { Lang, TranslationOptions, TranslationStatus } from "i18n-keyless-core";
 import { I18N_KEYLESS_REQUEST_SCOPE } from "./scope.ts";
 import { store } from "./store.ts";
 import { resolveTranslation, requestTranslation, normalizeSourceText } from "./resolve.ts";
@@ -32,11 +32,16 @@ import { resolveTranslation, requestTranslation, normalizeSourceText } from "./r
  *
  * Where a custom element cannot live (`<option>`, `<title>`, an attribute), use the `t`
  * pipe: `[placeholder]="'Votre email' | t"`.
+ *
+ * `status()` (`"ready" | "pending" | "unavailable"`, docs/PROTOCOL.md 5.5) is also mirrored
+ * onto the host as `data-i18n-status`, so CSS can style it directly:
+ * `i18n-t[data-i18n-status="pending"] { opacity: 0.5 }`.
  */
 @Component({
   selector: "i18n-t",
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { "[attr.data-i18n-status]": "status()" },
   template: `<span hidden aria-hidden="true" style="display: none"><ng-content /></span>{{ text() }}`,
 })
 export class I18nKeylessTextComponent implements AfterContentChecked {
@@ -79,19 +84,29 @@ export class I18nKeylessTextComponent implements AfterContentChecked {
     select: this.select(),
   }));
 
-  /** The rendered text: the translation when the store (or the request scope) has it, the source otherwise. */
-  readonly text = computed(() => {
+  /** One resolution shared by `text` and `status`, so the two never drift. */
+  private readonly resolved = computed(() => {
     const source = this.source();
     if (!source) {
-      return "";
+      return null;
     }
     const options = this.options();
-    const resolved = resolveTranslation(source, options, this.scope?.());
+    const result = resolveTranslation(source, options, this.scope?.());
     if (options.debug) {
-      console.log({ source, currentLanguage: resolved.lang, text: resolved.text, ...options });
+      console.log({ source, currentLanguage: result.lang, text: result.text, status: result.status, ...options });
     }
-    return resolved.text;
+    return result;
   });
+
+  /** The rendered text: the translation when the store (or the request scope) has it, the source otherwise. */
+  readonly text = computed(() => this.resolved()?.text ?? "");
+
+  /**
+   * `"ready" | "pending" | "unavailable"` for the source text this instance renders
+   * (docs/PROTOCOL.md 5.5), also mirrored onto `[attr.data-i18n-status]`. `"unavailable"`
+   * before the projected content has been read (nothing to resolve yet).
+   */
+  readonly status = computed<TranslationStatus>(() => this.resolved()?.status ?? "unavailable");
 
   constructor() {
     // Translate-on-miss: the `useEffect` of the react component. Re-runs when the source,

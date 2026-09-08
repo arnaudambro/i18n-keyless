@@ -118,6 +118,7 @@ Text goes through this pipeline:
 
 - `core/service.ts` — Translation engine: `getTranslationCore`, `translateKey`, `getAllTranslationsFromLanguage`, `sendTranslationsUsageToI18nKeyless`
 - `core/my-pqueue.ts` — Custom priority queue (lightweight p-queue replacement)
+- `core/bundle.ts` — The precompiled bundle (PROTOCOL.md 7.4): `bundleCovers`, `mergeBundleWithStorage`, `loadBundleSeed`; the stores seed a covered `(namespace, lang)` from the shipped file instead of fetching it
 - `core/types.ts` — All shared types (`Lang`, `Translations`, `TranslationOptions`, API request/response types)
 - `react/store.ts` — Zustand store, `init()`, `setCurrentLanguage`, hydration logic
 - `react/I18nKeylessText.tsx` — The `<T>` / `<I18nKeylessText>` component
@@ -194,6 +195,12 @@ or a key.
 
 A stale assertion in core survived a whole release because only react ran its tests on
 publish — so keep the root `npm run test` green, not just the package you touched.
+
+The framework suites (react, vue, angular, browser) alias `i18n-keyless-core` to
+`packages/core`, which Vite resolves through its `package.json` to **`dist/`** — the built
+core, not the source. After a change in core, rebuild it (`rm -rf dist && npx tsc`) before
+running another package's suite, or that suite tests the previous core and fails (or passes)
+for reasons that are not in the source.
 
 Every store starts with the primary `fr`, and most fixtures use `fr` too, so a code path that
 falls back to the *default* primary passes those tests by coincidence (that is how the Next.js

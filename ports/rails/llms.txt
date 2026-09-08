@@ -67,6 +67,7 @@ Rails-key rule (`I18nKeyless.keyless_key?`, `config.rails_key_pattern` = `/\A[a-
 | queue | I18N_KEYLESS_QUEUE | nil |
 | logger | | Rails.logger |
 | rails_key_pattern | | `/\A[a-z0-9_]+(\.[a-z0-9_]+)*\z/` (nil: every string is keyless) |
+| bundle_path | I18N_KEYLESS_BUNDLE_PATH | nil: the directory of a precompiled bundle (manifest.json + <namespace>/<lang>.json, from the MCP `export_bundle` tool or GET /translate/bundle); every covered dictionary is read at boot, never fetched; a miss still POSTs |
 
 ## Locale mapping
 

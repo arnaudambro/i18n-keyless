@@ -116,6 +116,22 @@ is the exact match; `resolveLang("zh_TW")` maps any BCP-47 tag (`.zhHant`);
 `toAppStoreLocale(.fr)` is `fr-FR`. The v2 codes `cn` and `cz` do not exist here: the enum
 spells them `.zhHans` and `.cs`, and `Version: 3.6.1` makes the API answer in that dialect.
 
+## Ship the translations with the app (optional)
+
+The precompiled bundle: export the files with the MCP `export_bundle` tool or
+`GET /translate/bundle` (`manifest.json` plus one `<namespace>/<lang>.json`), add the folder
+to the app target, and hand the manifest and a loader to `configure`:
+
+```swift
+let bundle = try I18nKeylessBundle.files(in: Bundle.main.resourceURL!.appendingPathComponent("i18n-keyless"))
+try I18nKeyless.configure(.init(apiKey: "...", languages: ..., bundle: bundle))
+```
+
+A namespace the manifest covers in the current language is read from the file instead of
+fetched, at boot and on every language switch, with the bundle's cursor; a stored slice wins
+only when newer and in the same language. A miss still POSTs, and the delta fetch after it
+starts from the seeded cursor. Nothing else changes.
+
 ## Gotchas
 
 - `configure` must run before the first `I18nKeylessText` renders a translation; one rendered

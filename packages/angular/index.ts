@@ -3,6 +3,7 @@ export type { I18nKeylessScopeInput } from "./provide.ts";
 export { I18nKeylessService } from "./service.ts";
 export { I18nKeylessTextComponent } from "./text.component.ts";
 export { I18nKeylessTranslatePipe } from "./translate.pipe.ts";
+export { I18nKeylessTranslationStatusPipe } from "./translation-status.pipe.ts";
 export { I18N_KEYLESS_REQUEST_SCOPE } from "./scope.ts";
 export {
   init,
@@ -10,6 +11,7 @@ export {
   whenHydrated,
   setCurrentLanguage,
   getTranslation,
+  getTranslationStatus,
   getSupportedLanguages,
   clearI18nKeylessStorageAndStore,
   store as i18nKeylessStore,
@@ -27,6 +29,9 @@ export {
   type Translations,
   type I18nKeylessRequestBody,
   type I18nKeylessResponse,
+  type BundleConfig,
+  type BundleManifest,
+  type TranslationStatus,
   getAllTranslationsFromLanguage,
   resolveLang,
   toAppStoreLocale,

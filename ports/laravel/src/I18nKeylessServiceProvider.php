@@ -106,6 +106,7 @@ final class I18nKeylessServiceProvider extends ServiceProvider
             queue: $config['queue'] ?? null,
             app: $app,
             usageEnabled: (bool) ($config['usage'] ?? true),
+            bundle: Bundle::fromPath(is_string($config['bundle_path'] ?? null) ? $config['bundle_path'] : null),
         );
     }
 }

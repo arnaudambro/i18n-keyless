@@ -58,6 +58,7 @@ client.FlushUsage(ctx); client.Close()                                          
 | Languages.Primary | required, one of the 48 codes |
 | Languages.Supported | required, every language the app serves; stored by the API as the project's list |
 | DefaultNamespace | default |
+| BundlePath | none: the directory of a precompiled bundle (`manifest.json` + `<namespace>/<lang>.json`, from the MCP `export_bundle` tool or `GET /translate/bundle`); read by New, no dictionary request for a covered namespace; a miss still POSTs |
 | HTTPClient | http.DefaultClient |
 | Logger | log.Default() |
 | Debug | false |

@@ -31,6 +31,8 @@ function optionsOf(element: HTMLElement): TranslationOptions {
  * - `data-i18n-context`, `data-i18n-namespace`, `data-i18n-origin-language`,
  *   `data-i18n-unpersisted-namespace` and `data-i18n-debug` map to the translation options
  * - the element's whole text content is replaced by the translation
+ * - `data-i18n-status` reflects the status (docs/PROTOCOL.md 5.5): `pending`, `ready` or
+ *   `unavailable`, so CSS can style a still-loading element
  *
  * Elements added later are not picked up: call `translateDom(newNode)` for them. Calling it
  * twice on the same element is safe. Returns the function that stops every binding made
@@ -54,9 +56,12 @@ export function translateDom(root: ParentNode = document.body): () => void {
     const sourceText = source || element.textContent!;
     sources.set(element, sourceText);
 
-    const stopWatching = watchTranslation(sourceText, optionsOf(element), (text) => {
+    const stopWatching = watchTranslation(sourceText, optionsOf(element), (text, _lang, status) => {
       if (element.textContent !== text) {
         element.textContent = text;
+      }
+      if (element.getAttribute("data-i18n-status") !== status) {
+        element.setAttribute("data-i18n-status", status);
       }
     });
     const stop = () => {

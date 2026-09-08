@@ -1,5 +1,6 @@
 import 'package:http/http.dart' as http;
 
+import 'bundle.dart';
 import 'langs.dart';
 import 'storage.dart';
 
@@ -182,6 +183,7 @@ class I18nKeylessConfig {
     this.apiUrl,
     this.defaultNamespace,
     this.storage,
+    this.bundle,
     this.sendUsage = true,
     this.debug = false,
     this.handleTranslate,
@@ -208,6 +210,12 @@ class I18nKeylessConfig {
   /// Where the cache lives. Defaults to [MemoryStorage]; use
   /// `SharedPreferencesStorage` on a device.
   final I18nKeylessStorage? storage;
+
+  /// The precompiled bundle shipped with the app (protocol section 7.4): a manifest and
+  /// a loader for its `<namespace>/<lang>.json` files. A namespace the manifest covers in
+  /// the current language is seeded from the file instead of fetched, at boot and on
+  /// every language switch, with the bundle's cursor. A miss still POSTs.
+  final I18nKeylessBundle? bundle;
 
   /// When false, usage analytics are neither recorded nor sent (the equivalent of the
   /// JavaScript `ssr: true`). Translate-on-miss still works.

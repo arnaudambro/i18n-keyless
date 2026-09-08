@@ -89,13 +89,26 @@ const stop = subscribe((state) => console.log(state.currentLanguage));
 | `init(config)` | Same options as `i18n-keyless-react`. Hydrates from storage, fetches the current language, sends the usage report once. |
 | `getTranslation(text, options)` | The cached translation, or `text` when it is not there yet (it is then requested). Records usage. Plain function: no subscription. |
 | `resolveTranslation(text, options, state?)` | Same lookup, no side effect. For use inside a `subscribe` listener. |
-| `watchTranslation(text, options, onText)` | Calls `onText(translated, lang)` now and on every change of that string. Returns the stop function. The building block for Svelte, Alpine, jQuery bindings. |
+| `getTranslationStatus(text, options)` | `"ready" \| "pending" \| "unavailable"`, no side effect, never requests. |
+| `resolveTranslationStatus(text, options, state?)` | Same status, no side effect. For use inside a `subscribe` listener. |
+| `watchTranslation(text, options, onText)` | Calls `onText(translated, lang, status)` now and on every change of the string OR the status. Returns the stop function. The building block for Svelte, Alpine, jQuery bindings. |
 | `translateDom(root = document.body)` | Binds every `[data-i18n]` element under `root`. Returns the stop function. |
 | `defineI18nT(name = "i18n-t")` | Registers the web component. |
 | `setCurrentLanguage(lang)` / `getCurrentLanguage()` | Switch and read the language. |
 | `getSupportedLanguages()` | The `supported` list, for a picker. |
 | `subscribe(listener)` / `getState()` | The plain store. `listener(state, previous)`. |
 | `clearI18nKeylessStorageAndStore()` | Wipes the cache. The device id stays. |
+
+### The precompiled bundle (optional)
+
+`init({ bundle: { manifest, load } })` ships the dictionaries exported at build time — the
+MCP `export_bundle` tool, or `GET /translate/bundle` — with the page instead of fetching
+them: `load: (namespace, lang) => import(\`./i18n-keyless/${namespace}/${lang}.json\`)`. A
+`(namespace, lang)` the manifest covers is read from the file at boot and on a language
+switch, with the bundle's cursor, instead of requested; the API is only called for a key the
+bundle does not have and for the delta after it. Storage still wins when it holds something
+newer in the same language. Programmatic `init` only: the `./auto` script-tag entry has no
+way to pass a loader function through a `data-*` attribute.
 
 ## `<i18n-t>`
 
@@ -115,6 +128,13 @@ const el = document.querySelector("i18n-t");
 el.replace = { "{name}": user.name };   // <i18n-t>Bonjour {name}</i18n-t>
 ```
 
+The element reflects its translation status as `data-i18n-status="pending|ready|unavailable"`,
+so CSS can style it while a translate-on-miss is in flight:
+
+```css
+i18n-t[data-i18n-status="pending"] { opacity: 0.5; }
+```
+
 ## `data-i18n`
 
 ```html
@@ -128,6 +148,9 @@ whole text content of the element is replaced by the translation. Other attribut
 `data-i18n-context`, `data-i18n-namespace`, `data-i18n-origin-language`,
 `data-i18n-unpersisted-namespace`, `data-i18n-debug`. Content added later needs a new
 `translateDom(newNode)` call; calling it twice on the same element is safe.
+
+`translateDom()` writes `data-i18n-status="pending|ready|unavailable"` on each element it
+binds, kept in sync the same way the text is.
 
 ## Per-translation options
 

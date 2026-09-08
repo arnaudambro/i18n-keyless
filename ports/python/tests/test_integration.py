@@ -6,12 +6,13 @@ import json
 import logging
 import threading
 import time
-from typing import Any, List
+from pathlib import Path
+from typing import Any, Dict, List
 
 import pytest
 
 import i18n_keyless as i18n
-from i18n_keyless import Config, I18nKeyless, TranslationError
+from i18n_keyless import BundleError, Config, I18nKeyless, TranslationError
 from i18n_keyless.http import HttpRequest, HttpResponse, urllib_transport
 
 from conftest import API, FakeTransport, json_response, make_client, today, translate_envelope
@@ -317,3 +318,119 @@ def test_urllib_transport_maps_errors() -> None:
     result = client.translate({"key": "x"})
     assert result["ok"] is False
     assert result["error"]
+
+
+# -- the precompiled bundle --------------------------------------------------------------
+
+BUNDLE_MANIFEST = {
+    "primaryLanguage": "fr",
+    "languages": ["en", "es", "fr"],
+    "exportedAt": "1757000000000",
+    "namespaces": {
+        "default": {"lastRefresh": "1757000000000", "languages": ["en", "es", "fr"]},
+        "checkout": {"lastRefresh": "1757000000000", "languages": ["en"]},
+    },
+}
+BUNDLE_FILES = {
+    "default/en.json": {"Bonjour": "Hello from the bundle", "Merci": "Thanks"},
+    "default/es.json": {"Bonjour": "Hola", "Merci": ""},
+    "default/fr.json": {"Bonjour": "Bonjour", "Merci": "Merci"},
+    "checkout/en.json": {"Panier": "Cart"},
+}
+
+
+def write_bundle(directory: Path, manifest: Dict[str, Any] = BUNDLE_MANIFEST, files: Dict[str, Dict[str, str]] = BUNDLE_FILES) -> Path:
+    """The file layout of PROTOCOL.md 4.5: manifest.json plus one <namespace>/<lang>.json."""
+    (directory / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    for name, dictionary in files.items():
+        path = directory / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(dictionary), encoding="utf-8")
+    return directory
+
+
+def test_bundle_seeds_the_store_and_skips_the_boot_fetch(tmp_path: Path) -> None:
+    transport = FakeTransport(all_languages=DICTIONARIES)
+    client = make_client(transport, bundle_path=write_bundle(tmp_path))
+
+    assert transport.gets() == [], "the default namespace is covered: no dictionary request at boot"
+    assert client.t("Bonjour", "en") == "Hello from the bundle"
+    assert client.t("Bonjour", "es") == "Hola"
+    assert client.t("Panier", "en", namespace="checkout") == "Cart"
+    assert transport.requests == []
+    # The primary dictionary is seeded too; the empty cell of another is not a translation.
+    assert client.translations("fr") == {"Bonjour": "Bonjour", "Merci": "Merci"}
+    assert client.translations("es") == {"Bonjour": "Hola", "Merci": ""}
+
+
+def test_bundle_path_accepts_a_string(tmp_path: Path) -> None:
+    transport = FakeTransport()
+    client = make_client(transport, bundle_path=str(write_bundle(tmp_path)))
+    assert transport.gets() == []
+    assert client.t("Merci", "en") == "Thanks"
+
+
+def test_a_namespace_the_bundle_does_not_cover_is_still_fetched(tmp_path: Path) -> None:
+    manifest = {**BUNDLE_MANIFEST, "namespaces": {"checkout": BUNDLE_MANIFEST["namespaces"]["checkout"]}}
+    transport = FakeTransport(all_languages=DICTIONARIES)
+    client = make_client(transport, bundle_path=write_bundle(tmp_path, manifest, {"checkout/en.json": BUNDLE_FILES["checkout/en.json"]}))
+
+    (request,) = transport.gets()
+    assert request.url == f"{API}/translate/?last_refresh=", "the default namespace is not covered: fetched as before"
+    assert client.t("Bonjour", "en") == "Hello"
+    assert client.t("Panier", "en", namespace="checkout") == "Cart"
+
+
+def test_a_covered_configured_default_namespace_skips_its_boot_fetch(tmp_path: Path) -> None:
+    transport = FakeTransport()
+    client = make_client(transport, bundle_path=write_bundle(tmp_path), default_namespace="checkout")
+    assert transport.gets() == []
+    assert client.t("Panier", "en") == "Cart"
+    # Covered in `en` only: a Spanish miss of that namespace POSTs like any other.
+    assert client.t("Panier", "es") == "Panier"
+    assert len(transport.posts()) == 1
+
+
+def test_a_miss_still_posts_with_a_bundle(tmp_path: Path) -> None:
+    transport = FakeTransport(translation={"fr": "Au revoir", "en": "Goodbye", "es": "Adiós"})
+    client = make_client(transport, bundle_path=write_bundle(tmp_path))
+
+    assert client.t("Au revoir", "en") == "Goodbye"
+    (request,) = transport.posts()
+    assert json.loads(request.body or b"")["key"] == "Au revoir"
+    client.wait_idle()
+    # The refetch that follows the batch runs exactly as without a bundle.
+    assert [r.url for r in transport.gets()] == [f"{API}/translate/?last_refresh="]
+    assert client.t("Au revoir", "en") == "Goodbye"
+    assert len(transport.posts()) == 1
+
+
+def test_a_missing_bundle_file_is_logged_and_not_covered(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    caplog.set_level(logging.ERROR, logger="i18n_keyless")
+    files = {name: dictionary for name, dictionary in BUNDLE_FILES.items() if name != "default/es.json"}
+    transport = FakeTransport(translation={"fr": "Bonjour", "en": "Hello", "es": "Hola"})
+    client = make_client(transport, bundle_path=write_bundle(tmp_path, files=files))
+
+    assert transport.gets() == [], "coverage is the manifest's: the boot fetch is still skipped"
+    assert any("default/es.json" in r.getMessage() for r in caplog.records)
+    assert client.t("Bonjour", "en") == "Hello from the bundle"
+    assert client.t("Bonjour", "es") == "Hola"
+    assert len(transport.posts()) == 1
+
+
+def test_a_missing_manifest_is_a_configuration_error(tmp_path: Path) -> None:
+    with pytest.raises(BundleError, match="manifest.json"):
+        make_client(bundle_path=tmp_path)
+    (tmp_path / "manifest.json").write_text("[]", encoding="utf-8")
+    with pytest.raises(BundleError, match="not a bundle manifest"):
+        make_client(bundle_path=tmp_path)
+
+
+def test_the_module_level_init_takes_bundle_path(tmp_path: Path) -> None:
+    transport = FakeTransport()
+    i18n.init(api_key="k", api_url=API, primary="fr", supported=["fr", "en"], transport=transport, bundle_path=write_bundle(tmp_path))
+    try:
+        assert transport.gets() == []
+        assert i18n.t("Bonjour", "en") == "Hello from the bundle"
+    finally:
+        i18n.reset()

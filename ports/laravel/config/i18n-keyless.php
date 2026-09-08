@@ -71,4 +71,11 @@ return [
     // null to send them right after the response, in the same process.
     'queue' => env('I18N_KEYLESS_QUEUE'),
 
+    // The precompiled bundle: a directory holding manifest.json and one
+    // <namespace>/<lang>.json per dictionary, as the MCP `export_bundle` tool
+    // or GET /translate/bundle yields it (for example base_path('i18n-keyless')).
+    // A dictionary the manifest covers is read from the file, never fetched,
+    // unless the cache already holds a newer copy. A miss still POSTs.
+    'bundle_path' => env('I18N_KEYLESS_BUNDLE_PATH'),
+
 ];

@@ -104,6 +104,7 @@ end
 | `queue` | `I18N_KEYLESS_QUEUE` | none | An ActiveJob queue name: the misses of a request are enqueued as one `I18nKeyless::TranslateMissingKeysJob` instead of being sent after the response. |
 | `logger` | | `Rails.logger` | Where the `i18n-keyless:` warnings go. |
 | `rails_key_pattern` | | see above | The Rails-key rule. `nil`: every string is keyless. |
+| `bundle_path` | `I18N_KEYLESS_BUNDLE_PATH` | none | The directory of a precompiled bundle (`manifest.json` plus `<namespace>/<lang>.json`). Every dictionary it covers is read at boot, never fetched. See "Precompiled bundle". |
 
 `I18N_KEYLESS_LANGUAGES` is the list the API translates a new string into, and the list it
 stores as your project's languages (it replaces the previous one, like the `supported` list
@@ -157,6 +158,18 @@ requests; they are refreshed when a revalidation brings a new dictionary, and af
 most `cache_ttl` seconds later. The miss guard and the usage lock live in the cache too:
 with a `:memory_store` they are per process, so use a shared store (Redis, Memcached, the
 database, the file store) in production, as Rails recommends anyway.
+
+## Precompiled bundle
+
+Export your dictionaries once, at build time, with the MCP `export_bundle` tool or
+`GET /translate/bundle`: a directory holding `manifest.json` and one
+`<namespace>/<lang>.json` per dictionary. Point `bundle_path`
+(`I18N_KEYLESS_BUNDLE_PATH`) at it, for example `Rails.root.join("i18n-keyless")`. Every
+`(namespace, lang)` the manifest covers is then read at boot, into the process and into the
+cache with the manifest's cursor, and never fetched from the API; the cache wins only when
+it already holds a newer copy of the same language (a review that landed after the export).
+Nothing else changes: a pair the manifest does not list is fetched as before, a miss still
+POSTs, and its answer is merged next to the bundled lines.
 
 ## Limitations
 

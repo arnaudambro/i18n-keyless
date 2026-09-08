@@ -2,6 +2,7 @@ import {
   type Lang,
   type TranslationOptions,
   type I18nKeylessRequestBody,
+  type BundleConfig,
   resolveOriginLanguage,
   resolveMessageFormat,
   hasRequestedFormat,
@@ -11,7 +12,10 @@ import {
   I18nKeylessAllTranslationsResponse,
   api,
   identityHeaders,
-  setSdkRuntime
+  setSdkRuntime,
+  bundleCovers,
+  bundleNamespaces,
+  loadBundleSeed
 } from "i18n-keyless-core";
 import { I18nKeylessNodeConfig, I18nKeylessNodeStore } from "./types.ts";
 import packageJson from "./package.json" with { type: "json" };
@@ -235,6 +239,45 @@ function scheduleTranslationsUsageFlush() {
 // this package never calls (the awaitForTranslation* functions POST directly and cache the
 // answer).
 
+/**
+ * Seeds the store from the precompiled bundle (docs/PROTOCOL.md, section 7.4): every
+ * `(namespace, lang)` the manifest lists is loaded and merged into the flat per-language
+ * maps. The store has no namespace dimension, so several namespaces merge into the same
+ * map — the existing model, unchanged by the bundle. A language `AVAILABLE_LANGS` does not
+ * include is skipped, same as the boot fetch. The cursor is not stored: the node SDK never
+ * stores one (see the comment at the end of `init`).
+ */
+async function seedFromBundle(bundle: BundleConfig): Promise<void> {
+  const namespaces = bundleNamespaces(bundle.manifest);
+  await Promise.all(
+    namespaces.flatMap((namespace) => {
+      const languages = bundle.manifest.namespaces[namespace]?.languages ?? [];
+      return languages
+        .filter((lang): lang is Lang => AVAILABLE_LANGS.includes(lang as Lang))
+        .map(async (lang) => {
+          const seed = await loadBundleSeed(bundle, namespace, lang);
+          if (!seed) {
+            return;
+          }
+          store.translations[lang] = { ...store.translations[lang], ...seed.translations };
+        });
+    })
+  );
+}
+
+/**
+ * True when the manifest covers `namespace` in at least one language, meaning `init` can
+ * skip the boot fetch of that namespace: `seedFromBundle` already merged every dictionary
+ * the manifest has for it.
+ */
+function bundleCoversNamespace(bundle: BundleConfig | undefined, namespace: string): boolean {
+  if (!bundle || !bundleNamespaces(bundle.manifest).includes(namespace)) {
+    return false;
+  }
+  const languages = bundle.manifest.namespaces[namespace]?.languages ?? [];
+  return languages.some((lang) => bundleCovers(bundle.manifest, namespace, lang));
+}
+
 export async function init(newConfig: I18nKeylessNodeConfig): Promise<I18nKeylessNodeConfig> {
   if (!newConfig.languages) {
     throw new Error("i18n-keyless: languages is required");
@@ -261,23 +304,34 @@ export async function init(newConfig: I18nKeylessNodeConfig): Promise<I18nKeyles
   // The `sdk` header tells the API to count this request that way.
   setSdkRuntime("node");
 
+  // Precompiled bundle (docs/PROTOCOL.md, section 7.4): seed every dictionary it ships
+  // before deciding whether the boot fetch is still needed.
+  if (newConfig.bundle) {
+    await seedFromBundle(newConfig.bundle);
+  }
+
   // Boot fetch must target the configured namespace, otherwise a project using
   // `defaultNamespace` boots with the (empty) "default" namespace and every key misses.
-  const response = await getAllTranslationsForAllLanguages(newConfig.defaultNamespace);
-  if (response?.ok) {
-    // Merge rather than assign, so the per-language buckets survive.
-    for (const lang of Object.keys(response.data.translations) as Lang[]) {
-      if (!AVAILABLE_LANGS.includes(lang)) {
-        continue;
+  // Skipped entirely when the bundle already covers that namespace: `seedFromBundle` above
+  // already merged everything it has for it.
+  const defaultNamespace = newConfig.defaultNamespace || DEFAULT_NAMESPACE;
+  if (!bundleCoversNamespace(newConfig.bundle, defaultNamespace)) {
+    const response = await getAllTranslationsForAllLanguages(newConfig.defaultNamespace);
+    if (response?.ok) {
+      // Merge rather than assign, so the per-language buckets survive.
+      for (const lang of Object.keys(response.data.translations) as Lang[]) {
+        if (!AVAILABLE_LANGS.includes(lang)) {
+          continue;
+        }
+        store.translations[lang] = { ...store.translations[lang], ...response.data.translations[lang] };
       }
-      store.translations[lang] = { ...store.translations[lang], ...response.data.translations[lang] };
+      // `lastRefresh` is deliberately NOT stored: it's global here while fetches are per
+      // namespace, so reusing namespace A's timestamp for namespace B would silently drop
+      // everything B had before it.
+      //
+      // The id the server echoes back is ignored: we sent our own, it is the same value, and
+      // adopting a response's id would let a hiccup re-identify a stable process.
     }
-    // `lastRefresh` is deliberately NOT stored: it's global here while fetches are per
-    // namespace, so reusing namespace A's timestamp for namespace B would silently drop
-    // everything B had before it.
-    //
-    // The id the server echoes back is ignored: we sent our own, it is the same value, and
-    // adopting a response's id would let a hiccup re-identify a stable process.
   }
 
   return newConfig;

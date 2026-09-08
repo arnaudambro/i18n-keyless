@@ -1,12 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { resetUniqueIdState } from "i18n-keyless-core";
+import { resetUniqueIdState, resetPendingTranslations } from "i18n-keyless-core";
 import {
   init,
   getState,
   setState,
   subscribe,
   getTranslation,
+  getTranslationStatus,
   resolveTranslation,
+  resolveTranslationStatus,
   watchTranslation,
   setCurrentLanguage,
   getCurrentLanguage,
@@ -21,6 +23,7 @@ import { makeStorage, mockFetch, okResponse, flush, baseConfig, silenceConsole }
 beforeEach(() => {
   resetStore();
   resetUniqueIdState();
+  resetPendingTranslations();
   silenceConsole();
   window.localStorage.clear();
 });
@@ -246,13 +249,13 @@ describe("watchTranslation", () => {
     await init(baseConfig(makeStorage()));
     const onText = vi.fn();
     const stop = watchTranslation("Bonjour", {}, onText);
-    expect(onText).toHaveBeenLastCalledWith("Bonjour", "fr");
+    expect(onText).toHaveBeenLastCalledWith("Bonjour", "fr", "ready");
 
     await setCurrentLanguage("en");
-    expect(onText).toHaveBeenLastCalledWith("Hello", "en");
+    expect(onText).toHaveBeenLastCalledWith("Hello", "en", "ready");
 
     await setCurrentLanguage("fr");
-    expect(onText).toHaveBeenLastCalledWith("Bonjour", "fr");
+    expect(onText).toHaveBeenLastCalledWith("Bonjour", "fr", "ready");
     const callsBefore = onText.mock.calls.length;
     stop();
     setState({ translations: { Bonjour: "Other" }, currentLanguage: "en" });
@@ -263,11 +266,34 @@ describe("watchTranslation", () => {
     const { calls } = mockFetch({ en: { Bonjour: "Hello" } });
     const onText = vi.fn();
     watchTranslation("Bonjour", {}, onText);
-    expect(onText).toHaveBeenCalledWith("Bonjour", "fr");
+    expect(onText).toHaveBeenCalledWith("Bonjour", "fr", "ready");
     await init(baseConfig(makeStorage({ [storeKeys.currentLanguage]: "en" })));
     await flush();
-    expect(onText).toHaveBeenLastCalledWith("Hello", "en");
+    expect(onText).toHaveBeenLastCalledWith("Hello", "en", "ready");
     expect(calls.some((call) => call.method === "POST" && call.body?.key === "Bonjour")).toBe(true);
+  });
+
+  it("fires again on a status-only change: pending while the miss is in flight, then ready", async () => {
+    const fixtures: Record<string, Record<string, string>> = { en: {} };
+    mockFetch(fixtures);
+    await init(baseConfig(makeStorage({ [storeKeys.currentLanguage]: "en" })));
+    const onText = vi.fn();
+    watchTranslation("Bonjour", {}, onText);
+    // No cell yet, but a translate-on-miss was just queued: still the source text, status flips.
+    expect(onText).toHaveBeenLastCalledWith("Bonjour", "en", "pending");
+    fixtures.en = { Bonjour: "Hello" };
+    await flush();
+    expect(onText).toHaveBeenLastCalledWith("Hello", "en", "ready");
+  });
+
+  it("settles to unavailable when the fetch after the miss does not bring the cell", async () => {
+    mockFetch({ en: {} });
+    await init(baseConfig(makeStorage({ [storeKeys.currentLanguage]: "en" })));
+    const onText = vi.fn();
+    watchTranslation("Bonjour", {}, onText);
+    expect(onText).toHaveBeenLastCalledWith("Bonjour", "en", "pending");
+    await flush();
+    expect(onText).toHaveBeenLastCalledWith("Bonjour", "en", "unavailable");
   });
 });
 
@@ -598,5 +624,69 @@ describe("resolveTranslation", () => {
     setState({ config: baseConfig(undefined), currentLanguage: "en", translations: { "Bonjour {name}": "Hello {name}" } });
     expect(resolveTranslation("Bonjour {name}", { replace: {} })).toBe("Hello {name}");
     expect(resolveTranslation("Bonjour {name}", { replace: { "{name}": "" } })).toBe("Hello {name}");
+  });
+});
+
+describe("getTranslationStatus / resolveTranslationStatus", () => {
+  it("is unavailable before init: no API_KEY, even in another language", () => {
+    setState({ currentLanguage: "en" });
+    expect(getTranslationStatus("Hola")).toBe("unavailable");
+    expect(resolveTranslationStatus("Hola")).toBe("unavailable");
+  });
+
+  it("is ready in the key's own language, no lookup needed", () => {
+    setState({ config: baseConfig(undefined), currentLanguage: "fr" });
+    expect(getTranslationStatus("Bonjour")).toBe("ready");
+    expect(resolveTranslationStatus("Bonjour")).toBe("ready");
+  });
+
+  it("is ready once a usable cell is in the map", () => {
+    setState({ config: baseConfig(undefined), currentLanguage: "en", translations: { Bonjour: "Hello" } });
+    expect(getTranslationStatus("Bonjour")).toBe("ready");
+    expect(resolveTranslationStatus("Bonjour")).toBe("ready");
+  });
+
+  it("resolves origin-language keys the same way resolveTranslation does", () => {
+    setState({ config: baseConfig(undefined), currentLanguage: "fr", translations: { Hola: "Salut" } });
+    expect(getTranslationStatus("Hola", { originLanguage: "es" })).toBe("ready");
+    expect(resolveTranslationStatus("Hola", { originLanguage: "es" })).toBe("ready");
+    setState({ currentLanguage: "es" });
+    expect(getTranslationStatus("Hola", { originLanguage: "es" })).toBe("ready");
+    expect(resolveTranslationStatus("Hola", { originLanguage: "es" })).toBe("ready");
+  });
+
+  it("trims the key like getTranslationCore expects", () => {
+    setState({ config: baseConfig(undefined), currentLanguage: "en", translations: { Bonjour: "Hello" } });
+    expect(getTranslationStatus("  Bonjour  ")).toBe("ready");
+    expect(resolveTranslationStatus("  Bonjour  ")).toBe("ready");
+  });
+
+  it("is pending once a miss is actually queued, ready once the fetch merges", async () => {
+    const fixtures: Record<string, Record<string, string>> = { en: {} };
+    mockFetch(fixtures);
+    await init(baseConfig(makeStorage({ [storeKeys.currentLanguage]: "en" })));
+    await flush();
+    expect(getTranslationStatus("Bonjour")).toBe("unavailable");
+    expect(resolveTranslationStatus("Bonjour")).toBe("unavailable");
+
+    getTranslation("Bonjour"); // queues the miss
+    expect(getTranslationStatus("Bonjour")).toBe("pending");
+    expect(resolveTranslationStatus("Bonjour")).toBe("pending");
+
+    fixtures.en = { Bonjour: "Hello" };
+    await flush();
+    expect(getTranslationStatus("Bonjour")).toBe("ready");
+    expect(resolveTranslationStatus("Bonjour")).toBe("ready");
+  });
+
+  it("never queues a translation itself, even when the status is unavailable", async () => {
+    const { calls } = mockFetch();
+    await init(baseConfig(makeStorage({ [storeKeys.currentLanguage]: "en" })));
+    await flush();
+    expect(getTranslationStatus("Bonjour")).toBe("unavailable");
+    getTranslationStatus("Bonjour");
+    resolveTranslationStatus("Bonjour");
+    await flush();
+    expect(calls.some((call) => call.method === "POST" && call.url.endsWith("/translate"))).toBe(false);
   });
 });

@@ -70,11 +70,18 @@ The service provider is auto-discovered. No code change: `__()`, `@lang`, `trans
 
 `php artisan vendor:publish --tag=i18n-keyless-config`. Keys: `enabled`, `api_key`,
 `api_url`, `primary`, `languages`, `namespace`, `cache.store`, `cache.ttl`, `cache.prefix`,
-`timeout` (10 s), `retry` (`[500, 1500]` ms), `concurrency` (30), `usage` (true), `queue`.
+`timeout` (10 s), `retry` (`[500, 1500]` ms), `concurrency` (30), `usage` (true), `queue`,
+`bundle_path`.
 Env: `I18N_KEYLESS_ENABLED`, `I18N_KEYLESS_API_KEY`, `I18N_KEYLESS_API_URL`,
 `I18N_KEYLESS_PRIMARY_LANG`, `I18N_KEYLESS_LANGUAGES`, `I18N_KEYLESS_NAMESPACE`,
 `I18N_KEYLESS_CACHE_STORE`, `I18N_KEYLESS_CACHE_TTL`, `I18N_KEYLESS_USAGE`,
-`I18N_KEYLESS_QUEUE`.
+`I18N_KEYLESS_QUEUE`, `I18N_KEYLESS_BUNDLE_PATH`.
+
+Precompiled bundle: export the dictionaries at build time with the MCP `export_bundle`
+tool or `GET /translate/bundle` (a directory: `manifest.json` plus one
+`<namespace>/<lang>.json` per dictionary) and set `bundle_path` to that directory. A pair
+the manifest covers is read from the file, never fetched; the cache wins only when it is
+newer. A miss still POSTs. Nothing else changes.
 
 ## Debug
 

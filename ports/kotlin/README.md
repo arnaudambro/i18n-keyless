@@ -75,6 +75,7 @@ projects or languages, or to inject a transport in a test.
 | `apiUrl` | `https://api.i18n-keyless.com` | A self-hosted backend, no trailing slash. |
 | `languages` | required | `LanguagesConfig(primary, supported, fallback, initWithDefault, skipCurrentLanguageHydration)`. |
 | `storage` | `MemoryStorage()` | `FileStorage(dir)` or a `SharedPreferences` adapter on a device. See [Storage adapters](#storage-adapters). |
+| `bundle` | none | `I18nKeylessBundle(manifest, load)`, the translations shipped as assets. See [The precompiled bundle](#the-precompiled-bundle). |
 | `defaultNamespace` | `default` | Applied to every call that has no `namespace`. |
 | `server` | `false` | `true` on a server: `sdk: kotlin-server`, no device id, no usage analytics. See [Server](#server-ktor-spring-a-build-step). |
 | `handleTranslate`, `getAllTranslations`, `sendTranslationsUsage` | | Custom handlers: they replace the HTTP calls, in that priority. Called on a worker thread. |
@@ -198,6 +199,35 @@ The keys and their serialisation are the ones of the JavaScript SDKs
 `i18n-keyless-current-language`, `i18n-keyless-user-id`, ...). The device id under
 `i18n-keyless-user-id` is what the API counts as one user; `clearStorage()` keeps it on
 purpose.
+
+## The precompiled bundle
+
+Ship the translations with the app and keep the API for the misses. Export the files with
+the MCP `export_bundle` tool or `GET /translate/bundle`: a directory holding `manifest.json`
+and one `<namespace>/<lang>.json` per dictionary. Put it in the app's assets
+(`src/main/assets/i18n-keyless/`) and hand the manifest and a loader to `init`:
+
+```kotlin
+val bundle = I18nKeylessBundle.from { path ->
+    runCatching { context.assets.open("i18n-keyless/$path").bufferedReader().readText() }.getOrNull()
+}
+I18nKeylessConfig(apiKey = "...", languages = ..., bundle = bundle)
+```
+
+`from` reads `manifest.json` now (it throws when the manifest is missing) and each dictionary
+when it is seeded; the reader returns `null` for a file that does not exist. On a JVM the
+reader is `File(dir, path).readText()`. To read the files another way, build
+`I18nKeylessBundle(manifest = BundleManifest.parse(text)) { namespace, lang -> ... }` with
+your own loader; like the other handlers it runs on a worker thread, and may throw or return
+`null` (the pair is then fetched).
+
+A namespace the manifest covers in the current language is seeded from the file instead of
+fetched, at boot and on every language switch, with the bundle's cursor, so the next fetch
+for it is the delta after a miss. What storage holds for the namespace wins only when it is
+strictly newer and in the same language: a device that fetched after a human review keeps
+the reviewed text, and a stale bundle never overwrites fresher data. A pair the manifest
+does not list is fetched as before. A miss still POSTs. Nothing else changes
+(`docs/PROTOCOL.md` section 7.4).
 
 ## Wire facts
 

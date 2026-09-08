@@ -1,6 +1,13 @@
 export { I18nKeylessText, I18nKeylessText as T } from "./I18nKeylessText.tsx";
-export { useTranslation, type TranslateFunction } from "./useTranslation.ts";
-export { init, hydrateFromServer, setCurrentLanguage, getTranslation, getSupportedLanguages } from "./store.ts";
+export { useTranslation, useTranslationStatus, type TranslateFunction } from "./useTranslation.ts";
+export {
+  init,
+  hydrateFromServer,
+  setCurrentLanguage,
+  getTranslation,
+  getTranslationStatus,
+  getSupportedLanguages,
+} from "./store.ts";
 export { useCurrentLanguage, useI18nKeyless } from "./hooks.ts";
 export { clearI18nKeylessStorage, validateLanguage, createMemoryStorage } from "./utils.ts";
 export { I18nKeylessProvider, useI18nKeylessContext } from "./I18nKeylessProvider.tsx";
@@ -19,6 +26,9 @@ export {
   type Translations,
   type I18nKeylessRequestBody,
   type I18nKeylessResponse,
+  type BundleConfig,
+  type BundleManifest,
+  type TranslationStatus,
   getAllTranslationsFromLanguage,
   resolveLang,
   toAppStoreLocale,

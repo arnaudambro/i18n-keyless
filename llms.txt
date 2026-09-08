@@ -38,7 +38,7 @@ Do **not** use it for: translating documents or PDFs (it translates UI strings, 
 
 i18n-keyless exposes three integration surfaces for agents:
 
-1. **MCP server** (recommended): `POST https://api.i18n-keyless.com/mcp` — Streamable HTTP, OAuth 2.1 with PKCE. 15 tools covering project setup, translation, language management, and member management. Guide: https://docs.i18n-keyless.com/docs/guides/mcp
+1. **MCP server** (recommended): `POST https://api.i18n-keyless.com/mcp` — Streamable HTTP, OAuth 2.1 with PKCE. 16 tools covering project setup, translation, language management, the build-time export, and member management. Guide: https://docs.i18n-keyless.com/docs/guides/mcp
 2. **REST API**: `https://api.i18n-keyless.com/openapi.json` — OpenAPI 3.1 specification. Bearer token auth with the project API key.
 
 **Discovery endpoints** (on `api.i18n-keyless.com`):
@@ -82,6 +82,7 @@ i18n-keyless exposes three integration surfaces for agents:
 - **AI translations**: on cache miss, the server generates a translation with Mistral, stores it server-side and pushes it to the client cache.
 - **Overrides**: edit a translation in the dashboard at https://i18n-keyless.com/dashboard, or use `forceTemporary` from code.
 - **Human review**: check a translation in the dashboard to mark it reviewed; the mark is per language and is cleared when the AI rewrites that cell. See https://docs.i18n-keyless.com/docs/guides/human-review.
+- **Precompiled bundle**: export the dictionaries at build time (`GET /translate/bundle` or the MCP `export_bundle` tool), commit them, and pass `bundle: { manifest, load }` to `init`; a covered language is read from the files, never downloaded, and the API is only called for a miss. See https://docs.i18n-keyless.com/docs/guides/precompiled-bundle.
 - **Namespaces**: an optional string per translation (e.g. `"checkout"`) that partitions a project's translations so a client fetches and stores only the slice it renders — the fix for the browser storage quota error. It's a fetch/storage partition, **not** a semantic key (use `context` to disambiguate meaning). The reserved default namespace is the literal string `"default"`; with no namespace set anywhere, behavior is identical to legacy. See "Partition translations with namespaces" below.
 - **User generated content (UGC)**: text written by users in *their* language (a comment, a review, a bio). Pass `originLanguage` to tell i18n-keyless what language it's written in — the text itself is still the key. See "Translate user generated content (UGC)" below (`>= 2.5.0`).
 - **API key**: get one at https://i18n-keyless.com/#get-api-key.
@@ -369,6 +370,22 @@ getTranslation(message, { namespace: `discussion-${id}`, unpersistedNamespace: t
 Notes:
 - Namespaces and `context` are independent: namespace = fetch/storage partition, context = meaning disambiguation. The same source text can live in several namespaces with identical translations.
 - Reusing a source text across namespaces never costs an extra AI translation — the backend copies the existing translation into the new namespace.
+
+### Ship the translations in the bundle (no API call for a known string)
+
+Export the dictionaries at build time and commit them: the MCP `export_bundle` tool, or one `GET https://api.i18n-keyless.com/translate/bundle` with the public key, yields `i18n-keyless/manifest.json` plus one `i18n-keyless/<namespace>/<lang>.json` per dictionary. Then:
+
+```tsx
+import manifest from "./i18n-keyless/manifest.json";
+init({
+  API_KEY: "your-public-key",
+  languages: { primary: "fr", supported: ["fr", "en", "es"] },
+  storage: window.localStorage,
+  bundle: { manifest, load: (namespace, lang) => import(`./i18n-keyless/${namespace}/${lang}.json`) },
+});
+```
+
+A namespace the manifest covers in the current language is read from the file at boot and on every language switch, with the export's cursor, and never downloaded; the API is only called for a string the bundle does not have (UGC, a new screen) and for the delta after it. Storage wins over the bundle only when newer and in the same language. The bundle sits on the critical path (downloaded before the first paint, on every deploy), so always load it with a dynamic `import()` per language; the default runtime fetch is the better choice for a web app with many languages and a good network. Same option in vue, angular, browser and node (`load` reads the files), and in every port. Guide: https://docs.i18n-keyless.com/docs/guides/precompiled-bundle
 
 ### Translate user generated content (UGC) — `>= 2.5.0`
 
@@ -826,7 +843,7 @@ The flow, once per project: the agent calls the server and gets a `401` with OAu
 
 Tools, by the scope you grant on the consent page (a tool outside the granted scopes is not offered):
 
-- `i18n:read` — `get_started` (install + `init` with the project's public key and languages filled in), `search_docs`, `list_languages`, `get_project`, `list_projects`, `list_translations` (paginated, `missingOnly` for rows a language is still empty in), `get_translation`.
+- `i18n:read` — `get_started` (install + `init` with the project's public key and languages filled in), `search_docs`, `list_languages`, `get_project`, `list_projects`, `list_translations` (paginated, `missingOnly` for rows a language is still empty in), `get_translation`, `export_bundle` (the precompiled bundle: `manifest.json` plus one `<namespace>/<lang>.json`, to commit next to the app and hand to the SDK's `bundle` option).
 - `i18n:write` — `translate`, `migrate_translation` (imports a string already translated elsewhere, no AI call), `override_translation`, `delete_translation` (needs `confirm: true`), `set_project_languages` (primary only while the project has no translation).
 - `i18n:account` — `create_project` (instance admins only; on i18n-keyless.com projects are created from the website), `invite_member` (returns the invitation to pass on; no email is sent), `remove_member` — owner or admin, need `confirm: true`.
 
@@ -1081,6 +1098,7 @@ Generated from the site — run `npm run docs:sync` in `docs/` after adding a pa
 - Replace values — https://docs.i18n-keyless.com/docs/guides/replace-values
 - Self-host it (free, one project) — https://docs.i18n-keyless.com/docs/guides/self-hosting
 - Server-Side Rendering — https://docs.i18n-keyless.com/docs/ssr
+- Ship translations in the bundle — https://docs.i18n-keyless.com/docs/guides/precompiled-bundle
 - TanStack Start — https://docs.i18n-keyless.com/docs/ssr/tanstack-start
 - Translate user content (UGC) — https://docs.i18n-keyless.com/docs/guides/user-generated-content
 - Types — https://docs.i18n-keyless.com/docs/api/types

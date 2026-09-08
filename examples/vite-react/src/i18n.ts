@@ -1,4 +1,6 @@
 import { init } from "i18n-keyless-react";
+// The precompiled bundle: `node scripts/export-bundle.mjs` writes it, the repo commits it.
+import manifest from "./i18n-keyless/manifest.json";
 
 // Source strings in this demo are written in French, so `fr` is the primary language.
 export const PRIMARY = "fr";
@@ -22,6 +24,11 @@ export function initI18n() {
       supported: [...SUPPORTED_LANGUAGES]
     },
     // SPA: persist translations so they load instantly on the next visit.
-    storage: window.localStorage
+    storage: window.localStorage,
+    // Ship the dictionaries with the app: a language the manifest covers is read from the
+    // file, never downloaded. The dynamic import() makes Vite split one chunk per language,
+    // so only the rendered language ships. The API is still called for a string the bundle
+    // does not have. Delete these two lines to go back to the default runtime fetch.
+    bundle: { manifest, load: (namespace, lang) => import(`./i18n-keyless/${namespace}/${lang}.json`) }
   });
 }

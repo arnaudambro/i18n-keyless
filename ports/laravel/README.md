@@ -76,6 +76,7 @@ Every value has an `.env` counterpart:
 | `concurrency` | | `30` | Maximum `POST /translate` requests in flight at once. |
 | `usage` | `I18N_KEYLESS_USAGE` | `true` | Usage analytics: the date each string was last served, POSTed at most once every 10 s. `false` disables it and injects the dictionary with `Lang::addLines()`. |
 | `queue` | `I18N_KEYLESS_QUEUE` | none | A queue name: the misses of a request are dispatched as one `TranslateMissingKeys` job instead of being sent in `terminating`. |
+| `bundle_path` | `I18N_KEYLESS_BUNDLE_PATH` | none | The directory of a precompiled bundle (`manifest.json` plus `<namespace>/<lang>.json`). A dictionary it covers is read from the file, never fetched. See "Precompiled bundle". |
 
 `I18N_KEYLESS_LANGUAGES` is the list the API translates a new string into, and the list it
 stores as your project's languages (it replaces the previous one, like the `supported` list
@@ -119,6 +120,18 @@ Under Octane, or in a queue worker, the process keeps the injected lines between
 they are refreshed when a revalidation brings a new dictionary, and after each `POST
 /translate`. A dashboard edit reaches a running process at the next revalidation, at most
 `cache.ttl` seconds later.
+
+## Precompiled bundle
+
+Export your dictionaries once, at build time, with the MCP `export_bundle` tool or
+`GET /translate/bundle`: a directory holding `manifest.json` and one
+`<namespace>/<lang>.json` per dictionary. Point `bundle_path`
+(`I18N_KEYLESS_BUNDLE_PATH`) at it, for example `base_path('i18n-keyless')`. A
+`(namespace, lang)` the manifest covers is then read from its file, with the manifest's
+cursor, and never fetched from the API; the cache wins only when it already holds a newer
+copy of the same language (a review that landed after the export). Nothing else changes: a
+pair the manifest does not list is fetched as before, a miss still POSTs, and its answer is
+merged next to the bundled lines.
 
 ## Limitations
 

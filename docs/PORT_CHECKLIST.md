@@ -23,6 +23,10 @@ must ship before it is called conformant. Tick every box; link the evidence in t
 - [ ] Language switch and boot: validation against `supported` with `fallback`, cursor
       reset, full fetch per known namespace, `originNamespaces` fetched in the primary
       language (section 8).
+- [ ] The precompiled bundle (section 7.4): a config option taking the exported files
+      (a directory path on a server, a manifest plus an asset loader on a device); a covered
+      `(namespace, lang)` is seeded with the manifest cursor and never fetched; the storage
+      precedence rule; `bundle-seed.json` replayed.
 - [ ] Usage analytics: recorded per render on devices, sent once per init, suppressed on a
       server, `YYYY-MM-DD` UTC dates keyed by namespace (section 9).
 - [ ] Identity: 16-character id from the 63-character alphabet, persisted first at boot,

@@ -2,7 +2,7 @@ import { computed, inject, Injectable, PLATFORM_ID, type Signal } from "@angular
 import { toObservable } from "@angular/core/rxjs-interop";
 import { isPlatformBrowser } from "@angular/common";
 import type { Observable } from "rxjs";
-import type { Lang, Translations, TranslationOptions } from "i18n-keyless-core";
+import type { Lang, Translations, TranslationOptions, TranslationStatus } from "i18n-keyless-core";
 import {
   store,
   init as initStore,
@@ -10,6 +10,7 @@ import {
   setCurrentLanguage as setCurrentLanguageStore,
   getSupportedLanguages as getSupportedLanguagesStore,
   getTranslation as getTranslationStore,
+  getTranslationStatus as getTranslationStatusStore,
   clearI18nKeylessStorageAndStore,
 } from "./store.ts";
 import { I18N_KEYLESS_REQUEST_SCOPE } from "./scope.ts";
@@ -74,6 +75,26 @@ export class I18nKeylessService {
   }
 
   /**
+   * The shared resolution behind `translate()` and `translationStatus()`: one lookup, one
+   * request-on-miss memo, so the text and the status the caller sees can never drift.
+   */
+  private resolveAndRequest(
+    text: string,
+    options?: TranslationOptions
+  ): { text: string; lang: Lang; status: TranslationStatus } {
+    const sourceText = normalizeSourceText(text);
+    const resolved = resolveTranslation(sourceText, options, this.scope?.());
+    if (this.isBrowser && sourceText) {
+      const requestKey = `${resolved.lang} ${options?.namespace ?? ""} ${options?.context ?? ""} ${sourceText}`;
+      if (!this.requested.has(requestKey)) {
+        this.requested.add(requestKey);
+        requestTranslation(sourceText, options);
+      }
+    }
+    return resolved;
+  }
+
+  /**
    * The translated string for `text`, reactive.
    *
    * It reads signals, so call it from a template, a `computed` or an `effect` and the
@@ -81,16 +102,7 @@ export class I18nKeylessService {
    * requests a missing translation (browser only, once per text and language).
    */
   translate(text: string, options?: TranslationOptions): string {
-    const sourceText = normalizeSourceText(text);
-    const { text: translated, lang } = resolveTranslation(sourceText, options, this.scope?.());
-    if (this.isBrowser && sourceText) {
-      const requestKey = `${lang} ${options?.namespace ?? ""} ${options?.context ?? ""} ${sourceText}`;
-      if (!this.requested.has(requestKey)) {
-        this.requested.add(requestKey);
-        requestTranslation(sourceText, options);
-      }
-    }
-    return translated;
+    return this.resolveAndRequest(text, options).text;
   }
 
   /**
@@ -99,6 +111,18 @@ export class I18nKeylessService {
    */
   translation(text: string, options?: TranslationOptions): Signal<string> {
     return computed(() => this.translate(text, options));
+  }
+
+  /**
+   * The status of `text` (`"ready" | "pending" | "unavailable"`, docs/PROTOCOL.md 5.5), as a
+   * signal: `readonly status = this.i18n.translationStatus("Bonjour");` then `{{ status() }}`.
+   * Shares `translate()`'s resolution and request-on-miss memo, so calling it alone (without
+   * also rendering the text) still drives the status from `unavailable` to `pending` to
+   * `ready`. Re-evaluates when the translation lands, the language changes, or the
+   * pending-translations set changes for this key.
+   */
+  translationStatus(text: string, options?: TranslationOptions): Signal<TranslationStatus> {
+    return computed(() => this.resolveAndRequest(text, options).status);
   }
 
   /**
@@ -114,6 +138,19 @@ export class I18nKeylessService {
       return resolveTranslation(sourceText, options, scope).text;
     }
     return getTranslationStore(normalizeSourceText(text), options);
+  }
+
+  /**
+   * One-shot, non-reactive status for `text`, outside change detection. Same scope
+   * resolution as `getTranslation()`, and no side effect: it never queues a
+   * translate-on-miss, even when the status it derives is `"unavailable"`.
+   */
+  getTranslationStatus(text: string, options?: TranslationOptions): TranslationStatus {
+    const scope = this.scope?.();
+    if (scope && !getRequestScope()) {
+      return resolveTranslation(normalizeSourceText(text), options, scope).status;
+    }
+    return getTranslationStatusStore(normalizeSourceText(text), options);
   }
 
   /** Wipes the persisted cache and resets the store (the device id is kept). */

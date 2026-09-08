@@ -16,6 +16,7 @@ import packageJson from "./package.json" with { type: "json" };
 import { api } from "./api.ts";
 import { identityHeaders, whenUniqueIdIsKnown } from "./unique-id.ts";
 import { formatIcuMessage, hasRequestedFormat, messageValuesOf, resolveMessageFormat } from "./message-format.ts";
+import { markTranslationPending } from "./translation-status.ts";
 
 export const queue = new MyPQueue({ concurrency: 30 });
 
@@ -204,6 +205,10 @@ export function translateKey(key: string, store: FetchTranslationParams, options
   // Remember this namespace (and whether it's unpersisted) so the queue's "empty" handler
   // bulk-fetches it (and only it) and persists the result accordingly.
   namespacesToFetchAfterTranslationFinished.set(namespace, !!options?.unpersistedNamespace);
+  // A task is actually queued past this point: record it as pending so a reactive status
+  // hook can show it (docs/PROTOCOL.md 5.5). Parallel bookkeeping, not a dedup mechanism —
+  // the `translating` flag and the queue's own dedup rules below are unchanged.
+  markTranslationPending(namespace, key);
   // Dedup/guard per namespace so the same source text can be queued independently under
   // different namespaces.
   const queueId = queueIdFor(namespace, key);

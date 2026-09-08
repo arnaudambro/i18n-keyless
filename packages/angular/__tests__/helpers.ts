@@ -1,7 +1,7 @@
 import { vi } from "vitest";
 import { Input, type Type } from "@angular/core";
 import type { ComponentFixture } from "@angular/core/testing";
-import { resetUniqueIdState } from "i18n-keyless-core";
+import { resetUniqueIdState, resetPendingTranslations } from "i18n-keyless-core";
 import { resetStoreForTests } from "../store.ts";
 import { I18nKeylessTextComponent } from "../text.component.ts";
 import type { I18nConfig } from "../types.ts";
@@ -119,6 +119,7 @@ export function baseConfig(extra: Partial<I18nConfig> = {}): I18nConfig {
 
 /** Resets every module-level singleton the store and the core keep between tests. */
 export function resetAll() {
+  resetPendingTranslations();
   resetStoreForTests();
   resetUniqueIdState();
   vi.unstubAllGlobals();
@@ -147,6 +148,12 @@ export function renderedText(fixture: ComponentFixture<unknown>, selector = "i18
 export function sourceText(fixture: ComponentFixture<unknown>, selector = "i18n-t"): string {
   const element = (fixture.nativeElement as HTMLElement).querySelector(selector);
   return element?.firstChild?.textContent ?? "";
+}
+
+/** The `data-i18n-status` attribute `<i18n-t>` mirrors from its `status` signal. */
+export function statusOf(fixture: ComponentFixture<unknown>, selector = "i18n-t"): string | null {
+  const element = (fixture.nativeElement as HTMLElement).querySelector(selector);
+  return element?.getAttribute("data-i18n-status") ?? null;
 }
 
 /**

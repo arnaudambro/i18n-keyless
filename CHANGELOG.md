@@ -9,6 +9,36 @@ All notable changes to i18n-keyless are documented here. The npm packages
 This project follows [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **The precompiled bundle**: ship the translations with the app and keep the API for the
+  misses. `GET /translate/bundle` (and the MCP `export_bundle` tool) export every namespace
+  and every enabled language as `manifest.json` plus one `<namespace>/<lang>.json`; the new
+  `bundle: { manifest, load }` option of `init` (react, vue, angular, browser, node, and
+  every port) seeds a covered namespace from the file instead of fetching it, at boot and on
+  a language switch, with the bundle's cursor — so the first fetch after a miss is a delta.
+  Storage wins only when newer and in the same language. `load` may return a dynamic
+  `import()` so a bundler ships only the rendered language. `getServerTranslations` reads
+  the bundle before the network. Core exports `bundleCovers`, `bundleNamespaces`,
+  `unwrapBundleFile`, `mergeBundleWithStorage`, `loadBundleSeed`; `docs/PROTOCOL.md`
+  sections 4.5 and 7.4 plus `conformance/vectors/bundle-seed.json` specify it.
+
+- **Translation status** (core): a status per (key, language) — `ready`, `pending`,
+  `unavailable` — so a developer can show a spinner, a blur, or the source text while a UGC
+  translation is on its way, without the SDK deciding for them. `packages/core` exports the
+  type `TranslationStatus`, the pure resolver `resolveTranslationStatus`, the store-based
+  `getTranslationStatusCore` (no side effect: it never queues), and the pending-set
+  bookkeeping `markTranslationPending` / `isTranslationPending` /
+  `settlePendingTranslationsAfter` / `subscribeToPendingTranslations`; `translateKey` marks
+  a key pending the moment it actually queues a translate-on-miss request, and the queue's
+  own dedup rules (section 6) are unchanged. `docs/PROTOCOL.md` section 5.5 specifies the
+  derivation rules and the pending-set lifecycle. The react, vue, angular and browser
+  packages build their reactive surface (`useTranslationStatus`, the `pending` slot / prop,
+  `data-i18n-status`, ...) on top of this next; the node package and the ports are out of
+  scope.
+
 ## [3.7.0] — 2026-09-08
 
 ### Added

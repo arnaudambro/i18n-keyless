@@ -12,6 +12,10 @@ import { watchTranslation } from "./store.ts";
  * `count` (a number: `<i18n-t count="3">{count} articles</i18n-t>`), `ordinal`.
  * Properties: `replace` (object, from JS), `select` (object, from JS: `{ gender: "female" }`),
  * `text` (the source, to set it before the element is connected without text).
+ *
+ * The element reflects the translation status (docs/PROTOCOL.md 5.5) as
+ * `data-i18n-status="pending|ready|unavailable"`, so CSS can style it, e.g.
+ * `i18n-t[data-i18n-status="pending"] { opacity: 0.5 }`.
  */
 export class I18nTElement extends HTMLElement {
   static get observedAttributes(): string[] {
@@ -112,9 +116,12 @@ export class I18nTElement extends HTMLElement {
     this.unbind();
     // Every caller sets `source` first: `connectedCallback` and the `text` setter, and
     // `rebind` only runs once a `bind` has happened.
-    this.stopWatching = watchTranslation(this.source!, this.options, (text) => {
+    this.stopWatching = watchTranslation(this.source!, this.options, (text, _lang, status) => {
       if (this.textContent !== text) {
         this.textContent = text;
+      }
+      if (this.getAttribute("data-i18n-status") !== status) {
+        this.setAttribute("data-i18n-status", status);
       }
     });
   }

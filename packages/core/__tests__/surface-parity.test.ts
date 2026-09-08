@@ -113,6 +113,7 @@ describe("index.ts exports the same names in every framework package", () => {
     useI18nKeyless: RV,
     useI18nKeylessContext: RV,
     useTranslation: RV,
+    useTranslationStatus: RV,
     // The type of `useTranslation`'s function form; vue types it inline.
     TranslateFunction: ["react"],
     // Vue: the app plugin and the injection key.
@@ -127,6 +128,8 @@ describe("index.ts exports the same names in every framework package", () => {
     I18nKeylessService: ["angular"],
     I18nKeylessTextComponent: ["angular"],
     I18nKeylessTranslatePipe: ["angular"],
+    // Angular: the `tStatus` pipe; react and vue expose the status through a hook instead.
+    I18nKeylessTranslationStatusPipe: ["angular"],
     I18nStorage: ["angular"],
     i18nKeylessStore: ["angular"],
     provideI18nKeyless: ["angular"],
@@ -155,6 +158,8 @@ describe("index.ts exports the same names in every framework package", () => {
     getState: ["browser"],
     parseAutoConfig: ["browser"],
     resolveTranslation: ["browser"],
+    // Browser: the pure companion of `resolveTranslation`, for a `subscribe` listener.
+    resolveTranslationStatus: ["browser"],
     subscribe: ["browser"],
     translateDom: ["browser"],
     watchTranslation: ["browser"],

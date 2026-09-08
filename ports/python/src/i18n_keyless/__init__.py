@@ -20,6 +20,15 @@ from __future__ import annotations
 
 from typing import Any, Dict, Mapping, Optional, Sequence
 
+from .bundle import (
+    BundleError,
+    BundleSeed,
+    StoredSeed,
+    bundle_covers,
+    bundle_namespaces,
+    merge_bundle_with_storage,
+    read_manifest,
+)
 from .client import (
     CONCURRENCY,
     USAGE_FLUSH_MS,
@@ -54,20 +63,27 @@ __all__ = [
     "TIMEOUT_MS",
     "USAGE_FLUSH_MS",
     "ApiClient",
+    "BundleError",
+    "BundleSeed",
     "Config",
     "I18nKeyless",
     "Lookup",
     "Miss",
     "NotInitialized",
+    "StoredSeed",
     "TranslationError",
     "__version__",
     "apply_replace",
+    "bundle_covers",
+    "bundle_namespaces",
     "client",
     "flush_usage",
     "get_supported_languages",
     "init",
     "is_lang",
+    "merge_bundle_with_storage",
     "queue_id_for",
+    "read_manifest",
     "reset",
     "resolve_lang",
     "resolve_namespace",

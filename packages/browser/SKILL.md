@@ -136,6 +136,33 @@ getSupportedLanguages();          // ["fr", "en"] for a picker
 
 From an inline script in auto mode: `i18nKeyless.setCurrentLanguage('en')`.
 
+### Ship the translations in the bundle (optional)
+
+By default a dictionary is downloaded at boot and the API stays in the loop. To make the
+page independent of the API for every string it already knows, export the dictionaries at
+build time — the MCP `export_bundle` tool, or `GET /translate/bundle` with the public key —
+commit `i18n-keyless/manifest.json` plus one `i18n-keyless/<namespace>/<lang>.json` per
+dictionary, and pass them to `init` (only the programmatic entry: a loader function cannot
+be a `data-*` attribute, so this is not available from the `./auto` script tag):
+
+```ts
+import manifest from "./i18n-keyless/manifest.json";
+
+init({
+  API_KEY: "YOUR_API_KEY",
+  languages: { primary: "fr", supported: ["fr", "en"] },
+  bundle: { manifest, load: (namespace, lang) => import(`./i18n-keyless/${namespace}/${lang}.json`) },
+});
+```
+
+A covered `(namespace, lang)` is read from the file at boot and on a language switch, never
+downloaded; the API is only called for a key the bundle does not have (UGC, a new screen)
+and for the delta after it. Storage wins only when newer and in the same language, so a
+device that fetched after a human review keeps the reviewed text. Always load with a
+dynamic `import()` per language: the bundle sits on the critical path, so for a page with
+many languages the default fetch may be the better choice. Re-run the export before a
+release.
+
 ### React to the store
 
 ```ts
@@ -147,6 +174,22 @@ const stop = subscribe((state, previous) => {
 ```
 
 `resolveTranslation(text, options)` is the lookup with no side effect: safe inside a listener.
+
+### Loading state
+
+`getTranslationStatus(text, options)` returns `"ready" | "pending" | "unavailable"` (no side
+effect, never queues): `ready` when the text is final, `pending` while a translate-on-miss is
+in flight, `unavailable` otherwise (offline, not initialized, or a server runtime).
+`resolveTranslationStatus(text, options, state?)` is its pure companion, for use inside a
+`subscribe` listener — same resolution `resolveTranslation` uses, so the text and the status
+never disagree. `watchTranslation(text, options, onText)` now calls `onText(translated, lang,
+status)`, firing again on a status-only flip (pending → ready/unavailable), even when the
+rendered text does not change. `translateDom()` and `<i18n-t>` reflect it as
+`data-i18n-status="pending|ready|unavailable"`, so plain CSS can show a spinner or a blur:
+
+```css
+i18n-t[data-i18n-status="pending"], [data-i18n][data-i18n-status="pending"] { opacity: 0.5; }
+```
 
 ## Per-translation options
 

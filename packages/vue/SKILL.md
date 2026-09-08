@@ -91,6 +91,33 @@ const currentLanguage = useCurrentLanguage(); // computed<Lang>, unwraps in temp
 getSupportedLanguages();                      // the configured list, for a picker
 ```
 
+### Ship the translations in the bundle (optional)
+
+By default a dictionary is downloaded at boot and the API stays in the loop. To make the
+app independent of the API for every string it already knows, export the dictionaries at
+build time — the MCP `export_bundle` tool, or `GET /translate/bundle` with the public key —
+commit `i18n-keyless/manifest.json` plus one `i18n-keyless/<namespace>/<lang>.json` per
+dictionary, and pass them to `init`:
+
+```ts
+import manifest from "./i18n-keyless/manifest.json";
+
+init({
+  API_KEY: "YOUR_API_KEY",
+  storage: window.localStorage,
+  languages: { primary: "fr", supported: ["fr", "en"] },
+  bundle: { manifest, load: (namespace, lang) => import(`./i18n-keyless/${namespace}/${lang}.json`) },
+});
+```
+
+A covered language is read from the file at boot and on a language switch, never downloaded;
+the API is only called for a key the bundle does not have (UGC, a new screen) and for the
+delta after it. Storage wins only when newer and in the same language. `getServerTranslations`
+answers from the bundle too, when covered. Always load with a dynamic `import()` per language:
+the bundle sits on the critical path (downloaded before the first paint, on every deploy), so
+for a web app with many languages and a good network the default fetch is the better choice.
+Re-run the export before a release.
+
 ## Per-translation options
 
 Props on `<T>` and the options argument of `t(text, options)`, `useTranslation(text, options)`
@@ -115,6 +142,31 @@ and `getTranslation(text, options)`:
 - `originLanguage`: for user generated content, the language *that string* is written in
   when it is not the primary one.
 - `debug`: logs the resolution of that one string.
+
+### Loading state
+
+A missing translation renders the source text while the miss is in flight. To show
+something else instead (a spinner, a blur), read the status:
+
+```vue
+<script setup lang="ts">
+import { useTranslationStatus, useI18nKeyless } from "i18n-keyless-vue";
+
+const { text, status, sourceText } = useTranslationStatus("Bonjour"); // reactive
+const { tStatus } = useI18nKeyless(); // tStatus(text, options) resolved the same way t() is
+</script>
+
+<template>
+  <!-- <T> / <I18nKeylessText>: a named `pending` slot renders instead of the text. -->
+  <T>
+    Bonjour
+    <template #pending="{ sourceText }">{{ sourceText }} (translating…)</template>
+  </T>
+</template>
+```
+
+`status` is `"ready"` | `"pending"` | `"unavailable"`. `getTranslationStatus(text, options)`
+is the plain, non-reactive form (like `getTranslation`): it never queues a translation.
 
 ## SSR
 

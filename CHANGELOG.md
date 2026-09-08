@@ -9,7 +9,7 @@ All notable changes to i18n-keyless are documented here. The npm packages
 This project follows [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [3.8.0]
 
 ### Added
 

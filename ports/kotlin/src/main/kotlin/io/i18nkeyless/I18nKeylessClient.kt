@@ -411,13 +411,14 @@ class I18nKeylessClient(
         val existing = translations[storageKey]
         if (!existing.isNullOrEmpty() && !forced) return
 
-        val missId = "${current.code}|$namespace|$storageKey"
+        // Dedupe per namespace so the same text can be queued under two namespaces.
+        // The id ignores the context: two contexts on the same key are one request.
+        val queueId = queueIdFor(namespace, key)
+        val missId = "${current.code}|$queueId"
         if (!requestedMisses.add(missId)) return
 
         // Remember this namespace so the queue's empty handler bulk-fetches it, and only it.
         namespacesToFetch[namespace] = options.unpersistedNamespace
-        // Dedupe per namespace so the same text can be queued under two namespaces.
-        val queueId = queueIdFor(namespace, key)
         if (options.debug) log("translateKey \"$key\" (${options.context}) [$namespace]")
         val origin = resolveOriginLanguage(options.originLanguage, primary)
         val body = LinkedHashMap<String, Any?>()
@@ -472,7 +473,7 @@ class I18nKeylessClient(
             track(CompletableFuture.runAsync({
                 val response = fetchLanguage(lang, namespace, cursors[namespace])
                 val changed = lock.withLock {
-                    requestedMisses.removeIf { it.startsWith("${lang.code}|$namespace|") }
+                    requestedMisses.removeIf { it.startsWith("${lang.code}|$namespace:") }
                     setTranslations(response, namespace, unpersisted)
                 }
                 if (changed) notifyListeners()

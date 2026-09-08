@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 3.8.0
 
 - `bundle_path` (`Config.bundle_path`, or `init(bundle_path=...)`): the precompiled bundle of
   `docs/PROTOCOL.md` section 7.4. Point it at the directory the MCP `export_bundle` tool or

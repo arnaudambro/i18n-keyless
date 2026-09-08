@@ -56,6 +56,28 @@ function run(cmd, cmdArgs, { cwd = root, env } = {}) {
   }
 }
 
+/**
+ * `flutter pub publish --dry-run` exits 65 on *any* warning, and one warning is always
+ * present during a release: the version bump is still uncommitted, because the release
+ * commit is step 5 and this is step 4. Accept that single warning; fail on every other.
+ * The real publish below passes `--force`, which ignores warnings anyway.
+ */
+function runPubPublishDryRun(cwd) {
+  const cmdArgs = ["pub", "publish", "--dry-run"];
+  console.log(`\n$ flutter ${cmdArgs.join(" ")}   (in ${cwd.replace(root + "/", "")})`);
+  const result = spawnSync("flutter", cmdArgs, { cwd, encoding: "utf8" });
+  const output = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+  process.stdout.write(output);
+  if (result.status === 0) return;
+  const warnings = Number(output.match(/Package has (\d+) warnings?\./)?.[1] ?? NaN);
+  const dirtyGitOnly = warnings === 1 && /checked-in files? (?:is|are) modified in git/.test(output);
+  if (dirtyGitOnly) {
+    console.log("\nonly warning: the release edits are not committed yet (the release commit is step 5) — accepted");
+    return;
+  }
+  throw new Error(`flutter ${cmdArgs.join(" ")} exited with ${result.status ?? result.signal}`);
+}
+
 /** Run a command and return its stdout; returns null on a non-zero exit. */
 function capture(cmd, cmdArgs, { cwd = root } = {}) {
   try {
@@ -287,7 +309,7 @@ if (flag("skip-flutter")) {
 } else {
   step("pub.dev: i18n_keyless");
   const flutter = resolve(root, "ports/flutter");
-  run("flutter", ["pub", "publish", "--dry-run"], { cwd: flutter });
+  runPubPublishDryRun(flutter);
   if (!dryRun) {
     if (!(await confirm("Publish i18n_keyless to pub.dev? (no unpublish)"))) fail("stopped before pub.dev");
     run("flutter", ["pub", "publish", "--force"], { cwd: flutter });

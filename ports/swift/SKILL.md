@@ -152,7 +152,7 @@ starts from the seeded cursor. Nothing else changes.
 ## Operate it from your agent (MCP)
 
 ```bash
-claude mcp add --transport http i18n-keyless https://api.i18n-keyless.com/mcp
+claude mcp add --transport http i18n-keyless https://app.i18n-keyless.com/mcp
 ```
 
 Call `get_started` first: it returns the install steps with the project's key and languages

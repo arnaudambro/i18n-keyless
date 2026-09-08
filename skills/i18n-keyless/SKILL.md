@@ -352,11 +352,11 @@ Anything a human can do in the dashboard, you can do through the MCP server — 
 paste, OAuth gives you your own login:
 
 ```bash
-claude mcp add --transport http i18n-keyless https://api.i18n-keyless.com/mcp
+claude mcp add --transport http i18n-keyless https://app.i18n-keyless.com/mcp
 ```
 
-Other clients: an HTTP MCP server at `https://api.i18n-keyless.com/mcp`
-(`{ "mcpServers": { "i18n-keyless": { "type": "http", "url": "https://api.i18n-keyless.com/mcp" } } }`).
+Other clients: an HTTP MCP server at `https://app.i18n-keyless.com/mcp`
+(`{ "mcpServers": { "i18n-keyless": { "type": "http", "url": "https://app.i18n-keyless.com/mcp" } } }`).
 
 On the first call the browser opens once: sign in or sign up (plan and payment included),
 pick the project, approve. The token is bound to that one project — add the server once per

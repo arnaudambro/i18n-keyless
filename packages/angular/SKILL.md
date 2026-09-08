@@ -226,10 +226,10 @@ const lang = resolveLang(navigator.language, { supported: ["fr", "en"], fallback
 ## Operate it from your agent (MCP)
 
 ```bash
-claude mcp add --transport http i18n-keyless https://api.i18n-keyless.com/mcp
+claude mcp add --transport http i18n-keyless https://app.i18n-keyless.com/mcp
 ```
 
-Other clients: `{ "mcpServers": { "i18n-keyless": { "type": "http", "url": "https://api.i18n-keyless.com/mcp" } } }`.
+Other clients: `{ "mcpServers": { "i18n-keyless": { "type": "http", "url": "https://app.i18n-keyless.com/mcp" } } }`.
 On the first call the browser opens once: sign in or sign up, pick the project, approve. Then
 call `get_started` first: it returns the install steps with the project's key and languages
 already filled in. Tools: `get_started`, `search_docs`, `list_languages`, `get_project`,

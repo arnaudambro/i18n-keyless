@@ -237,7 +237,7 @@ in a test so cases stay isolated.
 Anything a human can do in the dashboard, an agent can do through the MCP server:
 
 ```bash
-claude mcp add --transport http i18n-keyless https://api.i18n-keyless.com/mcp
+claude mcp add --transport http i18n-keyless https://app.i18n-keyless.com/mcp
 ```
 
 Guide: https://docs.i18n-keyless.com/docs/guides/mcp

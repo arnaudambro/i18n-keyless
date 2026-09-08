@@ -50,7 +50,7 @@ these fits your tool:
 | **Agent Skill** | [`skills/i18n-keyless/SKILL.md`](./skills/i18n-keyless/SKILL.md) | Claude Code, Claude.ai, and any tool that reads `SKILL.md`. Copy the folder into `.claude/skills/` of your project. |
 | **llms.txt** | [`llms.txt`](./llms.txt), also served at [docs.i18n-keyless.com/llms.txt](https://docs.i18n-keyless.com/llms.txt) | The whole documentation as one pasteable Markdown file — Cursor, ChatGPT, Windsurf, Copilot. |
 | **Context7** | `use context7` in your prompt | Live docs injected into the context window through the Context7 MCP server. |
-| **MCP server** | `claude mcp add --transport http i18n-keyless https://api.i18n-keyless.com/mcp` | Your agent operates the project: list missing translations, fix one, change languages, create a project. OAuth, no key to paste. [Guide](https://docs.i18n-keyless.com/docs/guides/mcp). |
+| **MCP server** | `claude mcp add --transport http i18n-keyless https://app.i18n-keyless.com/mcp` | Your agent operates the project: list missing translations, fix one, change languages, create a project. OAuth, no key to paste. [Guide](https://docs.i18n-keyless.com/docs/guides/mcp). |
 
 The skill is short on purpose: install, initialise, the two ways to render a string, the
 per-translation options, the SSR traps, and the gotchas. It links to `llms.txt` for the rest.

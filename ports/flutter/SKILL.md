@@ -173,7 +173,7 @@ starts from the seeded cursor. Nothing else changes.
 Anything a human can do in the dashboard, you can do through the MCP server:
 
 ```bash
-claude mcp add --transport http i18n-keyless https://api.i18n-keyless.com/mcp
+claude mcp add --transport http i18n-keyless https://app.i18n-keyless.com/mcp
 ```
 
 Call `get_started` first: it returns the install steps with the project's key and

@@ -4,6 +4,14 @@ Welcome to **i18n-keyless**! 🚀 This package provides a seamless way to handle
 
 [Try it by yourself in this Stackblitz](https://stackblitz.com/edit/vitejs-vite-ttaib9fx?file=src%2FApp.tsx)
 
+**The short version, for anyone evaluating it:**
+
+- **Open.** Every SDK in this repository is MIT. The server behind i18n-keyless.com — API, dashboard, MCP server — is public under the Elastic License 2.0 ([ambroselli-io/i18n-keyless-server](https://github.com/ambroselli-io/i18n-keyless-server)) and runs as one Docker image on your own machine: [self-hosting](#-self-hosting-the-server). The wire protocol is [documented](./docs/PROTOCOL.md).
+- **Price.** Hosted: one flat price per project per month, by monthly active users, from €4 ([pricing](https://i18n-keyless.com/#pricing)). Self-hosted: free for one project, €30 once for unlimited ([details](https://i18n-keyless.com/self-hosted)). Your own AI key in both cases.
+- **Your data.** One "Export JSON" click in the dashboard downloads every translation of a project.
+- **Scope.** AI translation, with a manual override in the dashboard that the AI never rewrites, and a per-cell "reviewed" mark. Read [what it does not do](#-what-i18n-keyless-does-not-do) before choosing.
+- **Compared** with Crowdin, Lokalise, Phrase, Tolgee and i18next, prices dated: [the comparison](https://docs.i18n-keyless.com/docs/comparison). The [FAQ](https://docs.i18n-keyless.com/docs/faq) has the rest.
+
 ---
 
 ## 📜 **Table of Contents**
@@ -24,6 +32,8 @@ Welcome to **i18n-keyless**! 🚀 This package provides a seamless way to handle
 - [Protocol and ports](#-protocol-and-ports)
 - [Self-hosting the server](#-self-hosting-the-server)
 - [Custom Component Example](#️-custom-component-example)
+- [What i18n-keyless does not do](#-what-i18n-keyless-does-not-do)
+- [Common objections](#-common-objections)
 - [What pains does it solve?](#-what-pains-does-it-solve)
 - [Contact](#-contact)
 - [License](#-license)
@@ -1344,6 +1354,39 @@ export default function MyText({
 }
 ```
 
+## 🚫 **What i18n-keyless does not do**
+
+The limits, as of the current release. None of this is on a roadmap you should count on.
+
+- **48 target languages**, the App Store localizations, and no others. See [Supported Languages](#-supported-languages).
+- **The first request of a never-seen string is an AI call**: about 500 ms for a short UI string, more for a paragraph. Every later request, for every user, is a cache hit; concurrent first requests are coalesced into one AI call.
+- **Plurals, ordinals and gender go through `count`, `ordinal` and `select`**, and the model writes the forms each language needs (one ICU message per language, checked against `Intl.PluralRules`). You do not hand-author ICU: no `=0`-style exact matches, no nested arbitrary arguments. Some ports do not render the forms yet — see [Plurals and genders](https://docs.i18n-keyless.com/docs/guides/plurals-and-genders).
+- **Dates, numbers and currencies are not formatted by the SDK**: use your runtime's `Intl` and inject the result with `replace`.
+- **No translation memory, no glossary, no in-context editor, no screenshot context, no translator marketplace, no custom prompt.** Meaning goes in `context`, per string; corrections go in the dashboard, by hand, and stay.
+- **Translations live in the database, not in git.** The source strings are in your code and reviewed in your pull requests; the translations are reviewed in the dashboard or exported to JSON.
+- **UI and product strings only.** Not documents, not PDFs, not SEO pages rendered at build time.
+- **Vue, Angular, browser and the ports** (Laravel, Rails, Flutter, Python, Go, Swift, Kotlin) each have their own README with their own limits; the React and Node SDKs are the reference implementations.
+
+---
+
+## 🤔 **Common objections**
+
+The ones that come up when a team evaluates it. Short answers; the [FAQ](https://docs.i18n-keyless.com/docs/faq) has the long ones.
+
+**"It depends on a third-party service; that is lock-in."** The server is public (ELv2) and runs as one Docker image on your machine; the SDKs are MIT; the protocol is written down; the dashboard exports everything to JSON. If i18n-keyless.com vanished tomorrow, installed apps would keep serving their cached translations, a fresh client would fall back to the source text, and `API_URL` pointed at your own instance would restore everything, AI translation included.
+
+**"`context` is just a key in disguise."** A key is mandatory on every string, unique, in a global namespace you maintain by hand. `context` is optional, describes the meaning ("the window" or "by distance" for *Close*), and is set on the few strings that are ambiguous — most carry none. The source text stays the lookup, with or without it.
+
+**"Machine translation is not for serious production."** AI translation is the default and the fast path. Any cell can be overridden by hand in the dashboard, and the AI never rewrites what a person wrote; a per-cell "reviewed" mark tells the two apart. If your team has professional translators and a review workflow, a TMS (Crowdin, Lokalise, Tolgee) serves it better — [the comparison](https://docs.i18n-keyless.com/docs/comparison) says which does what.
+
+**"I cannot review the copy in a pull request."** The source string is in the code, so a wording change is a plain-language diff in the PR — more readable than `t("order.status")` on both sides. Only the translations live outside git, as with every translation platform.
+
+**"I could write that backend in an evening."** It is already written and public: coalescing of concurrent misses, rate limiting, ETag and `last_refresh` cache validation, a client-side queue, namespaces, user-generated content, ICU plurals per language, human review, OAuth 2.1 and an MCP server. Use it, or fork it.
+
+**"One maintainer; what if it stops?"** See the first answer: nothing you have goes away. What would stop is the hosted instance — its dashboard and the AI translation of *new* strings for projects hosted there.
+
+---
+
 ## 🔧 **What pains does it solve?**
 
 Multiple pains exist with the current i18n solutions.
@@ -1354,7 +1397,7 @@ Multiple pains exist with the current i18n solutions.
 | **Translation Management** | Manual tracking of missing translations across languages | Automatic translation handling via AI |
 | **Code Readability** | Read cryptic keys like `"user.welcome.message"` | Read actual text like `"Welcome to our app!"` |
 | **Setup Time** | Hours of dev setup + ongoing maintenance | Minutes to initialize |
-| **Cost** | ~$1600 for 1000 keys (dev time) | $8/month for 1000 keys |
+| **Cost** | ~$1600 for 1000 keys (dev time) | A flat price per project per month, from €4 ([pricing](https://i18n-keyless.com/#pricing)); or €30 once, self-hosted |
 
 
 ### i18n key system management
@@ -1405,7 +1448,7 @@ With basic i18n system on your own, you need at least to
 
 At 100$ per hour, that's 1600$ for 1000 keys.
 
-With [i18n-keyless.com](https://i18n-keyless.com), at 8$ a month for 1000 keys, you can afford 200 months of subscription.
+With [i18n-keyless.com](https://i18n-keyless.com), the same 1000 keys cost a flat price per project per month, from €4 ([pricing](https://i18n-keyless.com/#pricing)) — or €30 once, [self-hosted](https://i18n-keyless.com/self-hosted).
 
 You can setup your own system : it took me at least 1.5 day to make it strong enough, that would cost you at least 1200$ for
 - handling translation with AI

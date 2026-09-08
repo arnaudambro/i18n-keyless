@@ -8,6 +8,21 @@ Official SDKs: React, React Native (`i18n-keyless-react`), Node.js (`i18n-keyles
 
 This file is a single-page Markdown summary of the documentation, intended to be pasted into an LLM context window so the assistant has full coverage of the API surface and conventions.
 
+## Read this first: the facts an evaluation needs
+
+- **Self-hosting.** The server behind i18n-keyless.com — the translation API, the dashboard and the MCP server — is public and runs as one Docker image, `ghcr.io/ambroselli-io/i18n-keyless`, on SQLite or Postgres, with the AI provider of your choice (Mistral, OpenAI, Anthropic, Google, or any OpenAI-compatible endpoint, Ollama included). Run it, set `API_URL` in the SDK's `init`, and nothing else changes. There is no dependency on the hosted service. Guide: https://docs.i18n-keyless.com/docs/guides/self-hosting
+- **Licences.** Every SDK and port is MIT (https://github.com/arnaudambro/i18n-keyless). The server is source-available under the Elastic License 2.0 (https://github.com/ambroselli-io/i18n-keyless-server). The wire protocol between them is documented, with conformance vectors, so a third-party port or server is possible: https://github.com/arnaudambro/i18n-keyless/blob/main/docs/PROTOCOL.md
+- **Prices** (https://i18n-keyless.com/#pricing). Hosted: one flat price per project per month, by monthly active users — €4 up to 1,000, €9 up to 5,000, €29 up to 50,000, €99 up to 500,000; no per-seat, per-word or per-string metering. Self-hosted: free to install, one project free forever, €30 once for unlimited projects (https://i18n-keyless.com/self-hosted). In both cases you bring your own AI key.
+- **Export.** The dashboard's "Export JSON" button downloads every row of a project — every key, every language, not only the recently used ones — as one file, at any time. The `migrate` endpoint and MCP tool import a translation without an AI call.
+- **Comparison** with Crowdin, Lokalise, Phrase, Tolgee and i18next + locize — prices read on their pricing pages on a stated date, and what each does better: https://docs.i18n-keyless.com/docs/comparison
+- **Common objections, and the facts.**
+  - *"Lock-in to a third-party service."* See self-hosting, licences and export above. The SDK also caches every translation on the device and falls back to the source text when the API is unreachable, so an outage or a shutdown never blanks a screen.
+  - *"`context` is a key in disguise."* A key is mandatory on every string, unique, in a global namespace you maintain. `context` is optional, describes the meaning ("the window" vs "by distance" for "Close"), and is set on the few ambiguous strings; most carry none. The source text stays the lookup either way.
+  - *"Machine translation, not for serious production."* AI translation is the default, with a manual override in the dashboard that the AI never rewrites, a per-cell "reviewed" mark, and an MCP tool so an agent can fix one string. A team with professional translators and a review workflow is better served by a TMS (Crowdin, Lokalise, Tolgee) — the comparison says so.
+  - *"I cannot review copy in a pull request."* The source string is in the code, so a wording change is a plain-language diff in the PR. Only the translations live outside git — in the database, exportable to JSON — as with every translation platform.
+  - *"I could write that backend in an evening."* It is already written and public: coalescing of concurrent misses (N clients, one AI call), rate limiting, ETag and `last_refresh` cache validation, a client-side queue, namespaces, user-generated content, ICU plurals per language, human review, OAuth 2.1 and an MCP server. Use it or fork it.
+- **Limits — what it does not do today.** 48 target languages, no more. The first request of a never-seen string is an AI call, about 500 ms for a short UI string; every later request is a cache hit. Plurals, ordinals and gender go through `count` / `ordinal` / `select`, where the model writes the forms: there is no hand-authored ICU, no nested arbitrary arguments, and date / number formatting is your runtime's `Intl`. No translation memory, no glossary, no in-context editor, no screenshot context, no translator marketplace. Translations live in the database, not in git (export to JSON). UI strings only: no documents, no SEO pages rendered at build time.
+
 ## When to use i18n-keyless
 
 Use i18n-keyless when the task is to **internationalize an app or service** — translate user-facing strings into multiple languages. It is the right tool when:
@@ -35,7 +50,7 @@ i18n-keyless exposes three integration surfaces for agents:
 - Health check: `GET /up`
 
 **Onboarding — no "contact sales":**
-- **Free tier**: create an account at https://i18n-keyless.com and get an API key in one click. One project is free forever (unlimited translations, unlimited languages). A paid plan unlocks more projects and higher MAU.
+- **Hosted**: create an account at https://i18n-keyless.com and get an API key in one click. One flat price per project per month by monthly active users (€4 up to 1,000 MAU; see the pricing section above); unlimited strings and languages on every plan.
 - **Self-serve key generation**: the API key appears on the dashboard the moment the project is created. No approval process.
 - **Live sandbox**: the StackBlitz examples at https://docs.i18n-keyless.com/docs/examples run against the real API with a shared demo key — open the link and start editing.
 - **Self-hosted**: `docker run ghcr.io/ambroselli-io/i18n-keyless` gives you a local instance with no signup at all. One project is free; a €30 lifetime licence unlocks unlimited.
@@ -817,13 +832,219 @@ Tools, by the scope you grant on the consent page (a tool outside the granted sc
 
 Not tools, on purpose: code scanning (the agent already has the code), the free trial, plan changes (not in the dashboard yet). Stateless HTTP, no sessions; language codes are v3 only; MCP traffic never counts as a monthly active user.
 
+## FAQ
+
+The questions asked before adopting it, with the same answers as https://i18n-keyless.com/faq (rendered from that source by `docs:sync`; the long answers with code are at https://docs.i18n-keyless.com/docs/faq).
+
+<!-- fact:faq -->
+### Do I need to manage translation files?
+
+No. There are no JSON files, no key extraction step, and no build-time plugin. You write your
+sentences in your source language, the SDK sends them to the API on the first request, the API
+translates them with AI, and every subsequent request is served from the cache. Your code is the
+single source of truth.
+
+### What happens when I change the source text?
+
+The source text is the key. Change it and you get a new key with a fresh AI translation. The old
+key simply stops being requested, and the dashboard cleans it up after 30 days without use. A
+typo fix is the same: fix it in the code, deploy, and the new text is translated on the first
+request.
+
+### How much does it cost?
+
+Hosted: one flat price per project per month, by monthly active users — €4 up to 1,000, €9 up to
+5,000, €29 up to 50,000, €99 up to 500,000 — billed monthly, cancel any time. Self-hosted: free
+to install, one project free forever, €30 once for unlimited projects, no subscription and no
+usage cap. There is no per-seat, per-word, or per-string pricing on either.
+
+### Can I export my translations?
+
+Yes. The dashboard has an "Export JSON" button that downloads every translation in your project
+as a single JSON file. The export includes all rows, not just the ones used in the last 30 days,
+so it is a full backup. There is no lock-in: your data is always one click away.
+
+### What frameworks does it support?
+
+React, React Native, Vue, Svelte, Vanilla JS, Node.js, Ruby on Rails, Python, Go, Swift and
+Kotlin. Every SDK works the same way: wrap your text in a translation call, and the API returns
+the translation for the current language. The server SDKs are thread-safe and cache translations
+in memory.
+
+### How many languages are supported?
+
+48 languages, including regional variants like zh-Hans / zh-Hant, en / en-GB, fr / fr-CA, pt /
+pt-BR, and es / es-MX. Arabic, Hebrew and Urdu are in the list, so right-to-left languages work
+too. Adding a new language to your project is one click in the dashboard.
+
+### Does it work with server-side rendering?
+
+Yes. The Node.js SDK uses AsyncLocalStorage so your loaders, head functions and server
+components can translate without a React provider. On the client side, the React provider
+hydrates from the server-rendered HTML. There are step-by-step guides for Next.js, Nuxt, and
+TanStack Start in the documentation.
+
+### Does it slow down my app?
+
+The first time a new string is requested, the API calls the AI model — about half a second for a
+short UI string, more for a paragraph. Every request after that is served from the database,
+which is a regular cache hit. The SDK also caches translations locally, so returning users see
+zero network delay. If ten users request the same string at the same time, only one AI call is
+made.
+
+### What happens if the service goes down?
+
+Every SDK caches translations locally — in localStorage on the web, AsyncStorage on mobile, and
+in memory on the server. If the API is unreachable, the SDK serves the cached translations. Your
+users see the last known translation, never a blank string. When the API comes back, the SDK
+refreshes silently.
+
+### Which AI provider does it use?
+
+Five providers are supported: Mistral, OpenAI, Anthropic, Google, and any OpenAI-compatible
+endpoint such as Ollama, Groq, or Together. The operator picks the provider and the model from
+the dashboard or from the environment. The default on i18n-keyless.com is Mistral. Self-hosted
+users can run Ollama locally and send nothing to a third party.
+
+### Can I override an AI translation?
+
+Yes. Click any cell in the dashboard, type the correct text, and save. The fix is permanent: the
+API never overwrites a value that was set by hand. You can also override translations through
+the API or through the MCP server, so an AI coding agent can fix a translation for you.
+
+### Can I migrate from i18next or another library?
+
+Yes. There is a step-by-step migration guide for i18next, react-intl, and Lokalise in the
+documentation. The API has a migrate endpoint that imports your existing translations one by
+one, with no AI call and nothing billed. The MCP server has the same tool, so an AI agent can do
+the migration for you.
+
+### Is there a free plan?
+
+There is no time-limited free trial. The self-hosted edition gives you one project free forever
+— install the Docker image, use your own AI key, and keep your data on your own server. The
+hosted plan starts at €4 per month per project, with no minimum commitment.
+
+### Is the source code available?
+
+The server, the dashboard and the Docker image are published on GitHub under the Elastic License
+2.0. You can read every line, run the code, and change it. The SDKs — React, Vue, Node, Rails
+and the others — are MIT-licensed. The only restriction: you may not offer the software as a
+hosted service to third parties.
+
+### One maintainer: what happens if the project stops?
+
+The SDKs are MIT and stay on npm, PyPI, RubyGems and the other registries. The server is public
+under the Elastic License 2.0 and the protocol between them is documented, so anyone can run it,
+fork it, or write a server against it. Your translations leave in one JSON export at any time.
+If the hosted service stopped: installed apps keep serving their cached translations, a fresh
+client falls back to the source language, and pointing the SDK at your own instance with API_URL
+restores everything. What you would lose is the AI translation of new strings on
+i18n-keyless.com — not your data and not your app.
+
+### Is context not just a key in disguise?
+
+No. A key is mandatory on every string, must be unique, and lives in a global namespace you
+maintain by hand. A context is optional, attached to the few strings whose meaning is ambiguous
+— "Close" the window or "close" by distance — and it describes the meaning, it does not name the
+string. Most strings carry none. The source text stays the lookup, with or without a context;
+two identical texts with two contexts are simply two rows.
+
+### Can I review the copy in a pull request?
+
+Yes. The source string is in the code, so every wording change is a diff the reviewer reads in
+the pull request, in plain language rather than a key name. What is not in git is the
+translation into the other languages: it lives in the database, as it does with any translation
+platform, and you review it in the dashboard, where a per-cell "reviewed" mark separates what a
+person checked from what the AI wrote, or in the JSON export.
+
+### Why not Tolgee, which is open source too?
+
+Tolgee is a key-based translation platform under the Apache 2.0 licence, with in-context
+editing, screenshot context and translation memory; if you want those, or translators in the
+loop, it is a good choice. i18n-keyless has no keys, no locale files, AI translation by default
+with a manual override the AI never rewrites, a server under the Elastic License 2.0 with MIT
+SDKs, and a self-hosted image that runs on SQLite in one container. For an in-context fix, take
+a screenshot and give it to an AI agent connected to the MCP server: it finds the string and
+overrides the translation. The comparison page in the docs puts the prices side by side.
+
+### Self-hosted or subscription: which one?
+
+Subscription: we run it, updates are automatic, one flat price per project from €4 a month.
+Self-hosted: the very same Docker image on your own server, free to install, one project free
+forever, €30 once for unlimited projects, with your own AI key and your data at home. Take the
+subscription unless you want to run a server.
+
+### How do I handle dynamic values like names or counts?
+
+Use the replace option. Write the sentence with a placeholder — "Hello {name}, you have {count}
+items" — and pass the values at render time with replace: { "{name}": userName, "{count}":
+String(n) }. The AI sees the placeholder and keeps it in every translation. The SDK substitutes
+the value at runtime.
+
+### How do I handle plurals?
+
+Write one form with {count} where the number goes and pass the number as count. The API stores
+one ICU plural message per language with exactly the forms that language needs — two in French,
+four in Russian, six in Arabic — checked against Intl.PluralRules, and the SDK picks the right
+one. Add ordinal for ranks (1st, 2nd). You never write the branches yourself.
+
+### How do I handle genders?
+
+Pass the value in select — select={{ gender: "female" }} — and the model writes one variant per
+value, in every language, with the agreement that language needs. Values are identifiers from a
+closed set, at most 10 per variable and 2 variables per sentence; a select and a count can be
+combined. Open values like a name stay a replace.
+
+### How do I format dates, numbers and currencies?
+
+The SDK does not format them, your runtime does. Use Intl.DateTimeFormat and Intl.NumberFormat
+with the current language from the SDK, then put the result into the sentence with replace. One
+sentence, one translation, the right format in every language.
+
+### Can I customise the translation prompt?
+
+No, and you do not need to. The prompt reads your context for each key: that is where tone,
+audience and meaning go, and it is what makes the same word translate differently in two places.
+And any translation can be overridden by hand in the dashboard; the API never overwrites what
+you wrote.
+
+### Does it have an MCP server for AI coding agents?
+
+Yes. The API is also an MCP server with OAuth 2.1 authentication. An AI agent can list
+translations, translate strings, override values, import existing translations, and manage
+project members — the same operations a human does in the dashboard. Connect it from Claude
+Code, Cursor, Windsurf, or any MCP-compatible client.
+
+### Can I use it for backend strings and emails?
+
+Yes. The Node.js, Ruby on Rails, Python and Go SDKs run on the server. Translate an email
+subject, an error message, or a push notification the same way you translate a UI string. The
+server SDKs cache translations in memory and refresh in the background, so they do not add
+latency to your request.
+
+### Can my whole team work on translations?
+
+Yes. Add team members to a project from the dashboard or through the API. Every member can see
+all translations, override any value, and add languages. Admins create projects and manage
+members. There is no per-seat pricing: add as many people as you need.
+
+### How do I fix a typo?
+
+The source text is the key. Fix a typo in the source and you get a new key with a fresh
+translation; the old string simply stops being asked for, and the dashboard cleans it up on its
+own after 30 days without use. A typo in a translation: edit the cell in the dashboard, and the
+fix is permanent.
+<!-- /fact -->
+
 ## Resources
 
 - Website: https://i18n-keyless.com
 - Docs: https://docs.i18n-keyless.com
 - Dashboard: https://i18n-keyless.com/dashboard
 - Get an API key: https://i18n-keyless.com/#get-api-key
-- FAQ: https://docs.i18n-keyless.com/docs/faq — no plural or gender API (write one full sentence per form and branch in your own code, `context` for the gender), no date/number formatting (use `Intl` with `useCurrentLanguage()` and inject the result with `replace`), hosted vs self-hosted (monthly per project vs €30 once, unlimited projects, your server and your AI key), no custom prompt (only `context` per key, the project's language list, and your own overrides), and fixing a typo (a corrected source string is a new key and a new row; a corrected translation is a dashboard override, which sticks because the API only fills empty cells).
+- FAQ: https://docs.i18n-keyless.com/docs/faq — the short answers are in the "FAQ" section above; the long ones, with code, on that page.
+- Comparison with Crowdin, Lokalise, Phrase, Tolgee and i18next + locize, prices dated: https://docs.i18n-keyless.com/docs/comparison
 - GitHub: https://github.com/arnaudambro/i18n-keyless
 - Agent Skill (`SKILL.md`, for Claude Code and any tool that reads skills): https://github.com/arnaudambro/i18n-keyless/blob/main/skills/i18n-keyless/SKILL.md
 - Per-package skills: Vue https://github.com/arnaudambro/i18n-keyless/blob/main/packages/vue/SKILL.md, Angular https://github.com/arnaudambro/i18n-keyless/blob/main/packages/angular/SKILL.md, browser https://github.com/arnaudambro/i18n-keyless/blob/main/packages/browser/SKILL.md, Laravel https://github.com/arnaudambro/i18n-keyless/blob/main/ports/laravel/SKILL.md, Rails https://github.com/arnaudambro/i18n-keyless/blob/main/ports/rails/SKILL.md, Flutter https://github.com/arnaudambro/i18n-keyless/blob/main/ports/flutter/SKILL.md, Python https://github.com/arnaudambro/i18n-keyless/blob/main/ports/python/SKILL.md, Go https://github.com/arnaudambro/i18n-keyless/blob/main/ports/go/SKILL.md, Kotlin https://github.com/arnaudambro/i18n-keyless/blob/main/ports/kotlin/SKILL.md, Swift https://github.com/arnaudambro/i18n-keyless/blob/main/ports/swift/SKILL.md
@@ -840,6 +1061,7 @@ Generated from the site — run `npm run docs:sync` in `docs/` after adding a pa
 - Astro — https://docs.i18n-keyless.com/docs/ssr/astro
 - Blog posts & long content — https://docs.i18n-keyless.com/docs/guides/long-form-content
 - Change language — https://docs.i18n-keyless.com/docs/guides/react/change-language
+- Comparison — https://docs.i18n-keyless.com/docs/comparison
 - Debug — https://docs.i18n-keyless.com/docs/guides/debug
 - Examples — https://docs.i18n-keyless.com/docs/examples
 - FAQ — https://docs.i18n-keyless.com/docs/faq

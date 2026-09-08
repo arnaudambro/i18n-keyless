@@ -52,3 +52,4 @@ dist-ssr
 
 # Prisma
 *.db
+coverage/

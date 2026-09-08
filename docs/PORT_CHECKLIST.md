@@ -76,5 +76,5 @@ must ship before it is called conformant. Tick every box; link the evidence in t
 - [ ] Version string `>= 3.0.0` sent as `Version`; the port's version tracks the protocol
       revision it implements.
 - [ ] CHANGELOG entry that names the protocol revision (`PROTOCOL.md` reference version).
-- [ ] The `TODO: verify against the API` items that the port depends on are resolved, and
-      the answers are written back into `docs/PROTOCOL.md`.
+- [ ] Every question the port raised about the API is settled against the API source, and
+      the answer is written back into `docs/PROTOCOL.md` section 16 (Verified against the API).

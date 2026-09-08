@@ -325,6 +325,10 @@ adapting this file:
 | Laravel 11, 12, 13 | `i18n-keyless/laravel` (Composer) | `ports/laravel/SKILL.md` |
 | Ruby on Rails 7, 8 | `i18n-keyless-rails` (RubyGems) | `ports/rails/SKILL.md` |
 | Flutter, Dart | `i18n_keyless` (pub.dev) | `ports/flutter/SKILL.md` |
+| Python 3.9+, Django, Flask, FastAPI | `i18n-keyless` (PyPI) | `ports/python/SKILL.md` |
+| Go 1.21+ | `github.com/arnaudambro/i18n-keyless/ports/go/v3` | `ports/go/SKILL.md` |
+| Swift, SwiftUI, Vapor | `I18nKeyless` (SwiftPM) | `ports/swift/SKILL.md` |
+| Kotlin, Android, Compose, Ktor, Spring | `io.github.arnaudambro:i18n-keyless-kotlin` (Maven Central) | `ports/kotlin/SKILL.md` |
 
 Paths are relative to the repository root (https://github.com/arnaudambro/i18n-keyless).
 The wire protocol they all implement is `docs/PROTOCOL.md`.

@@ -83,7 +83,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   // GET /translate/:lang — one language (used by i18n-keyless-react).
-  const single = pathname.match(/^\/translate\/([a-z]{2,3})$/);
+  const single = pathname.match(/^\/translate\/([a-z]{2,3}(?:-[A-Za-z]+)?)$/); // zh-Hans, pt-BR, ...
   if (method === "GET" && single) {
     const lang = single[1];
     return json(res, 200, {

@@ -3,12 +3,13 @@
 All notable changes to i18n-keyless are documented here. The npm packages
 (`i18n-keyless-core`, `i18n-keyless-react`, `i18n-keyless-node`, `i18n-keyless-vue`,
 `i18n-keyless-angular`, `i18n-keyless-browser`) and the ports (`i18n-keyless/laravel`,
-`i18n-keyless-rails`, `i18n_keyless`) share one version.
+`i18n-keyless-rails`, `i18n_keyless` for Flutter, `i18n-keyless` on PyPI, the Go module,
+`I18nKeyless` for Swift, `i18n-keyless-kotlin`) share one version.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
 
-## [3.6.1] - 2026-09-04
+## [3.6.1] — 2026-09-04
 
 ### Added
 
@@ -36,8 +37,6 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
     Labels `kotlin-client` / `kotlin-server`.
 - `scripts/set-version.mjs` and `scripts/publish.mjs` cover the four ports (`--skip-python`,
   `--skip-go`, `--skip-swift`, `--skip-kotlin`).
-
-## [3.6.1] — 2026-09-03
 
 ### Fixed
 

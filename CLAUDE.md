@@ -147,6 +147,15 @@ core exports for that purpose (`storageKeyFor`, `queueIdFor`, `applyReplace`,
 behaviour change in core is a change to the vectors, the spec and every port together;
 `docs/PORT_CHECKLIST.md` lists what a new port must ship.
 
+Four suites in `packages/core/__tests__/` fail when a change stops at one surface:
+`vectors-coverage.test.ts` (every suite, core and the seven ports, names every vector file or
+documents the exception), `surface-parity.test.ts` (the `I18nConfig` fields and the `index.ts`
+exports of react, vue, angular and browser, exceptions listed with a reason),
+`docs-contract.test.ts` (`docs/PROTOCOL.md` and `SdkRuntime` against `usage-reporting.json`,
+the skills table against the `SKILL.md` files) and `release-preflight.test.ts` (one version in
+every file `scripts/set-version.mjs` writes, one changelog heading per version). The list of
+what to touch for each kind of change is `CHANGE_CHECKLIST.md` at the root.
+
 The `sdk` header names the runtime: `react-client` / `react-server`, `vue-client` /
 `vue-server`, `angular-client` / `angular-server`, `browser`, `node`, and `laravel` /
 `rails` / `flutter` / `python` / `go` / `swift-client` / `swift-server` / `kotlin-client` /

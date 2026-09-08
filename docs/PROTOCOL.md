@@ -112,8 +112,8 @@ normalising slashes: `API_URL` MUST NOT end with `/`.
 | `Content-Type` | `application/json` | all requests, GET included |
 | `Authorization` | `Bearer <API_KEY>` (one space) | all |
 | `Version` | the SDK package version, semantic version string, e.g. `3.3.0` | all |
-| `sdk` | `react-client`, `react-server` or `node` (section 10) | all |
-| `unique_id` | the device id (section 10) | only when `sdk` is `react-client` |
+| `sdk` | the runtime label, section 10.1: `react-client` / `react-server`, `vue-client` / `vue-server`, `angular-client` / `angular-server`, `browser`, `node`, `laravel`, `rails`, `flutter`, `python`, `go`, `swift-client` / `swift-server`, `kotlin-client` / `kotlin-server` | all |
+| `unique_id` | the device id (section 10) | only from a device runtime (section 10.1); never from a server |
 | `If-None-Match` | the ETag remembered for this dictionary | dictionary GETs, only when an ETag is known |
 
 Header names are written exactly as above (HTTP treats them case-insensitively). No other

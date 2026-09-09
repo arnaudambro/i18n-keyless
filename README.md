@@ -1,5 +1,7 @@
 # i18n-keyless - Ultimate DX for i18n implementation. No key, use your natural language.
 
+> **Version 3.8.1** — September 2026
+
 Welcome to **i18n-keyless**! 🚀 This package provides a seamless way to handle translations without the need for cumbersome key management. This README will guide you through the setup and usage of the library.
 
 [Try it by yourself in this Stackblitz](https://stackblitz.com/edit/vitejs-vite-ttaib9fx?file=src%2FApp.tsx)
@@ -9,7 +11,8 @@ Welcome to **i18n-keyless**! 🚀 This package provides a seamless way to handle
 - **Open.** Every SDK in this repository is MIT. The server behind i18n-keyless.com — API, dashboard, MCP server — is public under the Elastic License 2.0 ([ambroselli-io/i18n-keyless-server](https://github.com/ambroselli-io/i18n-keyless-server)) and runs as one Docker image on your own machine: [self-hosting](#-self-hosting-the-server). The wire protocol is [documented](./docs/PROTOCOL.md).
 - **Price.** Hosted: one flat price per project per month, by monthly active users, from €4 ([pricing](https://i18n-keyless.com/#pricing)). Self-hosted: free for one project, €30 once for unlimited ([details](https://i18n-keyless.com/self-hosted)). Your own AI key in both cases.
 - **Your data.** One "Export JSON" click in the dashboard downloads every translation of a project.
-- **Offline.** Users see the source language instead of a broken key. Or translations bundled at build time if you opted in.
+- **Plurals.** All CLDR plural categories for every language (Russian 4 forms, Arabic 6, Polish 4), ordinals and gender/select — the model writes the branches, validated against `Intl.PluralRules`. [Plurals and genders](https://docs.i18n-keyless.com/docs/guides/plurals-and-genders).
+- **Offline.** Users see the source language instead of a broken key. Or [export a precompiled bundle](https://docs.i18n-keyless.com/docs/guides/precompiled-bundle) at build time: no API call, no network dependency.
 - **Scope.** AI translation, with a manual override in the dashboard that the AI never rewrites, and a per-cell "reviewed" mark. Read [what it does not do](#-what-i18n-keyless-does-not-do) before choosing.
 - **Compared** with Crowdin, Lokalise, Phrase, Tolgee and i18next, prices dated: [the comparison](https://docs.i18n-keyless.com/docs/comparison). The [FAQ](https://docs.i18n-keyless.com/docs/faq) has the rest.
 
@@ -144,8 +147,8 @@ the full reference for that package.
 | Flutter, Dart | `i18n_keyless` (pub.dev) | `flutter pub add i18n_keyless` | [ports/flutter](./ports/flutter/README.md) |
 | Python >= 3.9: Django, Flask, FastAPI, scripts | `i18n-keyless` (PyPI) | `pip install i18n-keyless` | [ports/python](./ports/python/README.md) |
 | Go >= 1.21: net/http, Gin, templates, CLIs | `github.com/arnaudambro/i18n-keyless/ports/go/v3` | `go get github.com/arnaudambro/i18n-keyless/ports/go/v3` | [ports/go](./ports/go/README.md) |
-| Swift: iOS, macOS, SwiftUI, UIKit, Vapor | `I18nKeyless` (SwiftPM) | `.package(url: "https://github.com/arnaudambro/i18n-keyless-swift.git", from: "3.6.1")` | [ports/swift](./ports/swift/README.md) |
-| Kotlin: Android, Compose, JVM, Ktor, Spring | `io.github.arnaudambro:i18n-keyless-kotlin` (Maven Central) | `implementation("io.github.arnaudambro:i18n-keyless-kotlin:3.6.1")` | [ports/kotlin](./ports/kotlin/README.md) |
+| Swift: iOS, macOS, SwiftUI, UIKit, Vapor | `I18nKeyless` (SwiftPM) | `.package(url: "https://github.com/arnaudambro/i18n-keyless-swift.git", from: "3.8.1")` | [ports/swift](./ports/swift/README.md) |
+| Kotlin: Android, Compose, JVM, Ktor, Spring | `io.github.arnaudambro:i18n-keyless-kotlin` (Maven Central) | `implementation("io.github.arnaudambro:i18n-keyless-kotlin:3.8.1")` | [ports/kotlin](./ports/kotlin/README.md) |
 | Any stack, shared engine | `i18n-keyless-core` | `npm install i18n-keyless-core` | [packages/core](./packages/core), [docs/PROTOCOL.md](./docs/PROTOCOL.md) |
 
 ---
@@ -503,7 +506,7 @@ default, an `ObservableObject` store so SwiftUI re-renders when a translation la
 
 ```swift
 // Package.swift, or Xcode > Add Package: https://github.com/arnaudambro/i18n-keyless-swift
-.package(url: "https://github.com/arnaudambro/i18n-keyless-swift.git", from: "3.6.1")
+.package(url: "https://github.com/arnaudambro/i18n-keyless-swift.git", from: "3.8.1")
 ```
 
 ```swift
@@ -527,7 +530,7 @@ Pure JVM, zero dependencies, so it loads in any Android app without a duplicate-
 A device port: a persisted id, a storage adapter, translations cached on disk.
 
 ```kotlin
-implementation("io.github.arnaudambro:i18n-keyless-kotlin:3.6.1")
+implementation("io.github.arnaudambro:i18n-keyless-kotlin:3.8.1")
 ```
 
 ```kotlin
@@ -1411,7 +1414,7 @@ The limits, as of the current release. None of this is on a roadmap you should c
 
 - **48 target languages**, the App Store localizations, and no others. See [Supported Languages](#-supported-languages).
 - **The first request of a never-seen string is an AI call**: about 500 ms for a short UI string, more for a paragraph. Every later request, for every user, is a cache hit; concurrent first requests are coalesced into one AI call.
-- **Plurals, ordinals and gender go through `count`, `ordinal` and `select`**, and the model writes the forms each language needs (one ICU message per language, checked against `Intl.PluralRules`). You do not hand-author ICU: no `=0`-style exact matches, no nested arbitrary arguments. Some ports do not render the forms yet — see [Plurals and genders](https://docs.i18n-keyless.com/docs/guides/plurals-and-genders).
+- **Plurals, ordinals and gender go through `count`, `ordinal` and `select`**, and the model writes every CLDR form each language needs (one ICU message per language, validated against `Intl.PluralRules`). You edit any branch in the dashboard when you disagree. Zero-specific display text ("Your cart is empty" instead of "0 items") is a conditional in the component — display logic, not a plural rule. Some ports do not render the forms yet — see [Plurals and genders](https://docs.i18n-keyless.com/docs/guides/plurals-and-genders).
 - **Dates, numbers and currencies are not formatted by the SDK**: use your runtime's `Intl` and inject the result with `replace`.
 - **No translation memory, no glossary, no in-context editor, no screenshot context, no translator marketplace, no custom prompt.** Meaning goes in `context`, per string; corrections go in the dashboard, by hand, and stay.
 - **Translations live in the database, not in git.** The source strings are in your code and reviewed in your pull requests; the translations are reviewed in the dashboard or exported to JSON.
@@ -1448,7 +1451,7 @@ Multiple pains exist with the current i18n solutions.
 | **Translation Management** | Manual tracking of missing translations across languages | Automatic translation handling via AI |
 | **Code Readability** | Read cryptic keys like `"user.welcome.message"` | Read actual text like `"Welcome to our app!"` |
 | **Setup Time** | Hours of dev setup + ongoing maintenance | Minutes to initialize |
-| **Cost** | ~$1600 for 1000 keys (dev time) | A flat price per project per month, from €4 ([pricing](https://i18n-keyless.com/#pricing)); or €30 once, self-hosted |
+| **Cost** | dev time (2d) + infrastructure cost (so expensive) | 5 minutes to setup + €30 once for self-hosted + 5€ per month for VPS hosting |
 | **Offline / low network** | A missing key shows `header.welcome.title` to users | Users see the source language instead of a broken key. Or translations bundled if you opted in. |
 
 

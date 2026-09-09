@@ -1413,13 +1413,8 @@ export default function MyText({
 The limits, as of the current release. None of this is on a roadmap you should count on.
 
 - **48 target languages**, the App Store localizations, and no others. See [Supported Languages](#-supported-languages).
-- **The first request of a never-seen string is an AI call**: about 500 ms for a short UI string, more for a paragraph. Every later request, for every user, is a cache hit; concurrent first requests are coalesced into one AI call.
-- **Plurals, ordinals and gender go through `count`, `ordinal` and `select`**, and the model writes every CLDR form each language needs (one ICU message per language, validated against `Intl.PluralRules`). You edit any branch in the dashboard when you disagree. Zero-specific display text ("Your cart is empty" instead of "0 items") is a conditional in the component — display logic, not a plural rule. Some ports do not render the forms yet — see [Plurals and genders](https://docs.i18n-keyless.com/docs/guides/plurals-and-genders).
 - **Dates, numbers and currencies are not formatted by the SDK**: use your runtime's `Intl` and inject the result with `replace`.
-- **No translation memory, no glossary, no in-context editor, no screenshot context, no translator marketplace, no custom prompt.** Meaning goes in `context`, per string; corrections go in the dashboard, by hand, and stay.
-- **Translations live in the database, not in git.** The source strings are in your code and reviewed in your pull requests; the translations are reviewed in the dashboard or exported to JSON.
-- **UI and product strings only.** Not documents, not PDFs, not SEO pages rendered at build time.
-- **Vue, Angular, browser and the ports** (Laravel, Rails, Flutter, Python, Go, Swift, Kotlin) each have their own README with their own limits; the React and Node SDKs are the reference implementations.
+- **Not documents, not PDFs.** .
 
 ---
 

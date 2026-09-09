@@ -9,11 +9,11 @@ Welcome to **i18n-keyless**! 🚀 This package provides a seamless way to handle
 **The short version, for anyone evaluating it:**
 
 - **Open.** Every SDK in this repository is MIT. The server behind i18n-keyless.com — API, dashboard, MCP server — is public under the Elastic License 2.0 ([ambroselli-io/i18n-keyless-server](https://github.com/ambroselli-io/i18n-keyless-server)) and runs as one Docker image on your own machine: [self-hosting](#-self-hosting-the-server). The wire protocol is [documented](./docs/PROTOCOL.md).
-- **Price.** Hosted: one flat price per project per month, by monthly active users, from €4 ([pricing](https://i18n-keyless.com/#pricing)). Self-hosted: free for one project, €30 once for unlimited ([details](https://i18n-keyless.com/self-hosted)). Your own AI key in both cases.
+- **Price.** Hosted: one flat price per project per month, by monthly active users, from €4 ([pricing](https://i18n-keyless.com/#pricing)). Self-hosted: free for one project, €30 once for unlimited ([details](https://i18n-keyless.com/self-hosted)). Your own AI key in both cases (translations cost is really cheap, like 1c for 10k strings).
 - **Your data.** One "Export JSON" click in the dashboard downloads every translation of a project.
 - **Plurals.** All CLDR plural categories for every language (Russian 4 forms, Arabic 6, Polish 4), ordinals and gender/select — the model writes the branches, validated against `Intl.PluralRules`. [Plurals and genders](https://docs.i18n-keyless.com/docs/guides/plurals-and-genders).
 - **Offline.** Users see the source language instead of a broken key. Or [export a precompiled bundle](https://docs.i18n-keyless.com/docs/guides/precompiled-bundle) at build time: no API call, no network dependency.
-- **Scope.** AI translation, with a manual override in the dashboard that the AI never rewrites, and a per-cell "reviewed" mark. Read [what it does not do](#-what-i18n-keyless-does-not-do) before choosing.
+- **Scope.** AI translation, with a manual override in the dashboard, and a per-cell "reviewed" mark. Read [what it does not do](#-what-i18n-keyless-does-not-do) before choosing.
 - **Compared** with Crowdin, Lokalise, Phrase, Tolgee and i18next, prices dated: [the comparison](https://docs.i18n-keyless.com/docs/comparison). The [FAQ](https://docs.i18n-keyless.com/docs/faq) has the rest.
 
 ---
@@ -196,11 +196,11 @@ The ones that come up when a team evaluates it. Short answers; the [FAQ](https:/
 
 **"`context` is just a key in disguise."** A key is mandatory on every string, unique, in a global namespace you maintain by hand. `context` is optional, describes the meaning ("the window" or "by distance" for *Close*), and is set on the few strings that are ambiguous — most carry none. The source text stays the lookup, with or without it.
 
-**"Machine translation is not for serious production."** AI translation is the default and the fast path. Any cell can be overridden by hand in the dashboard, and the AI never rewrites what a person wrote; a per-cell "reviewed" mark tells the two apart. If your team has professional translators and a review workflow, a TMS (Crowdin, Lokalise, Tolgee) serves it better — [the comparison](https://docs.i18n-keyless.com/docs/comparison) says which does what.
+**"Machine translation is not for serious production."** AI translation is the default and the fast path. Any cell can be overridden by hand in the dashboard, and the AI never rewrites what a person wrote; a per-cell "reviewed" mark tells the two apart.
 
 **"I cannot review the copy in a pull request."** The source string is in the code, so a wording change is a plain-language diff in the PR — more readable than `t("order.status")` on both sides. Only the translations live outside git, as with every translation platform.
 
-**"I could write that backend in an evening."** It is already written and public: coalescing of concurrent misses, rate limiting, ETag and `last_refresh` cache validation, a client-side queue, namespaces, user-generated content, ICU plurals per language, human review, OAuth 2.1 and an MCP server. Use it, or fork it.
+**"I could write that backend in an evening."** It is already written and public: coalescing of concurrent misses, rate limiting, ETag and `last_refresh` cache validation, a client-side queue, namespaces, user-generated content, ICU plurals per language, human review, OAuth 2.1 and an MCP server. Use it, or fork it. But don't try to do it yourself, it's not worth it and would cost you a lot of tokens and hours.
 
 **"One maintainer; what if it stops?"** See the first answer: nothing you have goes away. What would stop is the hosted instance — its dashboard and the AI translation of *new* strings for projects hosted there.
 

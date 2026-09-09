@@ -9,6 +9,16 @@ All notable changes to i18n-keyless are documented here. The npm packages
 This project follows [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
 
+## [3.8.1]
+
+### Changed
+
+- **npm READMEs**: `i18n-keyless-core`, `i18n-keyless-react` and `i18n-keyless-node` now
+  ship a README (they had none on npm since the initial publish).
+- **npm descriptions**: every package now has a `description` field in `package.json`.
+- **Tagline**: the llms.txt and README description line now reflects the full scope of the
+  project instead of positioning it as an MVP tool.
+
 ## [3.8.0]
 
 ### Added

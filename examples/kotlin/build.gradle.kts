@@ -8,7 +8,7 @@ repositories {
 }
 
 dependencies {
-    implementation("io.github.arnaudambro:i18n-keyless-kotlin:3.8.0")
+    implementation("io.github.arnaudambro:i18n-keyless-kotlin:3.8.1")
     testImplementation(platform("org.junit:junit-bom:5.12.2"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

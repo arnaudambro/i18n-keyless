@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.8.1
+
+### Changed
+
+- Updated tagline and description in the shared metadata.
+
 ## 3.8.0
 
 - **The precompiled bundle** (`docs/PROTOCOL.md` sections 4.5 and 7.4): ship the translations

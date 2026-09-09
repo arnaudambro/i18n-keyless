@@ -1,7 +1,8 @@
 {
   "name": "i18n-keyless-browser",
+  "description": "Keyless i18n for any web page. No framework required.",
   "private": false,
-  "version": "3.8.0",
+  "version": "3.8.1",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -29,7 +30,7 @@
     "postpublish": "rm -rf ./dist && rm -f *.tgz"
   },
   "dependencies": {
-    "i18n-keyless-core": "3.8.0"
+    "i18n-keyless-core": "3.8.1"
   },
   "devDependencies": {
     "@types/node": "^22.5.5",

@@ -1,7 +1,8 @@
 {
   "name": "i18n-keyless-core",
+  "description": "Keyless i18n engine — the source text is the key. Shared by all i18n-keyless SDKs.",
   "private": false,
-  "version": "3.8.0",
+  "version": "3.8.1",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",

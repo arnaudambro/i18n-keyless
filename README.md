@@ -9,6 +9,7 @@ Welcome to **i18n-keyless**! 🚀 This package provides a seamless way to handle
 - **Open.** Every SDK in this repository is MIT. The server behind i18n-keyless.com — API, dashboard, MCP server — is public under the Elastic License 2.0 ([ambroselli-io/i18n-keyless-server](https://github.com/ambroselli-io/i18n-keyless-server)) and runs as one Docker image on your own machine: [self-hosting](#-self-hosting-the-server). The wire protocol is [documented](./docs/PROTOCOL.md).
 - **Price.** Hosted: one flat price per project per month, by monthly active users, from €4 ([pricing](https://i18n-keyless.com/#pricing)). Self-hosted: free for one project, €30 once for unlimited ([details](https://i18n-keyless.com/self-hosted)). Your own AI key in both cases.
 - **Your data.** One "Export JSON" click in the dashboard downloads every translation of a project.
+- **Offline.** Users see the source language instead of a broken key. Or translations bundled at build time if you opted in.
 - **Scope.** AI translation, with a manual override in the dashboard that the AI never rewrites, and a per-cell "reviewed" mark. Read [what it does not do](#-what-i18n-keyless-does-not-do) before choosing.
 - **Compared** with Crowdin, Lokalise, Phrase, Tolgee and i18next, prices dated: [the comparison](https://docs.i18n-keyless.com/docs/comparison). The [FAQ](https://docs.i18n-keyless.com/docs/faq) has the rest.
 
@@ -1444,6 +1445,7 @@ Multiple pains exist with the current i18n solutions.
 | **Code Readability** | Read cryptic keys like `"user.welcome.message"` | Read actual text like `"Welcome to our app!"` |
 | **Setup Time** | Hours of dev setup + ongoing maintenance | Minutes to initialize |
 | **Cost** | ~$1600 for 1000 keys (dev time) | A flat price per project per month, from €4 ([pricing](https://i18n-keyless.com/#pricing)); or €30 once, self-hosted |
+| **Offline / low network** | A missing key shows `header.welcome.title` to users | Users see the source language instead of a broken key. Or translations bundled if you opted in. |
 
 
 ### i18n key system management

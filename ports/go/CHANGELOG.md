@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.8.1
+
+### Changed
+
+- Updated tagline and description in the shared metadata.
+
 ## 3.8.0
 
 - `Config.BundlePath`: the precompiled bundle of `docs/PROTOCOL.md` section 7.4. Point it

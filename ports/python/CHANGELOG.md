@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.8.1
+
+### Changed
+
+- Updated tagline and description in the shared metadata.
+
 ## 3.8.0
 
 - `bundle_path` (`Config.bundle_path`, or `init(bundle_path=...)`): the precompiled bundle of

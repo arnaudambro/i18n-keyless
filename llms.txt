@@ -1,6 +1,6 @@
 # i18n-keyless
 
-> Ultimate DX for i18n. A keyless internationalization SaaS: write strings in your source language, get AI-powered translations at runtime — no JSON files, no translation keys, no manual upkeep.
+> Everything you expect from i18n, but no keys to manage, automatic translations, unbreakable system, and very, very cheap. Open source, self-hostable. 12 SDKs, SSR, plurals, namespaces too. Runtime or bundled.
 
 i18n-keyless lets you ship multi-language apps without managing translation keys or files. You write text in your primary language, wrap it in a component or call, and the SDK fetches AI-generated translations on the fly, caches them locally, and lets you override them from a dashboard or directly in code.
 

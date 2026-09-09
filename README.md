@@ -1505,7 +1505,7 @@ At 100$ per hour, that's 1600$ for 1000 keys.
 
 With [i18n-keyless.com](https://i18n-keyless.com), the same 1000 keys cost a flat price per project per month, from €4 ([pricing](https://i18n-keyless.com/#pricing)) — or €30 once, [self-hosted](https://i18n-keyless.com/self-hosted).
 
-You can setup your own system : it took me at least 1.5 day to make it strong enough, that would cost you at least 1200$ for
+You can setup your own system : it took me at least 1.5 day to make it strong enough, even with AI (1.5 day is the back and forth with the AI), that would cost you at least 1200$ for
 - handling translation with AI
 - in several languages
 - storage in DB
@@ -1513,6 +1513,16 @@ You can setup your own system : it took me at least 1.5 day to make it strong en
 - only the latest ones to make the service fast and efficient
 - handling multiple languages
 - maintaining the service
+- rate limiting
+- ETag and cache validation
+- client-side queue
+- namespaces
+- user-generated content
+- ICU plurals per language
+- human review
+- OAuth 2.1
+- MCP server
+- etc...
 
 ## 📬 **Contact**
 

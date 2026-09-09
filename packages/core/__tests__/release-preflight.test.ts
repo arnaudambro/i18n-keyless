@@ -30,6 +30,7 @@ const PORT_VERSION_SITES: Record<string, (v: string) => RegExp> = {
   "ports/kotlin/src/main/kotlin/io/i18nkeyless/Version.kt": (v) => new RegExp(`const val VERSION = "${escape(v)}"`),
   "ports/kotlin/build.gradle.kts": (v) => new RegExp(`^version = "${escape(v)}"`, "m"),
   "examples/kotlin/build.gradle.kts": (v) => new RegExp(`i18n-keyless-kotlin:${escape(v)}"`),
+  "README.md": (v) => new RegExp(`\\*\\*Version ${escape(v)}\\*\\*`),
 };
 
 /** Changelogs a registry renders: pub.dev, PyPI, pkg.go.dev, SwiftPM, Maven Central. */

@@ -118,5 +118,13 @@ edit("examples/kotlin/build.gradle.kts", (t) => {
   return t.replace(re, `$1${version}$2`);
 });
 
+// Root README: Swift and Kotlin install examples pin the version.
+edit("README.md", (t) => {
+  return t
+    .replace(/from: "\d+\.\d+\.\d+"/g, `from: "${version}"`)
+    .replace(/i18n-keyless-kotlin:\d+\.\d+\.\d+"/g, `i18n-keyless-kotlin:${version}"`)
+    .replace(/\*\*Version \d+\.\d+\.\d+\*\*/, `**Version ${version}**`);
+});
+
 for (const { relPath, status } of changes) console.log(`${status.padEnd(12)} ${relPath}`);
 console.log(`\n${dryRun ? "dry run: " : ""}version ${version} in ${changes.length} files`);

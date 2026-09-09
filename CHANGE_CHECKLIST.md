@@ -53,14 +53,15 @@ kind of change, the places to touch and the test that fails when one is forgotte
 
 ## A release
 
-- [ ] `node scripts/set-version.mjs x.y.z`: the root, the six packages, the core pin, the ports.
+- [ ] `node scripts/set-version.mjs x.y.z`: the root, the six packages, the core pin, the
+      ports, **and the root README** (the version banner and the Swift/Kotlin install examples).
 - [ ] `CHANGELOG.md`: `## [Unreleased]` becomes `## [x.y.z] — date`, once; and
       `ports/{flutter,python,go,swift,kotlin}/CHANGELOG.md` get `## x.y.z`.
 - [ ] `PUBLISH.md`, then `node scripts/publish.mjs --dry-run`.
 - [ ] After the publish: bump `i18n-keyless-*` in the docs of the `i18n-keyless-saas`
       repository and run its documentation suite.
-- Gate: `packages/core/__tests__/release-preflight.test.ts` on every test run, and the
-  preflight of `scripts/publish.mjs`.
+- Gate: `packages/core/__tests__/release-preflight.test.ts` on every test run (checks the
+  README carries the current version), and the preflight of `scripts/publish.mjs`.
 
 ## Never edit here
 

@@ -1085,9 +1085,13 @@ source: [ambroselli-io/i18n-keyless-server](https://github.com/ambroselli-io/i18
 Run it as one Docker container on your own machine and point `API_URL` at it; the SDKs need
 nothing else. See [Self-hosting the server](#-self-hosting-the-server).
 
-### **Using your own API**
+### **Writing your own translation backend** (advanced — not needed for self-hosting)
 
-If you prefer to write your own translation backend, you can configure `i18n-keyless` to point to your API endpoints.
+> **This is not the self-host path.** To run the official i18n-keyless server on your own
+> infrastructure, see [Self-hosting the i18n-keyless server](#self-hosting-the-i18n-keyless-server)
+> above — it is one Docker image, no code to write.
+
+If you prefer to write your own translation backend from scratch, you can configure `i18n-keyless` to point to your API endpoints.
 
 #### **Using `API_URL`**
 

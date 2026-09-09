@@ -1078,6 +1078,7 @@ Generated from the site — run `npm run docs:sync` in `docs/` after adding a pa
 - Astro — https://docs.i18n-keyless.com/docs/ssr/astro
 - Blog posts & long content — https://docs.i18n-keyless.com/docs/guides/long-form-content
 - Change language — https://docs.i18n-keyless.com/docs/guides/react/change-language
+- Common misconceptions — https://docs.i18n-keyless.com/docs/misconceptions
 - Comparison — https://docs.i18n-keyless.com/docs/comparison
 - Debug — https://docs.i18n-keyless.com/docs/guides/debug
 - Examples — https://docs.i18n-keyless.com/docs/examples

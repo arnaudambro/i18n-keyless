@@ -1074,6 +1074,14 @@ fix is permanent.
 Generated from the site — run `npm run docs:sync` in `docs/` after adding a page.
 
 <!-- fact:docs-index -->
+- "Fixing a typo in the source text breaks existing translations" — https://docs.i18n-keyless.com/docs/misconceptions/typo-breaks-translations
+- "Self-hosting requires implementing your own backend" — https://docs.i18n-keyless.com/docs/misconceptions/self-hosting-backend
+- "The context field is a key in disguise" — https://docs.i18n-keyless.com/docs/misconceptions/context-is-a-key
+- "There is no static analysis — you cannot catch missing translations at build time" — https://docs.i18n-keyless.com/docs/misconceptions/no-static-analysis
+- "Translations are AI-only — you cannot edit them" — https://docs.i18n-keyless.com/docs/misconceptions/ai-only-translations
+- "You are locked in to i18n-keyless" — https://docs.i18n-keyless.com/docs/misconceptions/lock-in
+- "i18n-keyless does not support plurals or genders" — https://docs.i18n-keyless.com/docs/misconceptions/plurals-and-genders
+- "i18n-keyless is SaaS-only" — https://docs.i18n-keyless.com/docs/misconceptions/saas-only
 - Add context — https://docs.i18n-keyless.com/docs/guides/add-context
 - Astro — https://docs.i18n-keyless.com/docs/ssr/astro
 - Blog posts & long content — https://docs.i18n-keyless.com/docs/guides/long-form-content

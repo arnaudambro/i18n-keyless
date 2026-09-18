@@ -168,8 +168,7 @@ It is one Docker image — the translation API, the dashboard and the MCP server
 Postgres, with the AI provider of your choice (Mistral, OpenAI, Anthropic, Google, or any
 OpenAI-compatible endpoint).
 
-- Fully free, unlimited projects. [Donations](https://i18n-keyless.com/self-hosted) are optional and
-  support development.
+- Fully free, unlimited projects. You like it? [Tip me!](https://i18n-keyless.com/self-hosted)
 - Install with [ONCE](https://once.com) or `docker compose`:
   [docs.i18n-keyless.com/docs/guides/self-hosting](https://docs.i18n-keyless.com/docs/guides/self-hosting).
 - Then set `API_URL` to your instance in `init` and keep your `API_KEY` from its dashboard.

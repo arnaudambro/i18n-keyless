@@ -1,7 +1,7 @@
 # i18n-keyless Self-Hosted
 
 The two files a self-hoster downloads: `docker-compose.yml` and `.env.example`. Guide:
-<https://docs.i18n-keyless.com/docs/guides/self-hosting>. Buy the licence:
+<https://docs.i18n-keyless.com/docs/guides/self-hosting>. Donate if you want:
 <https://i18n-keyless.com/self-hosted>.
 
 ```bash

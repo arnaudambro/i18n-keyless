@@ -871,9 +871,9 @@ request.
 ### How much does it cost?
 
 Hosted: one flat price per project per month, by monthly active users — €4 up to 1,000, €9 up to
-5,000, €29 up to 50,000, €99 up to 500,000 — billed monthly, cancel any time. Self-hosted: free
-to install, one project free forever, €30 once for unlimited projects, no subscription and no
-usage cap. There is no per-seat, per-word, or per-string pricing on either.
+5,000, €29 up to 50,000, €99 up to 500,000 — billed monthly, cancel any time. Self-hosted: fully
+free, unlimited projects, no subscription and no usage cap. Donations are optional and keep the
+project alive. There is no per-seat, per-word, or per-string pricing on either.
 
 ### Can I export my translations?
 
@@ -938,9 +938,9 @@ the migration for you.
 
 ### Is there a free plan?
 
-There is no time-limited free trial. The self-hosted edition gives you one project free forever
-— install the Docker image, use your own AI key, and keep your data on your own server. The
-hosted plan starts at €4 per month per project, with no minimum commitment.
+There is no time-limited free trial. The self-hosted edition is fully free with unlimited
+projects — install the Docker image, use your own AI key, and keep your data on your own server.
+The hosted plan starts at €4 per month per project, with no minimum commitment.
 
 ### Is the source code available?
 
@@ -988,9 +988,9 @@ overrides the translation. The comparison page in the docs puts the prices side 
 ### Self-hosted or subscription: which one?
 
 Subscription: we run it, updates are automatic, one flat price per project from €4 a month.
-Self-hosted: the very same Docker image on your own server, free to install, one project free
-forever, €30 once for unlimited projects, with your own AI key and your data at home. Take the
-subscription unless you want to run a server.
+Self-hosted: the very same Docker image on your own server, fully free with unlimited projects,
+with your own AI key and your data at home. Donations are optional and support development. Take
+the subscription unless you want to run a server.
 
 ### How do I handle dynamic values like names or counts?
 
@@ -1105,7 +1105,7 @@ Generated from the site — run `npm run docs:sync` in `docs/` after adding a pa
 - Reliability & scale — https://docs.i18n-keyless.com/docs/guides/reliability-and-scale
 - Remix / React Router 7 — https://docs.i18n-keyless.com/docs/ssr/remix
 - Replace values — https://docs.i18n-keyless.com/docs/guides/replace-values
-- Self-host it (free, one project) — https://docs.i18n-keyless.com/docs/guides/self-hosting
+- Self-host it (fully free) — https://docs.i18n-keyless.com/docs/guides/self-hosting
 - Server-Side Rendering — https://docs.i18n-keyless.com/docs/ssr
 - Ship translations in the bundle — https://docs.i18n-keyless.com/docs/guides/precompiled-bundle
 - TanStack Start — https://docs.i18n-keyless.com/docs/ssr/tanstack-start

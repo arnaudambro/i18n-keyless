@@ -9,7 +9,7 @@ Welcome to **i18n-keyless**! 🚀 This package provides a seamless way to handle
 **The short version, for anyone evaluating it:**
 
 - **Open.** Every SDK in this repository is MIT. The server behind i18n-keyless.com — API, dashboard, MCP server — is public under the Elastic License 2.0 ([ambroselli-io/i18n-keyless-server](https://github.com/ambroselli-io/i18n-keyless-server)) and runs as one Docker image on your own machine: [self-hosting](#-self-hosting-the-server). The wire protocol is [documented](./docs/PROTOCOL.md).
-- **Price.** Hosted: one flat price per project per month, by monthly active users, from €4 ([pricing](https://i18n-keyless.com/#pricing)). Self-hosted: free for one project, €30 once for unlimited ([details](https://i18n-keyless.com/self-hosted)). Your own AI key in both cases (translations cost is really cheap, like 1c for 10k strings).
+- **Price.** Hosted: one flat price per project per month, by monthly active users, from €4 ([pricing](https://i18n-keyless.com/#pricing)). Self-hosted: fully free, unlimited projects, donations optional ([details](https://i18n-keyless.com/self-hosted)). Your own AI key in both cases (translations cost is really cheap, like 1c for 10k strings).
 - **Your data.** One "Export JSON" click in the dashboard downloads every translation of a project.
 - **Plurals.** All CLDR plural categories for every language (Russian 4 forms, Arabic 6, Polish 4), ordinals and gender/select — the model writes the branches, validated against `Intl.PluralRules`. [Plurals and genders](https://docs.i18n-keyless.com/docs/guides/plurals-and-genders).
 - **Offline.** Users see the source language instead of a broken key. Or [export a precompiled bundle](https://docs.i18n-keyless.com/docs/guides/precompiled-bundle) at build time: no API call, no network dependency.
@@ -168,8 +168,8 @@ It is one Docker image — the translation API, the dashboard and the MCP server
 Postgres, with the AI provider of your choice (Mistral, OpenAI, Anthropic, Google, or any
 OpenAI-compatible endpoint).
 
-- Free to install, and one project is free forever. A [€30 lifetime licence](https://i18n-keyless.com/self-hosted)
-  unlocks unlimited projects on an instance.
+- Fully free, unlimited projects. [Donations](https://i18n-keyless.com/self-hosted) are optional and
+  support development.
 - Install with [ONCE](https://once.com) or `docker compose`:
   [docs.i18n-keyless.com/docs/guides/self-hosting](https://docs.i18n-keyless.com/docs/guides/self-hosting).
 - Then set `API_URL` to your instance in `init` and keep your `API_KEY` from its dashboard.
@@ -216,7 +216,7 @@ Multiple pains exist with the current i18n solutions.
 | **Translation Management** | Manual tracking of missing translations across languages | Automatic translation handling via AI |
 | **Code Readability** | Read cryptic keys like `"user.welcome.message"` | Read actual text like `"Welcome to our app!"` |
 | **Setup Time** | Hours of dev setup + ongoing maintenance | Minutes to initialize |
-| **Cost** | dev time (2d) + infrastructure cost (so expensive) | 5 minutes to setup + €30 once for self-hosted + €5 per month for VPS hosting |
+| **Cost** | dev time (2d) + infrastructure cost (so expensive) | 5 minutes to setup + fully free self-hosted + €5 per month for VPS hosting |
 | **Offline / low network** | A missing key shows `header.welcome.title` to users | Users see the source language instead of a broken key. Or translations bundled if you opted in. |
 
 ### Key management is painful
@@ -297,7 +297,7 @@ translation platform.
 
 With [i18n-keyless.com](https://i18n-keyless.com), the same 1 000 keys cost a flat price per
 project per month, from €4
-([pricing](https://i18n-keyless.com/#pricing)) — or €30 once,
+([pricing](https://i18n-keyless.com/#pricing)) — or fully free,
 [self-hosted](https://i18n-keyless.com/self-hosted).
 
 Building your own equivalent system is possible, but it took 1.5 days with AI assistance to

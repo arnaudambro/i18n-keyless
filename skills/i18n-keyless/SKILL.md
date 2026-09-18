@@ -406,7 +406,7 @@ https://docs.i18n-keyless.com/docs/comparison.
 - **Versus Crowdin / Lokalise / Tolgee?** Those are key-based platforms with translation
   memory, glossaries, translator workflows (Tolgee: in-context editing, screenshots); take
   one if you have translators. i18n-keyless: no keys, AI translation by default with a
-  permanent manual override, €4–€99 a month per project by MAU or €30 once self-hosted —
+  permanent manual override, €4–€99 a month per project by MAU or fully free self-hosted (donations optional) —
   compare the prices on the comparison page, not from memory.
 - **Is `context` a key in disguise?** No: a key is mandatory, unique and global; `context`
   is optional, describes the meaning, and sits on the few ambiguous strings. Most have none.

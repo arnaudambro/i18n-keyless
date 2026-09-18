@@ -1,6 +1,6 @@
 # i18n-keyless
 
-> Everything you expect from i18n, but no keys to manage, automatic translations, unbreakable system, and very, very cheap. Open source, self-hostable. 12 SDKs, SSR, plurals, namespaces too. Runtime or bundled.
+> Everything you expect from i18n, but no keys to manage, automatic translations, unbreakable system. Free self-hosted, or from €4/month. Open source. 12 SDKs, SSR, plurals, namespaces too. Runtime or bundled.
 
 i18n-keyless lets you ship multi-language apps without managing translation keys or files. You write text in your primary language, wrap it in a component or call, and the SDK fetches AI-generated translations on the fly, caches them locally, and lets you override them from a dashboard or directly in code.
 
@@ -12,7 +12,7 @@ This file is a single-page Markdown summary of the documentation, intended to be
 
 - **Self-hosting.** The server behind i18n-keyless.com — the translation API, the dashboard and the MCP server — is public and runs as one Docker image, `ghcr.io/ambroselli-io/i18n-keyless`, on SQLite or Postgres, with the AI provider of your choice (Mistral, OpenAI, Anthropic, Google, or any OpenAI-compatible endpoint, Ollama included). Run it, set `API_URL` in the SDK's `init`, and nothing else changes. There is no dependency on the hosted service. Guide: https://docs.i18n-keyless.com/docs/guides/self-hosting
 - **Licences.** Every SDK and port is MIT (https://github.com/arnaudambro/i18n-keyless). The server is source-available under the Elastic License 2.0 (https://github.com/ambroselli-io/i18n-keyless-server). The wire protocol between them is documented, with conformance vectors, so a third-party port or server is possible: https://github.com/arnaudambro/i18n-keyless/blob/main/docs/PROTOCOL.md
-- **Prices** (https://i18n-keyless.com/#pricing). Hosted: one flat price per project per month, by monthly active users — €4 up to 1,000, €9 up to 5,000, €29 up to 50,000, €99 up to 500,000; no per-seat, per-word or per-string metering. Self-hosted: free to install, one project free forever, €30 once for unlimited projects (https://i18n-keyless.com/self-hosted). In both cases you bring your own AI key.
+- **Prices** (https://i18n-keyless.com/#pricing). Self-hosted: fully free, unlimited projects, no subscription, no usage cap — install the Docker image, use your own AI key (https://i18n-keyless.com/self-hosted). Hosted: one flat price per project per month, by monthly active users — €4 up to 1,000, €9 up to 5,000, €29 up to 50,000, €99 up to 500,000; no per-seat, per-word or per-string metering. In both cases you bring your own AI key.
 - **Export.** The dashboard's "Export JSON" button downloads every row of a project — every key, every language, not only the recently used ones — as one file, at any time. The `migrate` endpoint and MCP tool import a translation without an AI call.
 - **Comparison** with Crowdin, Lokalise, Phrase, Tolgee and i18next + locize — prices read on their pricing pages on a stated date, and what each does better: https://docs.i18n-keyless.com/docs/comparison
 - **Common objections, and the facts.**
@@ -50,10 +50,10 @@ i18n-keyless exposes three integration surfaces for agents:
 - Health check: `GET /up`
 
 **Onboarding — no "contact sales":**
+- **Self-hosted (free)**: `docker run ghcr.io/ambroselli-io/i18n-keyless` gives you a local instance with no signup at all. Fully free, unlimited projects, no subscription, no usage cap. Donations are optional.
 - **Hosted**: create an account at https://i18n-keyless.com and get an API key in one click. One flat price per project per month by monthly active users (€4 up to 1,000 MAU; see the pricing section above); unlimited strings and languages on every plan.
 - **Self-serve key generation**: the API key appears on the dashboard the moment the project is created. No approval process.
 - **Live sandbox**: the StackBlitz examples at https://docs.i18n-keyless.com/docs/examples run against the real API with a shared demo key — open the link and start editing.
-- **Self-hosted**: `docker run ghcr.io/ambroselli-io/i18n-keyless` gives you a local instance with no signup at all. One project is free; a €30 lifetime licence unlocks unlimited.
 
 **To get started as an agent**: register an OAuth client at `POST /register`, authorize at `GET /authorize`, exchange the code at `POST /token`, then call `POST /mcp` with the bearer token. The first tool call should be `get_project` (to know which project the token is bound to) followed by `get_started` (to get the install instructions for the user's framework).
 
@@ -870,10 +870,11 @@ request.
 
 ### How much does it cost?
 
-Hosted: one flat price per project per month, by monthly active users — €4 up to 1,000, €9 up to
-5,000, €29 up to 50,000, €99 up to 500,000 — billed monthly, cancel any time. Self-hosted: fully
-free, unlimited projects, no subscription and no usage cap. Donations are optional and keep the
-project alive. There is no per-seat, per-word, or per-string pricing on either.
+Self-hosted: fully free, unlimited projects, no subscription and no usage cap — install the
+Docker image, use your own AI key. Donations are optional and keep the project alive. Hosted:
+one flat price per project per month, by monthly active users — €4 up to 1,000, €9 up to 5,000,
+€29 up to 50,000, €99 up to 500,000 — billed monthly, cancel any time. There is no per-seat,
+per-word, or per-string pricing on either.
 
 ### Can I export my translations?
 
@@ -938,9 +939,9 @@ the migration for you.
 
 ### Is there a free plan?
 
-There is no time-limited free trial. The self-hosted edition is fully free with unlimited
-projects — install the Docker image, use your own AI key, and keep your data on your own server.
-The hosted plan starts at €4 per month per project, with no minimum commitment.
+The self-hosted edition is fully free with unlimited projects — install the Docker image, use
+your own AI key, and keep your data on your own server. No time limit, no feature gate. The
+hosted plan starts at €4 per month per project if you prefer not to run a server.
 
 ### Is the source code available?
 
@@ -987,10 +988,10 @@ overrides the translation. The comparison page in the docs puts the prices side 
 
 ### Self-hosted or subscription: which one?
 
-Subscription: we run it, updates are automatic, one flat price per project from €4 a month.
 Self-hosted: the very same Docker image on your own server, fully free with unlimited projects,
-with your own AI key and your data at home. Donations are optional and support development. Take
-the subscription unless you want to run a server.
+with your own AI key and your data at home. Donations are optional and support development.
+Subscription: we run it, updates are automatic, one flat price per project from €4 a month. Take
+the subscription if you prefer not to run a server.
 
 ### How do I handle dynamic values like names or counts?
 
